@@ -1,0 +1,8 @@
+{
+  "name": "VocaGame 5.0",
+  "description": "A vocabulary learning app with interactive games inspired by Wordwall (Word Rain / Pop Balloons, Listen MTQ, True or False, Quiz, Memory, Anagram, etc.). Supports Excel import, AI TTS voices, and low-spec performance mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

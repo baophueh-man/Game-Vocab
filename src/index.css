@@ -1,0 +1,198 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+}
+
+/* Base Theme Container */
+.theme-container {
+  transition: all 0.5s ease;
+}
+
+/* Default Theme */
+.theme-container.theme-default {
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Classroom Theme */
+.theme-container.theme-classroom {
+  background-image: url('https://img.freepik.com/free-photo/green-chalkboard_53876-92832.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 16px solid #8B4513;
+  border-radius: 12px;
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+.theme-container.theme-classroom .bg-white,
+.theme-container.theme-classroom .bg-slate-100,
+.theme-container.theme-classroom .bg-slate-50,
+.theme-container.theme-classroom .bg-white\/80,
+.theme-container.theme-classroom .bg-white\/90,
+.theme-container.theme-classroom .bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px);
+}
+.theme-container.theme-classroom .bg-indigo-500,
+.theme-container.theme-classroom .bg-indigo-600,
+.theme-container.theme-classroom .hover\:bg-indigo-50:hover {
+  background-color: #facc15 !important;
+  color: #000 !important;
+}
+
+/* Summer Theme */
+.theme-container.theme-summer {
+  background-image: url('https://img.freepik.com/free-photo/sand-beach-background_1203-159.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 8px solid #fde047;
+  border-radius: 24px;
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+.theme-container.theme-summer .bg-white,
+.theme-container.theme-summer .bg-slate-100,
+.theme-container.theme-summer .bg-slate-50,
+.theme-container.theme-summer .bg-white\/80,
+.theme-container.theme-summer .bg-white\/90,
+.theme-container.theme-summer .bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px);
+}
+.theme-container.theme-summer .bg-indigo-500,
+.theme-container.theme-summer .bg-indigo-600,
+.theme-container.theme-summer .hover\:bg-indigo-50:hover {
+  background-color: #0ea5e9 !important;
+  color: white !important;
+}
+
+/* Space Theme */
+.theme-container.theme-space {
+  background-image: url('https://img.freepik.com/free-photo/glowing-spaceship-orbits-dark-starry-sky-generative-ai_188544-9650.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 4px solid #8b5cf6;
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+.theme-container.theme-space .bg-white,
+.theme-container.theme-space .bg-slate-100,
+.theme-container.theme-space .bg-slate-50,
+.theme-container.theme-space .bg-white\/80,
+.theme-container.theme-space .bg-white\/90,
+.theme-container.theme-space .bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px);
+}
+.theme-container.theme-space .bg-indigo-500,
+.theme-container.theme-space .bg-indigo-600,
+.theme-container.theme-space .hover\:bg-indigo-50:hover {
+  background-color: #8b5cf6 !important;
+  color: white !important;
+  box-shadow: 0 0 15px #8b5cf6;
+}
+
+/* Jungle Theme */
+.theme-container.theme-jungle {
+  background-image: url('https://img.freepik.com/free-photo/tropical-leaves-background_23-2148245353.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 12px solid #14532d;
+  border-radius: 16px;
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+.theme-container.theme-jungle .bg-white,
+.theme-container.theme-jungle .bg-slate-100,
+.theme-container.theme-jungle .bg-slate-50,
+.theme-container.theme-jungle .bg-white\/80,
+.theme-container.theme-jungle .bg-white\/90,
+.theme-container.theme-jungle .bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px);
+}
+.theme-container.theme-jungle .bg-indigo-500,
+.theme-container.theme-jungle .bg-indigo-600,
+.theme-container.theme-jungle .hover\:bg-indigo-50:hover {
+  background-color: #16a34a !important;
+  color: white !important;
+}
+
+/* Halloween Theme */
+.theme-container.theme-halloween {
+  background-image: url('https://img.freepik.com/free-photo/halloween-background-with-spooky-forest_23-2148227652.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 8px solid #ea580c;
+  border-radius: 16px;
+  box-shadow: 0 0 40px rgba(234, 88, 12, 0.4);
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+.theme-container.theme-halloween .bg-white,
+.theme-container.theme-halloween .bg-slate-100,
+.theme-container.theme-halloween .bg-slate-50,
+.theme-container.theme-halloween .bg-white\/80,
+.theme-container.theme-halloween .bg-white\/90,
+.theme-container.theme-halloween .bg-white\/50 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(8px);
+}
+.theme-container.theme-halloween .bg-indigo-500,
+.theme-container.theme-halloween .bg-indigo-600,
+.theme-container.theme-halloween .hover\:bg-indigo-50:hover {
+  background-color: #ea580c !important;
+  color: white !important;
+}
+
+/* =========================================================
+   Low Spec / Reduced Motion Mode Optimizations
+   Disables heavy GPU compositing, backdrop-filter, and physics animations
+   ========================================================= */
+html.reduce-motion,
+body.reduce-motion {
+  scroll-behavior: auto !important;
+}
+
+html.reduce-motion .animate-bounce,
+html.reduce-motion .animate-pulse,
+html.reduce-motion .animate-ping,
+html.reduce-motion .animate-spin {
+  animation: none !important;
+}
+
+html.reduce-motion .backdrop-blur-xs,
+html.reduce-motion .backdrop-blur-sm,
+html.reduce-motion .backdrop-blur-md,
+html.reduce-motion .backdrop-blur-lg,
+html.reduce-motion .backdrop-blur-xl,
+html.reduce-motion .backdrop-blur-2xl,
+html.reduce-motion .backdrop-blur-3xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.reduce-motion .theme-container {
+  transition: none !important;
+}
+
+html.reduce-motion * {
+  /* Suppress long transitions for instantaneous click feedback */
+  transition-duration: 0.05s !important;
+}
+

@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "Word": {
+      "title": "Word",
+      "description": "A single vocabulary word with its definition and image.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "term": { "type": "string" },
+        "definition": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "audioUrl": { "type": "string" }
+      },
+      "required": ["id", "term", "definition"]
+    },
+    "WordSet": {
+      "title": "WordSet",
+      "description": "A collection of vocabulary words.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "words": {
+          "type": "array",
+          "items": { "$ref": "Word" }
+        },
+        "createdAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "title", "words", "createdAt", "userId"]
+    }
+  },
+  "firestore": {
+    "wordSets/{setId}": {
+      "schema": { "$ref": "WordSet" },
+      "description": "Stores user-created word sets."
+    }
+  }
+}
