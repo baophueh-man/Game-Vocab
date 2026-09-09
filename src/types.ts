@@ -16,5 +16,5 @@ export interface WordSet {
   userId: string;
 }
 
-export type GameType = 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'listenMtq';
+export type GameType = 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'listenMtq' | 'gauntlet';
 export type ThemeType = 'default' | 'summer' | 'classroom' | 'space' | 'jungle' | 'halloween';
