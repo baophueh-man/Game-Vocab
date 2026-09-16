@@ -21,7 +21,9 @@ import {
   Award,
   Sparkles,
   AlertTriangle,
-  Play
+  Play,
+  Loader2,
+  Swords
 } from 'lucide-react';
 
 interface GauntletReviewGameProps {
@@ -86,9 +88,13 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
   
   // Game Flow States
-  const [gameState, setGameState] = useState<'playing' | 'stageClear' | 'failed' | 'victory'>('playing');
+  type GauntletState = 'preparing' | 'playing' | 'stageClear' | 'failed' | 'victory';
+  const [gameState, setGameState] = useState<GauntletState>('preparing');
+  const [prepProgress, setPrepProgress] = useState<number>(0);
+  const [prepStatus, setPrepStatus] = useState<string>('Đang khởi tạo đề kiểm tra bài cũ...');
   const [stageTransitionCountdown, setStageTransitionCountdown] = useState<number>(2);
   const [shakeContainer, setShakeContainer] = useState<boolean>(false);
+  const prepTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   // Statistics & History
   const [mistakeWords, setMistakeWords] = useState<Word[]>([]);
@@ -135,18 +141,51 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const tfCountdownRef = useRef<NodeJS.Timeout | null>(null);
   const stageClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sound pronunciation helper
   const playWordPronunciation = (w: Word) => {
     cancelSpeech();
-    speakEn(w.term, w.audioUrl);
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+    }
+    speechTimeoutRef.current = setTimeout(() => {
+      speakEn(w.term, w.audioUrl);
+    }, 60);
   };
 
-  // Safe randomized word picker helper
-  const getShuffledWordsPool = useMemo(() => {
-    if (!words || words.length === 0) return [];
-    return shuffleArray([...words]);
-  }, [words]);
+  // Structured Stage Question Plan: { 1: Word[], 2: Word[], 3: Word[], 4: Word[] }
+  const [gauntletPlan, setGauntletPlan] = useState<{ [stage: number]: Word[] }>({
+    1: [],
+    2: [],
+    3: [],
+    4: []
+  });
+
+  // Generate a brand new randomized session following the rule:
+  // - If words.length >= 15: every single question has a distinct, non-repeating word
+  // - If words.length < 15: repeat words evenly and minimally across the 15 questions
+  const generateNewPlan = (allWords: Word[]) => {
+    const totalNeeded = 15;
+    if (!allWords || allWords.length === 0) return { 1: [], 2: [], 3: [], 4: [] };
+
+    let pool: Word[] = [];
+    if (allWords.length >= totalNeeded) {
+      pool = shuffleArray([...allWords]).slice(0, totalNeeded);
+    } else {
+      while (pool.length < totalNeeded) {
+        pool.push(...shuffleArray([...allWords]));
+      }
+      pool = pool.slice(0, totalNeeded);
+    }
+
+    return {
+      1: pool.slice(0, 4),   // 4 questions for Stage 1 (True / False)
+      2: pool.slice(4, 8),   // 4 questions for Stage 2 (Listening)
+      3: pool.slice(8, 11),  // 3 questions for Stage 3 (Unscramble)
+      4: pool.slice(11, 15)  // 4 questions for Stage 4 (Speed Balloons)
+    };
+  };
 
   // Overall timer
   useEffect(() => {
@@ -163,6 +202,8 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
   // Clean up all timers on unmount
   useEffect(() => {
     return () => {
+      prepTimeoutsRef.current.forEach(t => clearTimeout(t));
+      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
       cancelSpeech();
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       if (tfCountdownRef.current) clearInterval(tfCountdownRef.current);
@@ -170,8 +211,12 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
     };
   }, [cancelSpeech]);
 
-  // Initialize a Stage
-  const loadQuestionForStage = (stageNum: number, qIdx: number) => {
+  // Initialize a question for a given stage
+  const loadQuestionForStage = (
+    stageNum: number, 
+    qIdx: number, 
+    planOverride?: { [stage: number]: Word[] }
+  ) => {
     if (!words || words.length === 0) return;
 
     if (tfCountdownRef.current) {
@@ -179,7 +224,9 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
       tfCountdownRef.current = null;
     }
 
-    const currentWord = words[(qIdx + (stageNum - 1) * 3) % words.length];
+    const activePlan = planOverride || gauntletPlan;
+    const stageWords = activePlan[stageNum] || [];
+    const currentWord = stageWords[qIdx] || words[(qIdx + (stageNum - 1) * 3) % words.length];
 
     if (stageNum === 1) {
       // Stage 1: True or False
@@ -228,7 +275,7 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
       setUnscrambleTarget(currentWord);
       const cleanChars = currentWord.term.trim().split('');
       const scrambled = shuffleArray(cleanChars.map((char, index) => ({
-        id: `char-${index}-${char}`,
+        id: `char-${index}-${char}-${Math.random().toString(36).substring(2, 6)}`,
         char,
         used: false
       })));
@@ -257,11 +304,60 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
     }
   };
 
-  // First question start
+  // Start generation with visual progress bar
+  const startExamGeneration = (allWords: Word[]) => {
+    prepTimeoutsRef.current.forEach(t => clearTimeout(t));
+    prepTimeoutsRef.current = [];
+
+    setGameState('preparing');
+    setPrepProgress(15);
+    setPrepStatus('🎲 Đang chọn lọc & xáo trộn ngẫu nhiên từ vựng...');
+    setIsTimerRunning(false);
+
+    const freshPlan = generateNewPlan(allWords);
+    setGauntletPlan(freshPlan);
+
+    const t1 = setTimeout(() => {
+      setPrepProgress(48);
+      setPrepStatus('🛡️ Thiết lập 4 Ải thử thách: Đúng/Sai ➜ Nghe ➜ Chính tả ➜ Tốc độ...');
+    }, 350);
+
+    const t2 = setTimeout(() => {
+      setPrepProgress(85);
+      setPrepStatus('⚡ Đồng bộ hệ thống phát âm chuẩn & kiểm tra đề thi...');
+    }, 750);
+
+    const t3 = setTimeout(() => {
+      setPrepProgress(100);
+      setPrepStatus('🚀 Đề thi đã hoàn tất! Bắt đầu...');
+    }, 1100);
+
+    const t4 = setTimeout(() => {
+      setGameState('playing');
+      setIsTimerRunning(true);
+      loadQuestionForStage(1, 0, freshPlan);
+    }, 1350);
+
+    prepTimeoutsRef.current = [t1, t2, t3, t4];
+  };
+
+  const handleSkipPrep = () => {
+    prepTimeoutsRef.current.forEach(t => clearTimeout(t));
+    prepTimeoutsRef.current = [];
+    setPrepProgress(100);
+    setGameState('playing');
+    setIsTimerRunning(true);
+    loadQuestionForStage(1, 0, gauntletPlan);
+  };
+
+  // Start initial game session with fresh randomized plan and progress bar
   useEffect(() => {
-    if (words.length > 0) {
-      loadQuestionForStage(1, 0);
+    if (words && words.length > 0) {
+      startExamGeneration(words);
     }
+    return () => {
+      prepTimeoutsRef.current.forEach(t => clearTimeout(t));
+    };
   }, [words]);
 
   // Record mistake helper
@@ -371,7 +467,6 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
     setScore(0);
     setLives(3);
     setTotalTimeSeconds(0);
-    setIsTimerRunning(true);
     setMistakeWords([]);
     setStageStats({
       1: { correct: 0, total: 4 },
@@ -379,16 +474,23 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
       3: { correct: 0, total: 3 },
       4: { correct: 0, total: 4 },
     });
-    setGameState('playing');
-    loadQuestionForStage(1, 0);
+    startExamGeneration(words);
   };
 
   const handleRetryCurrentStage = () => {
+    const stageDef = STAGES.find(s => s.number === currentStage);
+    const qCount = stageDef?.totalQuestions || 4;
+    const freshStageWords = shuffleArray([...words]).slice(0, qCount);
+    const updatedPlan = {
+      ...gauntletPlan,
+      [currentStage]: freshStageWords.length > 0 ? freshStageWords : (gauntletPlan[currentStage] || [])
+    };
+    setGauntletPlan(updatedPlan);
     setLives(3);
     setStageQuestionIndex(0);
     setIsTimerRunning(true);
     setGameState('playing');
-    loadQuestionForStage(currentStage, 0);
+    loadQuestionForStage(currentStage, 0, updatedPlan);
   };
 
   // Stage 3 Letter click helpers
@@ -502,18 +604,123 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
       <div className="px-4 py-2 bg-slate-900/60 border-b border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
         <div className="flex items-center gap-2 font-bold text-slate-200">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Ải {currentStage}: {currentStageDef.name}</span>
-          <span className="text-slate-500 font-normal hidden sm:inline">— {currentStageDef.subtitle}</span>
+          {gameState === 'preparing' ? (
+            <span className="text-amber-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Khởi tạo đề thi 4 ải liên hoàn
+            </span>
+          ) : (
+            <>
+              <span>Ải {currentStage}: {currentStageDef.name}</span>
+              <span className="text-slate-500 font-normal hidden sm:inline">— {currentStageDef.subtitle}</span>
+            </>
+          )}
         </div>
         <div className="font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-lg border border-emerald-800/40">
-          Câu {stageQuestionIndex + 1} / {currentStageDef.totalQuestions}
+          {gameState === 'preparing' ? (
+            <span className="text-amber-300">Đang tạo đề</span>
+          ) : (
+            <span>Câu {stageQuestionIndex + 1} / {currentStageDef.totalQuestions}</span>
+          )}
         </div>
       </div>
 
       {/* MAIN PLAYING ARENA */}
       <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6 max-w-3xl mx-auto w-full">
+        {/* ===================== PREPARING PROGRESS SCREEN ===================== */}
+        {gameState === 'preparing' && (
+          <div className="w-full max-w-md flex flex-col items-center gap-5 p-6 sm:p-8 bg-slate-900/95 border-2 border-amber-500/40 rounded-3xl shadow-2xl animate-fadeIn text-center relative overflow-hidden my-auto">
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-16 -left-16 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-16 -right-16 w-36 h-36 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Icon Banner */}
+            <div className="relative">
+              <div className="w-18 h-18 sm:w-20 sm:h-20 bg-gradient-to-br from-amber-500/20 to-emerald-500/20 rounded-3xl border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner">
+                <Swords className="w-9 h-9 sm:w-10 sm:h-10 animate-pulse" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-slate-950 shadow-md">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            {/* Title & Subtitle */}
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-1">
+                Đang Khởi Tạo Đề Kiểm Tra
+              </h2>
+              <p className="text-slate-400 text-xs sm:text-sm">
+                Xáo trộn từ vựng và thiết lập 4 ải kiểm tra bài cũ
+              </p>
+            </div>
+
+            {/* Progress Bar Container */}
+            <div className="w-full space-y-2">
+              <div className="flex justify-between items-center text-xs font-mono font-bold">
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  Tiến độ tạo đề
+                </span>
+                <span className="text-amber-400 text-sm font-black">{prepProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-800 h-3.5 rounded-full overflow-hidden border border-slate-700/60 p-0.5 shadow-inner">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-500 via-emerald-500 to-sky-400 rounded-full transition-all duration-300 ease-out shadow-sm shadow-emerald-500/50"
+                  style={{ width: `${prepProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Dynamic Status Message */}
+            <div className="px-3.5 py-2.5 bg-slate-800/90 border border-slate-700/70 rounded-2xl text-xs text-slate-200 font-medium w-full flex items-center justify-center gap-2 min-h-[42px] shadow-inner">
+              <span className="truncate">{prepStatus}</span>
+            </div>
+
+            {/* 4 Stages Mini Previews */}
+            <div className="grid grid-cols-2 gap-2 w-full text-left">
+              <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-800 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="text-[11px] leading-tight">
+                  <p className="font-bold text-slate-200">Ải 1: Đúng / Sai</p>
+                  <p className="text-slate-500">Khởi động phản xạ</p>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-800 flex items-center gap-2">
+                <Headphones className="w-4 h-4 text-sky-400 shrink-0" />
+                <div className="text-[11px] leading-tight">
+                  <p className="font-bold text-slate-200">Ải 2: Nghe</p>
+                  <p className="text-slate-500">Đôi tai vàng</p>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-800 flex items-center gap-2">
+                <Type className="w-4 h-4 text-purple-400 shrink-0" />
+                <div className="text-[11px] leading-tight">
+                  <p className="font-bold text-slate-200">Ải 3: Chính Tả</p>
+                  <p className="text-slate-500">Ghép từng ký tự</p>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-800 flex items-center gap-2">
+                <Target className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="text-[11px] leading-tight">
+                  <p className="font-bold text-slate-200">Ải 4: Tốc Độ</p>
+                  <p className="text-slate-500">Bắn bóng về đích</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Instant Start Button */}
+            <button
+              onClick={handleSkipPrep}
+              className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-600 hover:to-emerald-600 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Bắt Đầu Ngay (Bỏ qua chờ)</span>
+            </button>
+          </div>
+        )}
+
         {/* ===================== STAGE 1: TRUE OR FALSE ===================== */}
-        {currentStage === 1 && tfQuestion && (
+        {gameState === 'playing' && currentStage === 1 && tfQuestion && (
           <div className="w-full flex flex-col items-center gap-4 sm:gap-6 animate-fadeIn">
             {/* Countdown timer bar */}
             <div className="w-full max-w-md bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/60">
@@ -583,7 +790,7 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
         )}
 
         {/* ===================== STAGE 2: LISTENING SPOT ===================== */}
-        {currentStage === 2 && listenQuestion && (
+        {gameState === 'playing' && currentStage === 2 && listenQuestion && (
           <div className="w-full flex flex-col items-center gap-4 sm:gap-6 animate-fadeIn">
             {/* Big Audio Speaker Box */}
             <div className="flex flex-col items-center text-center">
@@ -629,7 +836,7 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
         )}
 
         {/* ===================== STAGE 3: WORD SPELLING ===================== */}
-        {currentStage === 3 && unscrambleTarget && (
+        {gameState === 'playing' && currentStage === 3 && unscrambleTarget && (
           <div className="w-full flex flex-col items-center gap-4 sm:gap-6 animate-fadeIn">
             {/* Clue Box */}
             <div className="w-full max-w-md bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-4 sm:p-5 flex items-center gap-4 shadow-xl">
@@ -704,7 +911,7 @@ export default function GauntletReviewGame({ words, onExit }: GauntletReviewGame
         )}
 
         {/* ===================== STAGE 4: SPEED BALLOONS ===================== */}
-        {currentStage === 4 && speedTarget && (
+        {gameState === 'playing' && currentStage === 4 && speedTarget && (
           <div className="w-full flex flex-col items-center gap-4 animate-fadeIn">
             {/* Target Banner */}
             <div className="w-full max-w-md bg-gradient-to-r from-emerald-600 to-teal-700 px-4 py-2.5 rounded-2xl border border-emerald-400/40 shadow-xl flex items-center justify-between gap-2">

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getAudioFile } from '../lib/storage';
 
 export type TTSSourceMode = 'auto' | 'gemini' | 'device';
@@ -52,6 +52,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [enVoices, setEnVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [vnVoices, setVnVoices] = useState<SpeechSynthesisVoice[]>([]);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const speechSessionIdRef = useRef<number>(0);
 
   const setReduceMotion = (reduce: boolean) => {
     setReduceMotionState(reduce);
@@ -143,7 +144,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const cancelSpeech = () => {
+  const cancelSpeech = useCallback(() => {
+    // Invalidate any in-flight async TTS fetches so they never play
+    speechSessionIdRef.current++;
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -152,7 +155,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       currentAudioRef.current.currentTime = 0;
       currentAudioRef.current = null;
     }
-  };
+  }, []);
 
   // Helper to fetch Gemini TTS with client-side caching
   const getGeminiTTSAudio = async (text: string, voice: string, lang: 'en' | 'vi', forceFallback: boolean = false): Promise<string | null> => {
@@ -297,6 +300,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const speakEn = async (text: string, audioUrl?: string, count: number = 1): Promise<void> => {
     cancelSpeech();
+    const sessionId = speechSessionIdRef.current;
     if (!text || !text.trim()) return;
 
     // 1. If custom audio URL is provided and valid
@@ -316,10 +320,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
+      if (sessionId !== speechSessionIdRef.current) return;
       const success = await playAudioUrl(finalAudioUrl, count);
-      if (success) return;
+      if (success || sessionId !== speechSessionIdRef.current) return;
       // If custom audio failed to load or play, fall through to TTS seamlessly
     }
+
+    if (sessionId !== speechSessionIdRef.current) return;
 
     // 2. Decide speech source
     let mode = ttsSource;
@@ -333,18 +340,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     if (mode === 'gemini') {
       const geminiAudio = await getGeminiTTSAudio(text, enGeminiVoice, 'en');
+      if (sessionId !== speechSessionIdRef.current) return;
       if (geminiAudio) {
         const success = await playAudioUrl(geminiAudio, count);
-        if (success) return;
+        if (success || sessionId !== speechSessionIdRef.current) return;
       }
+      if (sessionId !== speechSessionIdRef.current) return;
       return playDeviceSpeech(text, enVoice, enVoices, count);
     } else {
+      if (sessionId !== speechSessionIdRef.current) return;
       return playDeviceSpeech(text, enVoice, enVoices, count);
     }
   };
 
   const speakVn = async (text: string, viAudioUrl?: string, count: number = 1): Promise<void> => {
     cancelSpeech();
+    const sessionId = speechSessionIdRef.current;
     if (!text || !text.trim()) return;
 
     // 1. If custom audio URL is provided and valid
@@ -364,10 +375,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
+      if (sessionId !== speechSessionIdRef.current) return;
       const success = await playAudioUrl(finalAudioUrl, count);
-      if (success) return;
+      if (success || sessionId !== speechSessionIdRef.current) return;
       // If custom audio failed to load or play, fall through to TTS seamlessly
     }
+
+    if (sessionId !== speechSessionIdRef.current) return;
 
     // 2. Decide speech source
     let mode = ttsSource;
@@ -381,30 +395,37 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     if (mode === 'gemini') {
       const geminiAudio = await getGeminiTTSAudio(text, viGeminiVoice, 'vi');
+      if (sessionId !== speechSessionIdRef.current) return;
       if (geminiAudio) {
         const success = await playAudioUrl(geminiAudio, count);
-        if (success) return;
+        if (success || sessionId !== speechSessionIdRef.current) return;
       }
+      if (sessionId !== speechSessionIdRef.current) return;
       
       if (vnVoices.length > 0 && vnVoice) {
         return playDeviceSpeech(text, vnVoice, vnVoices, count);
       } else {
         const fallbackAudio = await getGeminiTTSAudio(text, 'Kore', 'vi', true);
+        if (sessionId !== speechSessionIdRef.current) return;
         if (fallbackAudio) {
           const success = await playAudioUrl(fallbackAudio, count);
-          if (success) return;
+          if (success || sessionId !== speechSessionIdRef.current) return;
         }
+        if (sessionId !== speechSessionIdRef.current) return;
         return playDeviceSpeech(text, vnVoice, vnVoices, count);
       }
     } else {
+      if (sessionId !== speechSessionIdRef.current) return;
       if (vnVoices.length > 0 && vnVoice) {
         return playDeviceSpeech(text, vnVoice, vnVoices, count);
       } else {
         const geminiAudio = await getGeminiTTSAudio(text, viGeminiVoice, 'vi');
+        if (sessionId !== speechSessionIdRef.current) return;
         if (geminiAudio) {
           const success = await playAudioUrl(geminiAudio, count);
-          if (success) return;
+          if (success || sessionId !== speechSessionIdRef.current) return;
         }
+        if (sessionId !== speechSessionIdRef.current) return;
         return playDeviceSpeech(text, vnVoice, vnVoices, count);
       }
     }
