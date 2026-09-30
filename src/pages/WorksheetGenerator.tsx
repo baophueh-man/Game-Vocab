@@ -79,7 +79,13 @@ import {
   Type16ChoiceCount,
   Type16Layout,
   Type16LetterCase,
-  Type16Border
+  Type16Border,
+  Type17TaskMode,
+  Type17Border,
+  Type17CardBorder,
+  Type17LetterCase,
+  Type17StripLength,
+  Type17HighlightTarget
 } from '../utils/worksheetGenerator';
 
 export default function WorksheetGenerator() {
@@ -146,7 +152,8 @@ export default function WorksheetGenerator() {
   const [showWordLabels, setShowWordLabels] = useState<boolean>(true);
   const [sentenceScramble, setSentenceScramble] = useState<boolean>(true);
   const [sentenceSeparator, setSentenceSeparator] = useState<'space' | 'slash'>('space');
-  const [sentenceHintStyle, setSentenceHintStyle] = useState<'underscores' | 'dots'>('underscores');
+  const [sentenceHintStyle, setSentenceHintStyle] = useState<'underscores' | 'dots' | 'trace'>('underscores');
+  const [sentenceTraceFontSize, setSentenceTraceFontSize] = useState<number>(28);
   const [type15NumberStyle, setType15NumberStyle] = useState<'none' | 'traditional'>('none');
   const [type15Border, setType15Border] = useState<'full' | 'outerOnly' | 'none'>('full');
   const [type15ChoiceMode, setType15ChoiceMode] = useState<'ab' | 'checkbox' | 'none'>('ab');
@@ -156,6 +163,13 @@ export default function WorksheetGenerator() {
   const [type16Layout, setType16Layout] = useState<Type16Layout>('lettersLeft');
   const [type16LetterCase, setType16LetterCase] = useState<Type16LetterCase>('lower');
   const [type16Border, setType16Border] = useState<Type16Border>('none');
+  const [type17TaskMode, setType17TaskMode] = useState<Type17TaskMode>('color');
+  const [type17Border, setType17Border] = useState<Type17Border>('full');
+  const [type17CardBorder, setType17CardBorder] = useState<Type17CardBorder>('none');
+  const [type17LetterCase, setType17LetterCase] = useState<Type17LetterCase>('lower');
+  const [type17StripLength, setType17StripLength] = useState<Type17StripLength>('auto');
+  const [type17HighlightTarget, setType17HighlightTarget] = useState<Type17HighlightTarget>('none');
+  const [type17ShowExample, setType17ShowExample] = useState<boolean>(true);
   const [background, setBackground] = useState<string>('');
   const [showHeader, setShowHeader] = useState<boolean>(false);
   const [showFooter, setShowFooter] = useState<boolean>(false);
@@ -270,7 +284,8 @@ export default function WorksheetGenerator() {
       13: { title: 'Word Search Puzzle' },
       14: { title: 'Circle the pictures that have letter V v' },
       15: { title: 'Read the sentence and circle the correct picture.' },
-      16: { title: 'Look and circle the beginning sound' }
+      16: { title: 'Look and circle the beginning sound' },
+      17: { title: 'Look and color the words' }
     };
     const meta = titles[defaultType];
     const newSec: UICompositeSection = {
@@ -581,9 +596,17 @@ export default function WorksheetGenerator() {
       sentenceScramble: s.sentenceScramble,
       sentenceSeparator: s.sentenceSeparator,
       sentenceHintStyle: s.sentenceHintStyle,
-      type15SentenceTemplate: s.type15SentenceTemplate,
+      sentenceTraceFontSize: s.sentenceTraceFontSize,
       type15NumberStyle: s.type15NumberStyle,
-      type15LetterBandBg: s.type15LetterBandBg
+      type15LetterBandBg: s.type15LetterBandBg,
+      type16Border: s.type16Border,
+      type17TaskMode: s.type17TaskMode,
+      type17Border: s.type17Border,
+      type17CardBorder: s.type17CardBorder,
+      type17LetterCase: s.type17LetterCase,
+      type17StripLength: s.type17StripLength,
+      type17HighlightTarget: s.type17HighlightTarget,
+      type17ShowExample: s.type17ShowExample
     }));
 
     const saved = saveCustomTemplate({
@@ -954,7 +977,8 @@ export default function WorksheetGenerator() {
       showWordLabels?: boolean;
       sentenceScramble?: boolean;
       sentenceSeparator?: 'space' | 'slash';
-      sentenceHintStyle?: 'underscores' | 'dots';
+      sentenceHintStyle?: 'underscores' | 'dots' | 'trace';
+      sentenceTraceFontSize?: number;
       type4LayoutMode?: Type4LayoutMode;
       type4ColumnMode?: Type4ColumnMode;
       type4TraceFontSize?: number;
@@ -967,6 +991,13 @@ export default function WorksheetGenerator() {
       type16Layout?: Type16Layout;
       type16LetterCase?: Type16LetterCase;
       type16Border?: Type16Border;
+      type17TaskMode?: Type17TaskMode;
+      type17Border?: Type17Border;
+      type17CardBorder?: Type17CardBorder;
+      type17LetterCase?: Type17LetterCase;
+      type17StripLength?: Type17StripLength;
+      type17HighlightTarget?: Type17HighlightTarget;
+      type17ShowExample?: boolean;
     },
     sectionsToUse?: UICompositeSection[],
     modeOverride?: 'single' | 'composite'
@@ -1035,6 +1066,7 @@ export default function WorksheetGenerator() {
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
             sentenceHintStyle: sec.sentenceHintStyle,
+            sentenceTraceFontSize: sec.sentenceTraceFontSize,
             type15NumberStyle: sec.type15NumberStyle,
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
@@ -1044,6 +1076,13 @@ export default function WorksheetGenerator() {
             type16Layout: sec.type16Layout,
             type16LetterCase: sec.type16LetterCase,
             type16Border: sec.type16Border,
+            type17TaskMode: sec.type17TaskMode,
+            type17Border: sec.type17Border,
+            type17CardBorder: sec.type17CardBorder,
+            type17LetterCase: sec.type17LetterCase,
+            type17StripLength: sec.type17StripLength,
+            type17HighlightTarget: sec.type17HighlightTarget,
+            type17ShowExample: sec.type17ShowExample,
             words: sec.selectedWordIndices.map((i) => allAvailableWords[i]).filter(Boolean)
           }))
         };
@@ -1109,6 +1148,7 @@ export default function WorksheetGenerator() {
         sentenceScramble: customOptions?.sentenceScramble !== undefined ? customOptions.sentenceScramble : sentenceScramble,
         sentenceSeparator: customOptions?.sentenceSeparator !== undefined ? customOptions.sentenceSeparator : sentenceSeparator,
         sentenceHintStyle: customOptions?.sentenceHintStyle !== undefined ? customOptions.sentenceHintStyle : sentenceHintStyle,
+        sentenceTraceFontSize: customOptions?.sentenceTraceFontSize !== undefined ? customOptions.sentenceTraceFontSize : sentenceTraceFontSize,
         type4LayoutMode: customOptions?.type4LayoutMode !== undefined ? customOptions.type4LayoutMode : type4LayoutMode,
         type4ColumnMode: customOptions?.type4ColumnMode !== undefined ? customOptions.type4ColumnMode : type4ColumnMode,
         type4TraceFontSize: customOptions?.type4TraceFontSize !== undefined ? customOptions.type4TraceFontSize : type4TraceFontSize,
@@ -1120,7 +1160,14 @@ export default function WorksheetGenerator() {
         type16ChoiceCount: customOptions?.type16ChoiceCount !== undefined ? customOptions.type16ChoiceCount : type16ChoiceCount,
         type16Layout: customOptions?.type16Layout !== undefined ? customOptions.type16Layout : type16Layout,
         type16LetterCase: customOptions?.type16LetterCase !== undefined ? customOptions.type16LetterCase : type16LetterCase,
-        type16Border: customOptions?.type16Border !== undefined ? customOptions.type16Border : type16Border
+        type16Border: customOptions?.type16Border !== undefined ? customOptions.type16Border : type16Border,
+        type17TaskMode: customOptions?.type17TaskMode !== undefined ? customOptions.type17TaskMode : type17TaskMode,
+        type17Border: customOptions?.type17Border !== undefined ? customOptions.type17Border : type17Border,
+        type17CardBorder: customOptions?.type17CardBorder !== undefined ? customOptions.type17CardBorder : type17CardBorder,
+        type17LetterCase: customOptions?.type17LetterCase !== undefined ? customOptions.type17LetterCase : type17LetterCase,
+        type17StripLength: customOptions?.type17StripLength !== undefined ? customOptions.type17StripLength : type17StripLength,
+        type17HighlightTarget: customOptions?.type17HighlightTarget !== undefined ? customOptions.type17HighlightTarget : type17HighlightTarget,
+        type17ShowExample: customOptions?.type17ShowExample !== undefined ? customOptions.type17ShowExample : type17ShowExample
       });
 
       const blob = doc.output('blob');
@@ -1193,6 +1240,7 @@ export default function WorksheetGenerator() {
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
             sentenceHintStyle: sec.sentenceHintStyle,
+            sentenceTraceFontSize: sec.sentenceTraceFontSize || 28,
             type4LayoutMode: sec.type4LayoutMode,
             type4ColumnMode: sec.type4ColumnMode,
             type4TraceFontSize: sec.type4TraceFontSize || 28,
@@ -1205,6 +1253,13 @@ export default function WorksheetGenerator() {
             type16Layout: sec.type16Layout,
             type16LetterCase: sec.type16LetterCase,
             type16Border: sec.type16Border,
+            type17TaskMode: sec.type17TaskMode,
+            type17Border: sec.type17Border,
+            type17CardBorder: sec.type17CardBorder,
+            type17LetterCase: sec.type17LetterCase,
+            type17StripLength: sec.type17StripLength,
+            type17HighlightTarget: sec.type17HighlightTarget,
+            type17ShowExample: sec.type17ShowExample,
             words: sec.selectedWordIndices.map((i) => words[i]).filter(Boolean)
           }))
         };
@@ -1266,6 +1321,7 @@ export default function WorksheetGenerator() {
         sentenceScramble,
         sentenceSeparator,
         sentenceHintStyle,
+        sentenceTraceFontSize,
         type15NumberStyle,
         type15Border,
         type15ChoiceMode,
@@ -1274,7 +1330,14 @@ export default function WorksheetGenerator() {
         type16ChoiceCount,
         type16Layout,
         type16LetterCase,
-        type16Border
+        type16Border,
+        type17TaskMode,
+        type17Border,
+        type17CardBorder,
+        type17LetterCase,
+        type17StripLength,
+        type17HighlightTarget,
+        type17ShowExample
       });
       const cleanTitle = (title || 'Worksheet').replace(/[/\\?%*:|"<>]/g, '-');
       doc.save(`PDF ${worksheetType} - ${cleanTitle}.pdf`);
@@ -1670,6 +1733,24 @@ export default function WorksheetGenerator() {
                             type16Layout,
                             type16LetterCase,
                             type16Border,
+                            showHeader: true,
+                            spacing: 0
+                          });
+                        } else if (t.type === 17) {
+                          const newTitle = type17TaskMode === 'cross'
+                            ? 'Cross out (/) the extra letters.'
+                            : 'Look and color the words';
+                          setTitle(newTitle);
+                          setShowHeader(true);
+                          setSpacing(0);
+                          handleGeneratePreview(undefined, newTitle, 17, {
+                            type17TaskMode,
+                            type17Border,
+                            type17CardBorder,
+                            type17LetterCase,
+                            type17StripLength,
+                            type17HighlightTarget,
+                            type17ShowExample,
                             showHeader: true,
                             spacing: 0
                           });
@@ -3211,6 +3292,239 @@ export default function WorksheetGenerator() {
                   </div>
                 )}
 
+                {/* Type 17 Options: Look and Color the Words / Cross out extra letters */}
+                {worksheetMode === 'single' && worksheetType === 17 && (
+                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                        <span>🎨</span> Tuỳ Chọn Tìm & Tô Chữ / Gạch Chữ Thừa (Loại 17)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        {type17TaskMode === 'cross' ? 'Cross Extra' : 'Color Words'}
+                      </span>
+                    </div>
+
+                    {/* Task Mode */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Dạng Bài Tập (Task Mode)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'color', label: '🎨 Tô màu chữ đúng (Look & color)' },
+                          { value: 'cross', label: '❌ Gạch bỏ chữ dư (Cross out extra)' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type17TaskMode;
+                              setType17TaskMode(val);
+                              const defaultTitle = val === 'cross'
+                                ? 'Cross out (/) the extra letters.'
+                                : 'Look and color the words';
+                              if (title === 'Look and color the words' || title === 'Cross out (/) the extra letters.') {
+                                setTitle(defaultTitle);
+                                handleGeneratePreview(undefined, defaultTitle, 17, { type17TaskMode: val });
+                              } else {
+                                handleGeneratePreview(undefined, undefined, 17, { type17TaskMode: val });
+                              }
+                            }}
+                            data-testid={`type17-task-mode-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type17TaskMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Letter Case */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Định Dạng Chữ Cái (Letter Case)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'lower', label: 'Chữ thường (b, a, l, l)' },
+                          { value: 'upper', label: 'Chữ hoa (B, A, L, L)' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type17LetterCase;
+                              setType17LetterCase(val);
+                              handleGeneratePreview(undefined, undefined, 17, { type17LetterCase: val });
+                            }}
+                            data-testid={`type17-case-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type17LetterCase === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Strip Length */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Độ Dài Băng Ô Chữ (Strip Length)
+                      </label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { value: 'auto', label: 'Tự động' },
+                          { value: 6, label: '6 ô' },
+                          { value: 8, label: '8 ô' },
+                          { value: 10, label: '10 ô' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type17StripLength;
+                              setType17StripLength(val);
+                              handleGeneratePreview(undefined, undefined, 17, { type17StripLength: val });
+                            }}
+                            data-testid={`type17-strip-length-${opt.value}`}
+                            className={`py-2 px-1.5 rounded-lg border text-xs font-semibold transition-all text-center ${
+                              type17StripLength === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Border Style */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Đường Viền Ô Chữ (Letter Strip Border)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 'none', label: 'Không viền' },
+                          { value: 'outerOnly', label: 'Chỉ viền ngoài' },
+                          { value: 'full', label: 'Có cả viền trong' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type17Border;
+                              setType17Border(val);
+                              handleGeneratePreview(undefined, undefined, 17, { type17Border: val });
+                            }}
+                            data-testid={`type17-border-${opt.value}`}
+                            className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                              type17Border === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Card Border & Demonstration Example & Highlight */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Khung Bao Quanh Mục (Card Frame)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'none', label: 'Không đóng khung' },
+                            { value: 'rounded', label: 'Khung bo chấm đứt' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type17CardBorder;
+                                setType17CardBorder(val);
+                                handleGeneratePreview(undefined, undefined, 17, { type17CardBorder: val });
+                              }}
+                              data-testid={`type17-card-border-${opt.value}`}
+                              className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                                type17CardBorder === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Chế Độ Hiển Thị Đáp Án (Answer Key)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'none', label: 'Học sinh làm' },
+                            { value: 'red', label: 'Hiện đáp án đỏ' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type17HighlightTarget;
+                                setType17HighlightTarget(val);
+                                handleGeneratePreview(undefined, undefined, 17, { type17HighlightTarget: val });
+                              }}
+                              data-testid={`type17-highlight-${opt.value}`}
+                              className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                                type17HighlightTarget === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Example demonstration checkbox */}
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={type17ShowExample}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setType17ShowExample(val);
+                            handleGeneratePreview(undefined, undefined, 17, { type17ShowExample: val });
+                          }}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs font-medium text-slate-700">
+                          {type17TaskMode === 'cross'
+                            ? 'Kèm câu đầu làm mẫu gạch chéo chữ dư (/) (Demonstration Example)'
+                            : 'Kèm câu đầu làm mẫu tô màu chữ đúng (Demonstration Example)'}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {/* Type 1 Options: Sentence Reorder / Rewrite */}
                 {worksheetMode === 'single' && worksheetType === 1 && (
                   <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
@@ -3288,7 +3602,7 @@ export default function WorksheetGenerator() {
                       <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                         Kiểu Dòng Gợi Ý Viết
                       </label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -3319,8 +3633,62 @@ export default function WorksheetGenerator() {
                         >
                           Dòng chấm '...'
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSentenceHintStyle('trace');
+                            handleGeneratePreview(undefined, undefined, 1, {
+                              sentenceHintStyle: 'trace',
+                              sentenceTraceFontSize
+                            });
+                          }}
+                          data-testid="hint-trace-btn"
+                          className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${
+                            sentenceHintStyle === 'trace'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Chữ nét đứt (Trace cho lớp 1)
+                        </button>
                       </div>
                     </div>
+
+                    {/* Dedicated Trace Font Size for Type 1 */}
+                    {sentenceHintStyle === 'trace' && (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-indigo-950">
+                            Cỡ Chữ Gợi Ý Cần Đồ (Trace Font Size)
+                          </label>
+                          <span className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-semibold">
+                            {sentenceTraceFontSize} pt
+                          </span>
+                        </div>
+                        <select
+                          value={sentenceTraceFontSize}
+                          onChange={(e) => {
+                            const sz = Number(e.target.value);
+                            setSentenceTraceFontSize(sz);
+                            handleGeneratePreview(undefined, undefined, 1, {
+                              sentenceHintStyle: 'trace',
+                              sentenceTraceFontSize: sz
+                            });
+                          }}
+                          data-testid="type1-trace-font-size-select"
+                          className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
+                        >
+                          {[16, 18, 20, 22, 24, 26, 28, 30, 32, 36].map((sz) => (
+                            <option key={sz} value={sz}>
+                              {sz} pt {sz === 28 ? '(Mặc định - Chuẩn tập viết 28 pt)' : sz === 26 ? '(Khuyên dùng A5 - 26 pt)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-slate-400">
+                          Cỡ chữ đề bài ở trên dùng cỡ chuẩn ({fontSize} pt), dòng chữ Trace nét đứt KG Primary Dots bên dưới dùng cỡ lớn riêng (26-28 pt) để học sinh lớp 1 dễ tập tô.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

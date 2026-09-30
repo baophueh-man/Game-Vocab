@@ -37,7 +37,13 @@ import {
   Type16ChoiceCount,
   Type16Layout,
   Type16LetterCase,
-  Type16Border
+  Type16Border,
+  Type17TaskMode,
+  Type17Border,
+  Type17CardBorder,
+  Type17LetterCase,
+  Type17StripLength,
+  Type17HighlightTarget
 } from '../../utils/worksheetGenerator';
 import { pickQuotaAwareRandomWordIndices } from '../../utils/worksheetVocabEngine';
 
@@ -76,7 +82,8 @@ export interface UICompositeSection {
   showWordLabels?: boolean;
   sentenceScramble?: boolean;
   sentenceSeparator?: 'space' | 'slash';
-  sentenceHintStyle?: 'underscores' | 'dots';
+  sentenceHintStyle?: 'underscores' | 'dots' | 'trace';
+  sentenceTraceFontSize?: number;
   type15NumberStyle?: Type15NumberStyle;
   type15Border?: Type15Border;
   type15ChoiceMode?: Type15ChoiceMode;
@@ -86,6 +93,13 @@ export interface UICompositeSection {
   type16Layout?: Type16Layout;
   type16LetterCase?: Type16LetterCase;
   type16Border?: Type16Border;
+  type17TaskMode?: Type17TaskMode;
+  type17Border?: Type17Border;
+  type17CardBorder?: Type17CardBorder;
+  type17LetterCase?: Type17LetterCase;
+  type17StripLength?: Type17StripLength;
+  type17HighlightTarget?: Type17HighlightTarget;
+  type17ShowExample?: boolean;
 }
 
 interface CompositeSectionCardProps {
@@ -466,7 +480,8 @@ export default function CompositeSectionCard({
                     13: { title: 'Word Search Puzzle' },
                     14: { title: 'Circle the pictures that have letter V v' },
                     15: { title: 'Read the sentence and circle the correct picture.' },
-                    16: { title: 'Look and circle the beginning sound' }
+                    16: { title: 'Look and circle the beginning sound' },
+                    17: { title: 'Look and color the words' }
                   };
                   const meta = defaultTitles[t.type];
                   const isType8 = t.type === 8;
@@ -496,7 +511,14 @@ export default function CompositeSectionCard({
                     type16ChoiceCount: t.type === 16 ? (section.type16ChoiceCount || 3) : section.type16ChoiceCount,
                     type16Layout: t.type === 16 ? (section.type16Layout || 'lettersLeft') : section.type16Layout,
                     type16LetterCase: t.type === 16 ? (section.type16LetterCase || 'lower') : section.type16LetterCase,
-                    type16Border: t.type === 16 ? (section.type16Border || 'none') : section.type16Border
+                    type16Border: t.type === 16 ? (section.type16Border || 'none') : section.type16Border,
+                    type17TaskMode: t.type === 17 ? (section.type17TaskMode || 'color') : section.type17TaskMode,
+                    type17Border: t.type === 17 ? (section.type17Border || 'full') : section.type17Border,
+                    type17CardBorder: t.type === 17 ? (section.type17CardBorder || 'none') : section.type17CardBorder,
+                    type17LetterCase: t.type === 17 ? (section.type17LetterCase || 'lower') : section.type17LetterCase,
+                    type17StripLength: t.type === 17 ? (section.type17StripLength || 'auto') : section.type17StripLength,
+                    type17HighlightTarget: t.type === 17 ? (section.type17HighlightTarget || 'none') : section.type17HighlightTarget,
+                    type17ShowExample: t.type === 17 ? (section.type17ShowExample !== false) : section.type17ShowExample
                   });
                 }}
                 data-testid={`section-type-button-${t.type}-${index}`}
@@ -1274,7 +1296,7 @@ export default function CompositeSectionCard({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Kiểu Dòng Gợi Ý Viết
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => onUpdateSection(index, { sentenceHintStyle: 'underscores' })}
@@ -1297,8 +1319,46 @@ export default function CompositeSectionCard({
               >
                 Dòng chấm '...'
               </button>
+              <button
+                type="button"
+                onClick={() => onUpdateSection(index, { sentenceHintStyle: 'trace', sentenceTraceFontSize: section.sentenceTraceFontSize || 28 })}
+                className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
+                  section.sentenceHintStyle === 'trace'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Chữ nét đứt (Trace)
+              </button>
             </div>
           </div>
+
+          {section.sentenceHintStyle === 'trace' && (
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-indigo-950">
+                  Cỡ Chữ Gợi Ý Cần Đồ (Trace Font Size)
+                </label>
+                <span className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-semibold">
+                  {section.sentenceTraceFontSize || 28} pt
+                </span>
+              </div>
+              <select
+                value={section.sentenceTraceFontSize || 28}
+                onChange={(e) => onUpdateSection(index, { sentenceTraceFontSize: Number(e.target.value) })}
+                className="w-full px-3 py-1.5 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
+              >
+                {[16, 18, 20, 22, 24, 26, 28, 30, 32, 36].map((sz) => (
+                  <option key={sz} value={sz}>
+                    {sz} pt {sz === 28 ? '(Mặc định - Chuẩn tập viết 28 pt)' : sz === 26 ? '(Khuyên dùng A5 - 26 pt)' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Chữ nét chấm mờ KG Primary Dots cho học sinh lớp 1 tập tô.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1556,6 +1616,203 @@ export default function CompositeSectionCard({
                   {opt.label}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Type 17: Look and color the words / Cross out extra letters */}
+      {section.type === 17 && (
+        <div data-testid={`section-type17-options-panel-${index}`} className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3">
+          <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+            <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+              <span>🎨</span> Tuỳ Chọn Nhìn Tranh Tô Màu Từ / Gạch Bỏ Chữ Dư (Loại 17)
+            </span>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              3 cột (A4) • 2 cột (A5)
+            </span>
+          </div>
+
+          {/* Task Mode: color vs cross */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Bài Tập (Task Mode)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'color', label: 'Tô màu từ đúng (Look & color)', title: 'Look and color the words' },
+                { value: 'cross', label: 'Gạch bỏ chữ dư (Cross out extra)', title: 'Cross out (/) the extra letters.' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, {
+                    type17TaskMode: opt.value as Type17TaskMode,
+                    title: opt.title
+                  })}
+                  data-testid={`section-type17-task-mode-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type17TaskMode || 'color') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Letter Strip Border */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Đường Viền Dải Ô Chữ (Letter Strip Border)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'full', label: 'Có cả viền trong' },
+                { value: 'outerOnly', label: 'Chỉ viền ngoài' },
+                { value: 'none', label: 'Không viền' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type17Border: opt.value as Type17Border })}
+                  data-testid={`section-type17-border-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type17Border || 'full') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Card Border */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Đóng Khung Toàn Thẻ (Card Frame)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'none', label: 'Không khung (Mẫu chuẩn)' },
+                { value: 'rounded', label: 'Khung viền nét đứt (Loại 15)' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type17CardBorder: opt.value as Type17CardBorder })}
+                  data-testid={`section-type17-card-border-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type17CardBorder || 'none') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Strip Length & Letter Case */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Độ Dài Dải Ô Chữ (Strip Length)
+              </label>
+              <select
+                value={section.type17StripLength || 'auto'}
+                onChange={(e) => onUpdateSection(index, { type17StripLength: e.target.value as Type17StripLength })}
+                data-testid={`section-type17-striplength-${index}`}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium bg-white"
+              >
+                <option value="auto">Tự động (Khuyên dùng)</option>
+                <option value="6">6 ô (Siêu gọn)</option>
+                <option value="8">8 ô (Chuẩn mẫu)</option>
+                <option value="10">10 ô (Từ dài)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Định Dạng Chữ (Letter Case)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { value: 'lower', label: 'Thường (abc)' },
+                  { value: 'upper', label: 'Hoa (ABC)' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type17LetterCase: opt.value as Type17LetterCase })}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      (section.type17LetterCase || 'lower') === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Highlight Target & Show Example */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Màu Chữ Mục Tiêu (Highlight / Key)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { value: 'none', label: 'Chữ đen (HS)' },
+                  { value: 'red', label: 'Tô đỏ (Đáp án)' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type17HighlightTarget: opt.value as Type17HighlightTarget })}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      (section.type17HighlightTarget || 'none') === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Ví Dụ Mẫu Câu Đầu (Show Example)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { value: true, label: 'Có ví dụ mẫu' },
+                  { value: false, label: 'Không có mẫu' }
+                ].map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type17ShowExample: opt.value })}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      (section.type17ShowExample !== false) === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

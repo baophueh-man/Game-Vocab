@@ -24,10 +24,16 @@ export interface WorksheetWord {
   deckRole?: 'primary' | 'review';
 }
 
-export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 export type BlankMode = 'vowels' | 'random1' | 'random2' | 'random3';
 export type Type4LayoutMode = 'grid' | 'table';
-export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only';
+export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only' | 'alphabet_order' | 'vowels_only';
+export type Type4CellConfig = 
+  | { mode: 'initial_trace' }
+  | { mode: 'initial_blank' }
+  | { mode: 'final_trace' }
+  | { mode: 'final_blank' }
+  | { mode: 'custom', traceIndices: Set<number>, blankIndices: Set<number> };
 export type ChoiceLayout = 'vertical' | 'horizontal';
 
 export type WordsearchDirection = 'horizontal' | 'vertical' | 'diagonalDown' | 'diagonalUp';
@@ -44,6 +50,13 @@ export type Type16ChoiceCount = 2 | 3 | 4;
 export type Type16Layout = 'lettersLeft' | 'lettersRight' | 'lettersBottom';
 export type Type16LetterCase = 'lower' | 'upper' | 'both';
 export type Type16Border = 'none' | 'outerOnly' | 'full';
+
+export type Type17TaskMode = 'color' | 'cross';
+export type Type17Border = 'full' | 'outerOnly' | 'none';
+export type Type17CardBorder = 'none' | 'rounded';
+export type Type17LetterCase = 'lower' | 'upper';
+export type Type17StripLength = 'auto' | 6 | 8 | 10;
+export type Type17HighlightTarget = 'none' | 'red';
 
 export interface PlacedWordInfo {
   word: WorksheetWord;
@@ -139,7 +152,8 @@ export interface WorksheetOptions {
   showWordLabels?: boolean; // for Type 14 (default: true)
   sentenceScramble?: boolean; // for Type 1: scramble words (default: true)
   sentenceSeparator?: 'space' | 'slash'; // for Type 1: separator ('space' | 'slash', default: 'space')
-  sentenceHintStyle?: 'underscores' | 'dots'; // for Type 1: hint style ('underscores' | 'dots', default: 'underscores')
+  sentenceHintStyle?: 'underscores' | 'dots' | 'trace'; // for Type 1: hint style ('underscores' | 'dots' | 'trace', default: 'underscores')
+  sentenceTraceFontSize?: number; // for Type 1: trace font size in pt for Grade 1 (default: 28 for A4, 26 for A5)
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' (default) or 'table' (Look and write)
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode (default: 'both_trace_first')
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
@@ -152,11 +166,18 @@ export interface WorksheetOptions {
   type16Layout?: Type16Layout; // for Type 16: 'lettersLeft' (default), 'lettersRight', 'lettersBottom'
   type16LetterCase?: Type16LetterCase; // for Type 16: 'lower' (default), 'upper', 'both'
   type16Border?: Type16Border; // for Type 16: 'none' (default), 'outerOnly', 'full'
+  type17TaskMode?: Type17TaskMode; // for Type 17: 'color' (default: Look and color the words) | 'cross' (Cross out extra letters)
+  type17Border?: Type17Border; // for Type 17: 'full' (default: dividers between letters) | 'outerOnly' | 'none'
+  type17CardBorder?: Type17CardBorder; // for Type 17: 'none' (default) | 'rounded'
+  type17LetterCase?: Type17LetterCase; // for Type 17: 'lower' (default) | 'upper'
+  type17StripLength?: Type17StripLength; // for Type 17: 'auto' (default) | 6 | 8 | 10
+  type17HighlightTarget?: Type17HighlightTarget; // for Type 17: 'none' (default: black for student) | 'red' (answer key)
+  type17ShowExample?: boolean; // for Type 17: default true (first item has example slash/highlight)
 }
 
 export interface CompositeWorksheetSection {
   id: string;
-  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16
+  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
   title: string;
   instruction?: string;
   words: WorksheetWord[];
@@ -183,7 +204,8 @@ export interface CompositeWorksheetSection {
   showWordLabels?: boolean; // for Type 14
   sentenceScramble?: boolean; // for Type 1
   sentenceSeparator?: 'space' | 'slash'; // for Type 1
-  sentenceHintStyle?: 'underscores' | 'dots'; // for Type 1
+  sentenceHintStyle?: 'underscores' | 'dots' | 'trace'; // for Type 1
+  sentenceTraceFontSize?: number; // for Type 1: trace font size in pt (default: 28 for A4, 26 for A5)
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' or 'table'
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
@@ -196,6 +218,13 @@ export interface CompositeWorksheetSection {
   type16Layout?: Type16Layout;
   type16LetterCase?: Type16LetterCase;
   type16Border?: Type16Border;
+  type17TaskMode?: Type17TaskMode;
+  type17Border?: Type17Border;
+  type17CardBorder?: Type17CardBorder;
+  type17LetterCase?: Type17LetterCase;
+  type17StripLength?: Type17StripLength;
+  type17HighlightTarget?: Type17HighlightTarget;
+  type17ShowExample?: boolean;
 }
 
 export interface CompositeWorksheetConfig {
@@ -321,6 +350,14 @@ export const WORKSHEET_TYPES: WorksheetTypeMeta[] = [
     name: 'Loại 16: Nhìn tranh khoanh âm (Look and circle the sound)',
     description: 'Mỗi tranh có các chữ cái lựa chọn (2, 3 hoặc 4 chữ cái) xếp theo cột hoặc hàng, học sinh nhìn tranh và khoanh tròn âm đầu/cuối đúng.',
     thumbnail: '/worksheet/types/loai-pdf-16.PNG',
+    isNew: false
+  },
+  {
+    type: 17,
+    id: 17,
+    name: 'Loại 17: Nhìn tranh tô màu từ đúng (Look and color the words)',
+    description: 'Mỗi tranh có dải các ô chữ cái chứa từ mục tiêu và chữ cái dư. Hỗ trợ 2 chế độ: Tô màu từ đúng (Look and color) hoặc Gạch bỏ chữ dư (Cross out the extra letters).',
+    thumbnail: '/worksheet/types/loai-pdf-17.PNG',
     isNew: true
   }
 ];
@@ -473,14 +510,19 @@ export function scrambleSentenceWords(sentence: string, separator: 'space' | 'sl
  * - 'dots': each character (letters, spaces, punctuation) is replaced by 1 '...'.
  *   For example, 'a van' (4 letters + 1 space) produces 5 '...'.
  *   Clamped to maxDots if provided (to strictly guarantee at most 1 line).
+ * - 'trace': the exact sentence text to be rendered in KG Primary Dots (trace handwriting font).
  */
 export function generateSentenceHint(
   sentence: string,
-  style: 'underscores' | 'dots' = 'underscores',
+  style: 'underscores' | 'dots' | 'trace' = 'underscores',
   maxDots?: number
 ): string {
   const trimmed = sentence.trim();
   if (!trimmed) return '';
+
+  if (style === 'trace') {
+    return trimmed;
+  }
 
   if (style === 'dots') {
     const normalized = trimmed.replace(/\s+/g, ' ');
@@ -526,25 +568,34 @@ export function getType1Sentence(word: WorksheetWord): string {
 }
 
 /**
- * Calculate geometry metrics for Type 1 exercise items based on font size and spacing.
+ * Calculate geometry metrics for Type 1 exercise items based on font size, spacing, hint style, and trace font size.
  */
-export function calculateType1Metrics(fontSizePt: number, spacingPt: number, imgSize: number = 12.7) {
+export function calculateType1Metrics(
+  fontSizePt: number,
+  spacingPt: number,
+  imgSize: number = 12.7,
+  hintStyle: 'underscores' | 'dots' | 'trace' = 'underscores',
+  traceFontSizePt?: number
+) {
   const spacingMm = spacingPt * 0.352778;
   const isZero = spacingPt === 0;
   const gapImgToWords = (isZero ? 1.0 : 2.0) + spacingMm * 0.35;
   const gapWordsToHint = (isZero ? 1.5 : 3.0) + spacingMm * 0.45;
   const itemGap = (isZero ? 1.5 : 3.0) + spacingMm * 0.6;
   const wordsH = fontSizePt * 0.352778 * 1.2;
-  const hintH = fontSizePt * 0.352778 * 1.2;
+  const effectiveHintFontSize = hintStyle === 'trace' ? (traceFontSizePt || 28) : fontSizePt;
+  const hintH = effectiveHintFontSize * 0.352778 * 1.2;
   const itemContentHeight = imgSize + gapImgToWords + wordsH + gapWordsToHint + hintH;
   const itemTotalHeight = itemContentHeight + itemGap;
   return {
     spacingMm,
+    isZero,
     gapImgToWords,
     gapWordsToHint,
     itemGap,
     wordsH,
     hintH,
+    effectiveHintFontSize,
     itemContentHeight,
     itemTotalHeight
   };
@@ -781,6 +832,270 @@ export function calculateType16Metrics(
     rowGap,
     rowHeight
   };
+}
+
+export interface Type17Cell {
+  char: string;
+  isTarget: boolean;
+  indexInWord: number;
+}
+
+export function generateType17Letters(
+  term: string,
+  stripLengthOption: Type17StripLength = 'auto',
+  taskMode: Type17TaskMode = 'color',
+  letterCase: Type17LetterCase = 'lower',
+  seedIndex: number = 0
+): { cells: Type17Cell[]; targetIndices: number[]; distractorIndices: number[]; stripLength: number } {
+  const cleanWord = term.trim().replace(/[^a-zA-Z]/g, '') || 'word';
+  const wordChars = (letterCase === 'upper' ? cleanWord.toUpperCase() : cleanWord.toLowerCase()).split('');
+
+  // Default target length: 8 for color, 6 for cross out
+  const defaultLen = taskMode === 'cross' ? 6 : 8;
+  const targetLen = stripLengthOption === 'auto' ? defaultLen : Number(stripLengthOption);
+  // Strip length must be at least wordChars.length + 1 so there's always at least one distractor
+  const finalLen = Math.max(targetLen, wordChars.length + 1);
+  const extraCount = finalLen - wordChars.length;
+
+  // Distribute extra letters into prefix and suffix
+  let prefixCount = 1;
+  if (extraCount <= 1) {
+    prefixCount = seedIndex % 2 === 0 ? 1 : 0;
+  } else {
+    // Varied natural distribution across exercise items
+    const distPattern = [1, 2, 1, 2, 1, 3, 2];
+    const desired = distPattern[seedIndex % distPattern.length];
+    prefixCount = Math.min(extraCount - 1, Math.max(1, desired));
+  }
+  const suffixCount = extraCount - prefixCount;
+
+  // Distractor pools of natural consecutive & paired letters
+  const pairs = [
+    ['a', 'b', 'c', 'd'],
+    ['x', 'y', 'z', 'w'],
+    ['m', 'n', 'o', 'p'],
+    ['p', 'q', 'r', 's'],
+    ['u', 'v', 'w', 'x'],
+    ['b', 'c', 'd', 'e'],
+    ['f', 'g', 'h', 'j'],
+    ['s', 't', 'u', 'v']
+  ];
+
+  const prefixPool = pairs[seedIndex % pairs.length];
+  const prefixChars: string[] = [];
+  for (let p = 0; p < prefixCount; p++) {
+    const ch = prefixPool[p % prefixPool.length];
+    prefixChars.push(letterCase === 'upper' ? ch.toUpperCase() : ch.toLowerCase());
+  }
+
+  const suffixOffset = (seedIndex * 3 + 2) % pairs.length;
+  const suffixPool = pairs[suffixOffset];
+  const suffixChars: string[] = [];
+  for (let s = 0; s < suffixCount; s++) {
+    const ch = suffixPool[s % suffixPool.length];
+    suffixChars.push(letterCase === 'upper' ? ch.toUpperCase() : ch.toLowerCase());
+  }
+
+  const cells: Type17Cell[] = [];
+  const targetIndices: number[] = [];
+  const distractorIndices: number[] = [];
+
+  prefixChars.forEach((char) => {
+    distractorIndices.push(cells.length);
+    cells.push({ char, isTarget: false, indexInWord: -1 });
+  });
+
+  wordChars.forEach((char, idx) => {
+    targetIndices.push(cells.length);
+    cells.push({ char, isTarget: true, indexInWord: idx });
+  });
+
+  suffixChars.forEach((char) => {
+    distractorIndices.push(cells.length);
+    cells.push({ char, isTarget: false, indexInWord: -1 });
+  });
+
+  return { cells, targetIndices, distractorIndices, stripLength: finalLen };
+}
+
+/**
+ * Calculate geometry metrics for Type 17 items (Look and color / Cross out extra letters)
+ */
+export function calculateType17Metrics(
+  fontSizePt: number,
+  spacingPt: number = 0,
+  stripLength: number = 8,
+  cardBorder: Type17CardBorder = 'none',
+  imgSizeMm: number = 12.7,
+  isA5: boolean = false,
+  fontFamily?: string
+) {
+  const cols = isA5 ? 2 : 3;
+  const colGap = isA5 ? 5.0 : 6.0;
+  const printableWidth = isA5 ? 132 : 190; // 148-16 on A5, 210-20 on A4
+  const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 0) * 0.352778;
+  const isZero = spacingPt === 0;
+
+  // Cell dimensions
+  const fontHeightMm = fontSizePt * 0.352778;
+  const cellH = Math.max(isA5 ? 6.5 : 7.2, fontHeightMm * 1.35);
+  const maxCellW = (cardWidth - 2.0) / stripLength;
+  const desiredCellW = Math.max(cellH, isA5 ? 6.5 : 7.2);
+  const cellW = Math.min(maxCellW, desiredCellW);
+  const stripW = cellW * stripLength;
+  const stripH = cellH;
+
+  // Strict font scaling inside cell to prevent any overflow or clipping
+  const maxSafeFontByWidth = (cellW * 0.72) / 0.352778;
+  const maxSafeFontByHeight = (cellH * 0.72) / 0.352778;
+  const effectiveCellFontSize = Math.min(fontSizePt, maxSafeFontByWidth, maxSafeFontByHeight);
+
+  // Effective image dimension: centered above strip
+  const maxImgW = cardWidth - (cardBorder === 'rounded' ? 6.0 : 2.0);
+  const effectiveImgDim = Math.min(imgSizeMm, maxImgW);
+
+  // Gap between image and letter strip
+  // At spacing 0 pt: 1.8mm (tight, compact, professional)
+  // At spacing > 0 pt: scales smoothly
+  const gapImgToStrip = (isZero ? 1.8 : 2.2) + spacingMm * 0.25;
+
+  const padY = cardBorder === 'rounded' ? (isA5 ? 2.0 : 2.5) : 0;
+  const itemContentHeight = effectiveImgDim + gapImgToStrip + stripH;
+  const cardHeight = itemContentHeight + 2 * padY;
+
+  // Row gap between items:
+  // At spacing 0 pt: 2.0mm on A5, 3.0mm on A4
+  // At spacing > 0 pt: scales linearly with points
+  const baseRowGap = isZero ? (isA5 ? 2.0 : 3.0) : (isA5 ? 3.5 : 4.5);
+  const rowGap = baseRowGap + spacingMm * 0.7;
+  const rowHeight = cardHeight + rowGap;
+
+  return {
+    cols,
+    colGap,
+    cardWidth,
+    cellW,
+    cellH,
+    stripW,
+    stripH,
+    effectiveImgDim,
+    gapImgToStrip,
+    padY,
+    itemContentHeight,
+    cardHeight,
+    baseRowGap,
+    rowGap,
+    rowHeight,
+    effectiveCellFontSize,
+    spacingMm,
+    isZero
+  };
+}
+
+/**
+ * Draws a single Type 17 item: image + letter strip with choices, borders, and optional example markings
+ */
+export function drawType17Item(
+  doc: jsPDF,
+  cardX: number,
+  cardY: number,
+  cardWidth: number,
+  targetImg: string | null,
+  cells: Type17Cell[],
+  taskMode: Type17TaskMode,
+  borderStyle: Type17Border,
+  cardBorderStyle: Type17CardBorder,
+  highlightTarget: Type17HighlightTarget,
+  showExample: boolean,
+  isFirstItem: boolean,
+  metrics: ReturnType<typeof calculateType17Metrics>,
+  activeFont: string,
+  showImageBorder: boolean = false
+) {
+  const { cellW, cellH, stripW, stripH, effectiveImgDim, gapImgToStrip, padY, cardHeight, effectiveCellFontSize } = metrics;
+  const numCells = cells.length;
+
+  // 1. Optional outer card border (matching Type 15/16 rounded card style)
+  if (cardBorderStyle === 'rounded') {
+    doc.setDrawColor(148, 163, 184); // slate-400
+    doc.setLineWidth(0.4);
+    setDocLineDash(doc, [0.4, 0.8]);
+    doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2.0, 2.0, 'S');
+    setDocLineDash(doc, []);
+  }
+
+  // 2. Draw Image (centered horizontally in cardWidth)
+  const imgX = cardX + (cardWidth - effectiveImgDim) / 2;
+  const imgY = cardY + padY + (cardBorderStyle === 'rounded' ? 1.0 : 0);
+
+  if (targetImg) {
+    try {
+      doc.addImage(targetImg, 'JPEG', imgX, imgY, effectiveImgDim, effectiveImgDim);
+    } catch {
+      if (showImageBorder) doc.rect(imgX, imgY, effectiveImgDim, effectiveImgDim);
+    }
+  } else if (showImageBorder) {
+    doc.rect(imgX, imgY, effectiveImgDim, effectiveImgDim);
+  }
+
+  // 3. Draw Letter Strip (centered horizontally in cardWidth)
+  const stripX = cardX + (cardWidth - stripW) / 2;
+  const stripY = imgY + effectiveImgDim + gapImgToStrip;
+
+  // Letter strip border: full | outerOnly | none
+  if (borderStyle === 'full' || borderStyle === 'outerOnly') {
+    doc.setDrawColor(148, 163, 184); // slate-400
+    doc.setLineWidth(0.35);
+    setDocLineDash(doc, [0.4, 0.8]);
+    doc.roundedRect(stripX, stripY, stripW, stripH, 1.2, 1.2, 'S');
+
+    // Inner dividers if full (nét đứt chia đều từng ô chữ cái)
+    if (borderStyle === 'full') {
+      doc.setLineWidth(0.28);
+      setDocLineDash(doc, [0.3, 0.7]);
+      for (let c = 1; c < numCells; c++) {
+        const divX = stripX + c * cellW;
+        doc.line(divX, stripY, divX, stripY + stripH);
+      }
+    }
+    setDocLineDash(doc, []); // reset dash
+  }
+
+  // 4. Draw Characters and Cross-out slashes inside each cell
+  for (let c = 0; c < numCells; c++) {
+    const cell = cells[c];
+    const cellX = stripX + c * cellW;
+    const cellY = stripY;
+    const cellCenterX = cellX + cellW / 2;
+    const cellCenterY = cellY + cellH / 2;
+
+    const isExItem = isFirstItem && showExample;
+    const shouldHighlight = cell.isTarget && (highlightTarget === 'red' || (isExItem && taskMode === 'color'));
+
+    // Text color
+    if (shouldHighlight) {
+      doc.setTextColor(220, 38, 38); // Highlight red #dc2626 exactly as Type 3/15
+    } else {
+      doc.setTextColor(30, 41, 59); // Slate-800 dark text
+    }
+
+    applyFont(doc, activeFont, activeFont === 'KG Primary Dots' ? 'normal' : 'bold');
+    doc.setFontSize(effectiveCellFontSize);
+    doc.text(cell.char, cellCenterX, cellCenterY, { align: 'center', baseline: 'middle' });
+
+    // In 'cross' mode: if example on 1st item and cell is a distractor, draw diagonal slash '/'
+    if (taskMode === 'cross' && isExItem && !cell.isTarget) {
+      doc.setDrawColor(71, 85, 105); // slate-600
+      doc.setLineWidth(0.35);
+      const slashPadW = cellW * 0.18;
+      const slashPadH = cellH * 0.18;
+      doc.line(cellX + slashPadW, cellY + cellH - slashPadH, cellX + cellW - slashPadW, cellY + slashPadH);
+    }
+  }
+
+  doc.setTextColor(0, 0, 0);
 }
 
 export interface HighlightedSpan {
@@ -1136,7 +1451,7 @@ export function drawTargetLetterTitle(
 export function drawType4WordCell(
   doc: jsPDF,
   term: string,
-  cellType: 'initial_trace' | 'initial_blank' | 'final_trace' | 'final_blank',
+  cellType: 'initial_trace' | 'initial_blank' | 'final_trace' | 'final_blank' | Type4CellConfig,
   startX: number,
   baselineY: number,
   fontSize: number,
@@ -1158,6 +1473,40 @@ export function drawType4WordCell(
 
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(underlineThickness);
+
+  if (typeof cellType === 'object') {
+    if (cellType.mode === 'custom') {
+      let curX = startX;
+      for (let idx = 0; idx < trimmed.length; idx++) {
+        const ch = trimmed[idx];
+        if (cellType.traceIndices.has(idx)) {
+          doc.setFont('KGPrimaryDots', 'normal');
+          doc.setFontSize(traceFontSize);
+          doc.setTextColor(30, 41, 59);
+          const chW = doc.getTextWidth(ch);
+          doc.text(ch, curX, baselineY);
+          doc.line(curX, lineY, curX + chW, lineY);
+          curX += chW + 0.8;
+        } else if (cellType.blankIndices.has(idx)) {
+          applyFont(doc, regularFont, 'normal');
+          doc.setFontSize(fontSize);
+          doc.setTextColor(0, 0, 0);
+          const blankStr = '__';
+          doc.text(blankStr, curX, baselineY);
+          curX += doc.getTextWidth(blankStr) + 0.8;
+        } else {
+          applyFont(doc, regularFont, 'normal');
+          doc.setFontSize(fontSize);
+          doc.setTextColor(0, 0, 0);
+          doc.text(ch, curX, baselineY);
+          curX += doc.getTextWidth(ch);
+        }
+      }
+      return;
+    } else {
+      cellType = cellType.mode;
+    }
+  }
 
   if (cellType === 'initial_trace') {
     // 1. First char in KG Primary Dots (Trace) with traceFontSize (default 28pt)
@@ -2417,23 +2766,26 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
     // Options:
     // - sentenceScramble: boolean (default: true)
     // - sentenceSeparator: 'space' | 'slash' (default: 'space')
-    // - sentenceHintStyle: 'underscores' | 'dots' (default: 'underscores')
-    // Layout: Centered Image (0.5x0.5 in = 12.7x12.7 mm) -> Centered Words -> Centered Hint
-    // Pagination: 4 items/page on A5, 6 items/page on A4
+    // - sentenceHintStyle: 'underscores' | 'dots' | 'trace' (default: 'underscores')
+    // - sentenceTraceFontSize: number (default: 28 on A4, 26 on A5)
+    // Layout: Centered Image -> Centered Words -> Centered Hint
+    // Pagination: dynamic wordsPerPage (up to 4 on A5, 6 on A4) based on item height
     // -------------------------------------------------------------
     const isScramble = options.sentenceScramble !== false;
     const separator = options.sentenceSeparator || 'space';
     const hintStyle = options.sentenceHintStyle || 'underscores';
-
-    const wordsPerPage = isA5 ? 4 : 6;
-    const totalPages = Math.ceil(validWords.length / wordsPerPage);
+    const traceFontSize = options.sentenceTraceFontSize || (isA5 ? 26 : 28);
 
     const effectiveFontSize = fontSize || (isA5 ? 11.5 : 13.5);
     const effectiveSpacing = spacing !== undefined ? spacing : 6;
-    const metrics = calculateType1Metrics(effectiveFontSize, effectiveSpacing, imgSize);
-    const { gapImgToWords, gapWordsToHint, itemTotalHeight } = metrics;
+    const metrics = calculateType1Metrics(effectiveFontSize, effectiveSpacing, imgSize, hintStyle, traceFontSize);
+    const { gapImgToWords, gapWordsToHint, itemGap, itemTotalHeight } = metrics;
 
     const topMargin = (showHeader && title) ? margin + (isA5 ? 12 : 14) : margin + 4;
+    const availableContentH = pageHeight - topMargin - (showFooter ? (isA5 ? 12 : 15) : margin);
+    const maxItemsFit = Math.max(1, Math.floor(availableContentH / itemTotalHeight));
+    const wordsPerPage = Math.min(isA5 ? 4 : 6, maxItemsFit);
+    const totalPages = Math.ceil(validWords.length / wordsPerPage);
 
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) doc.addPage();
@@ -2451,14 +2803,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
       const startIdx = page * wordsPerPage;
       const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
 
+      let currentItemY = topMargin;
+
       for (let i = startIdx; i < endIdx; i++) {
-        const itemIdx = i - startIdx;
-        const itemY = topMargin + itemIdx * itemTotalHeight;
+        const itemY = currentItemY;
 
         const currentWord = validWords[i];
         const targetImg = wordImages[i];
 
-        // 1. Centered Image (0.5 x 0.5 in = 12.7 x 12.7 mm)
+        // 1. Centered Image (0.5 x 0.5 in = 12.7 x 12.7 mm default)
         const imgX = (pageWidth - imgSize) / 2;
         const imgY = itemY;
 
@@ -2493,10 +2846,14 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
           }
         }
 
-        // 3. Middle: Words
+        // 3. Middle: Words (with multi-line safety)
         applyFont(doc, activeFont, 'normal');
         doc.setFontSize(effectiveFontSize);
         doc.setTextColor(30, 41, 59);
+
+        const wordsLines = doc.splitTextToSize(displayedText, printableWidth - 4);
+        const wordsLineCount = Math.max(1, Array.isArray(wordsLines) ? wordsLines.length : 1);
+        const wordsLineHeight = effectiveFontSize * 0.352778 * 1.25;
 
         const wordsY = imgY + imgSize + gapImgToWords + (effectiveFontSize * 0.352778 * 0.85);
         doc.text(displayedText, pageWidth / 2, wordsY, {
@@ -2504,20 +2861,61 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
           maxWidth: printableWidth - 4
         });
 
-        // 4. Bottom: Hint Line (guaranteed at most 1 line)
-        const hintY = wordsY + (effectiveFontSize * 0.352778 * 0.35) + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
-        doc.setTextColor(51, 65, 85);
-        if (hintStyle === 'dots') {
+        // 4. Bottom: Hint Line (measured from bottom of words)
+        const wordsBottom = wordsY + (wordsLineCount - 1) * wordsLineHeight + (effectiveFontSize * 0.352778 * 0.35);
+        let actualHintBottom = wordsBottom;
+
+        if (hintStyle === 'trace') {
+          doc.setFont('KGPrimaryDots', 'normal');
+          let actualTraceFontSize = traceFontSize;
+          doc.setFontSize(actualTraceFontSize);
+          doc.setTextColor(30, 41, 59);
+
+          // Auto-fit protection: iteratively decrease font size down to 14pt so it fits on 1 single continuous line for kids
+          const maxHintW = printableWidth - 4;
+          while (doc.getTextWidth(hintText) > maxHintW && actualTraceFontSize > 14) {
+            actualTraceFontSize--;
+            doc.setFontSize(actualTraceFontSize);
+          }
+
+          const traceLines = doc.splitTextToSize(hintText, maxHintW);
+          const traceLineCount = Math.max(1, Array.isArray(traceLines) ? traceLines.length : 1);
+          const traceLineHeight = actualTraceFontSize * 0.352778 * 1.2;
+
+          const hintY = wordsBottom + gapWordsToHint + (actualTraceFontSize * 0.352778 * 0.85);
+          doc.text(hintText, pageWidth / 2, hintY, {
+            align: 'center',
+            maxWidth: maxHintW
+          });
+          actualHintBottom = hintY + (traceLineCount - 1) * traceLineHeight + (actualTraceFontSize * 0.352778 * 0.35);
+        } else if (hintStyle === 'dots') {
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(51, 65, 85);
+          const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
           doc.text(hintText, pageWidth / 2, hintY, {
             align: 'center'
           });
+          actualHintBottom = hintY + (effectiveFontSize * 0.352778 * 0.35);
         } else {
+          // underscores
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(51, 65, 85);
+          const hintLines = doc.splitTextToSize(hintText, printableWidth - 4);
+          const hintLineCount = Math.max(1, Array.isArray(hintLines) ? hintLines.length : 1);
+          const hintLineHeight = effectiveFontSize * 0.352778 * 1.2;
+
+          const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
           doc.text(hintText, pageWidth / 2, hintY, {
             align: 'center',
             maxWidth: printableWidth - 4
           });
+          actualHintBottom = hintY + (hintLineCount - 1) * hintLineHeight + (effectiveFontSize * 0.352778 * 0.35);
         }
         doc.setTextColor(0, 0, 0);
+
+        currentItemY = actualHintBottom + itemGap;
       }
 
       // Footer
@@ -3146,7 +3544,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
       // Dynamically calculates wordsPerPage based on font size & spacing
       // -------------------------------------------------------------
       const colMode = options.type4ColumnMode || 'both_trace_first';
-      const numTextCols = (colMode === 'initial_only' || colMode === 'final_only') ? 2 : 4;
+      const numTextCols = (colMode === 'initial_only' || colMode === 'final_only' || colMode === 'alphabet_order' || colMode === 'vowels_only') ? 2 : 4;
 
       const tableX = margin;
       const tableWidth = printableWidth;
@@ -3180,7 +3578,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
       const wordsPerPage = Math.max(1, Math.floor(availHeight / rowHeight));
       const totalPages = Math.ceil(validWords.length / wordsPerPage);
 
-      // Define cell types based on colMode
+      // Define static cell types for standard 4-col / 2-col modes
       let cellTypes: Array<'initial_trace' | 'initial_blank' | 'final_trace' | 'final_blank'> = [];
       if (colMode === 'both_trace_first') {
         cellTypes = ['initial_trace', 'initial_blank', 'final_trace', 'final_blank'];
@@ -3267,10 +3665,56 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
 
           const baselineY = rowCenterY + (cellTraceFontSize * 0.352778) * 0.28;
 
-          for (let c = 0; c < cellTypes.length; c++) {
-            const cellType = cellTypes[c];
-            const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
-            drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+          if (colMode === 'alphabet_order' || colMode === 'vowels_only') {
+            const letters = term.toLowerCase();
+            let targetChar = '';
+            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+              const ch = letters[chIdx];
+              if (ch >= 'a' && ch <= 'z') {
+                if (colMode === 'vowels_only') {
+                  if (['a', 'e', 'i', 'o', 'u'].includes(ch)) {
+                    targetChar = ch;
+                    break;
+                  }
+                } else {
+                  if (!targetChar || ch < targetChar) {
+                    targetChar = ch;
+                  }
+                }
+              }
+            }
+            // Fallback if no matching letter found
+            if (!targetChar) {
+              for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+                if (letters[chIdx] >= 'a' && letters[chIdx] <= 'z') {
+                  targetChar = letters[chIdx];
+                  break;
+                }
+              }
+            }
+            if (!targetChar && letters.length > 0) targetChar = letters[0];
+
+            const traceSet = new Set<number>();
+            const blankSet = new Set<number>();
+
+            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+              if (letters[chIdx] === targetChar) {
+                traceSet.add(chIdx);
+                blankSet.add(chIdx);
+              }
+            }
+
+            const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
+            const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
+
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: traceSet, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices: blankSet } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+          } else {
+            for (let c = 0; c < cellTypes.length; c++) {
+              const cellType = cellTypes[c];
+              const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
+              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            }
           }
         }
 
@@ -4937,6 +5381,124 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
         }
       }
     }
+  } else if (type === 17) {
+    // -------------------------------------------------------------
+    // TYPE 17: Look and color the words / Cross out the extra letters
+    // A4: 3 columns; A5: 2 columns
+    // -------------------------------------------------------------
+    const taskMode: Type17TaskMode = options.type17TaskMode || 'color';
+    const borderStyle: Type17Border = options.type17Border || 'full';
+    const cardBorderStyle: Type17CardBorder = options.type17CardBorder || 'none';
+    const letterCase: Type17LetterCase = options.type17LetterCase || 'lower';
+    const stripLengthOpt: Type17StripLength = options.type17StripLength || 'auto';
+    const highlightTarget: Type17HighlightTarget = options.type17HighlightTarget || 'none';
+    const showExample = options.type17ShowExample !== false;
+
+    const effectiveFontSize = fontSize || (isA5 ? 13 : 15);
+    const effectiveSpacing = spacing !== undefined ? spacing : 0;
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+    const effectiveImgSize = imageSize || (isA5 ? 14.0 : 16.0);
+
+    const cols = isA5 ? 2 : 3;
+    const colGap = isA5 ? 5.0 : 6.0;
+    const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+
+    // Pre-generate all item cells so we know max strip length across items
+    const generatedItems = validWords.map((w, idx) =>
+      generateType17Letters(w.term, stripLengthOpt, taskMode, letterCase, idx)
+    );
+    const maxStripLen = Math.max(...generatedItems.map((g) => g.stripLength), taskMode === 'cross' ? 6 : 8);
+
+    const metrics = calculateType17Metrics(
+      effectiveFontSize,
+      effectiveSpacing,
+      maxStripLen,
+      cardBorderStyle,
+      effectiveImgSize,
+      isA5,
+      activeFont
+    );
+
+    const { rowHeight } = metrics;
+
+    const defaultTitle = taskMode === 'cross'
+      ? 'Cross out (/) the extra letters.'
+      : 'Look and color the words';
+    const finalTitle = title || defaultTitle;
+
+    const topMargin = (showHeader && finalTitle) ? margin + (isA5 ? 12 : 14) : margin + 4;
+    const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
+
+    const maxRowsPerPage = Math.max(1, Math.floor(availHeight / rowHeight));
+    const wordsPerPage = cols * maxRowsPerPage;
+    const totalPages = Math.ceil(validWords.length / wordsPerPage);
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) doc.addPage();
+      await insertBackground(doc, background, isA5);
+
+      // Title & Header
+      if (showHeader && finalTitle) {
+        doc.setFont('fff', 'bold');
+        doc.setFontSize(isA5 ? 16 : 22);
+        doc.setTextColor(30, 41, 59);
+        doc.text(finalTitle, margin, margin + (isA5 ? 5.5 : 7));
+        doc.setTextColor(0, 0, 0);
+      }
+
+      const startIdx = page * wordsPerPage;
+      const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
+
+      for (let i = startIdx; i < endIdx; i++) {
+        const itemIdx = i - startIdx;
+        const col = itemIdx % cols;
+        const row = Math.floor(itemIdx / cols);
+
+        const cardX = margin + col * (cardWidth + colGap);
+        const cardY = topMargin + row * rowHeight;
+
+        const targetImg = wordImages[i];
+        const itemGen = generatedItems[i];
+
+        const itemMetrics = calculateType17Metrics(
+          effectiveFontSize,
+          effectiveSpacing,
+          itemGen.stripLength,
+          cardBorderStyle,
+          effectiveImgSize,
+          isA5,
+          activeFont
+        );
+
+        drawType17Item(
+          doc,
+          cardX,
+          cardY,
+          cardWidth,
+          targetImg,
+          itemGen.cells,
+          taskMode,
+          borderStyle,
+          cardBorderStyle,
+          highlightTarget,
+          showExample,
+          i === 0,
+          itemMetrics,
+          activeFont,
+          showImageBorder
+        );
+      }
+
+      // Footer
+      if (showFooter) {
+        doc.setFont('fff', 'normal');
+        doc.setFontSize(isA5 ? 8 : 10);
+        if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        if (totalPages > 1) {
+          doc.text(`${page + 1}`, pageWidth - margin, pageHeight - margin + 3);
+        }
+      }
+    }
   }
 
   return doc;
@@ -5067,7 +5629,9 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
     if (section.type === 1) {
       const effectiveFontSize = secFontSize || (isA5 ? 11.5 : 13.5);
-      const metrics = calculateType1Metrics(effectiveFontSize, secSpacing, imgSize);
+      const hintStyle = section.sentenceHintStyle || 'underscores';
+      const traceFontSize = section.sentenceTraceFontSize || (isA5 ? 26 : 28);
+      const metrics = calculateType1Metrics(effectiveFontSize, secSpacing, imgSize, hintStyle, traceFontSize);
       rowHeight = metrics.itemTotalHeight;
       minUnitH = rowHeight;
     } else if (section.type === 2) {
@@ -5235,6 +5799,23 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       );
       rowHeight = metrics.rowHeight;
       minUnitH = rowHeight + 4;
+    } else if (section.type === 17) {
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 13 : 15);
+      const cardBorder = section.type17CardBorder || 'none';
+      const stripLen = section.type17StripLength === 'auto' || !section.type17StripLength
+        ? (section.type17TaskMode === 'cross' ? 6 : 8)
+        : Number(section.type17StripLength);
+      const metrics = calculateType17Metrics(
+        secFontSize,
+        secSpacing,
+        stripLen,
+        cardBorder,
+        imgSize,
+        isA5,
+        secFont
+      );
+      rowHeight = metrics.rowHeight;
+      minUnitH = rowHeight + 4;
     }
 
     // Page break evaluation before section starts
@@ -5267,12 +5848,13 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       // TYPE 1: Sentence Reorder / Rewrite in Composite Mode
       // -------------------------------------------------------------
       const effectiveSecFontSize = secFontSize || (isA5 ? 11.5 : 13.5);
-      const metrics = calculateType1Metrics(effectiveSecFontSize, secSpacing, imgSize);
-      const { gapImgToWords, gapWordsToHint, itemTotalHeight: itemTotalH } = metrics;
-
       const isScramble = section.sentenceScramble !== false;
       const separator = section.sentenceSeparator || 'space';
       const hintStyle = section.sentenceHintStyle || 'underscores';
+      const traceFontSize = section.sentenceTraceFontSize || (isA5 ? 26 : 28);
+
+      const metrics = calculateType1Metrics(effectiveSecFontSize, secSpacing, imgSize, hintStyle, traceFontSize);
+      const { gapImgToWords, gapWordsToHint, itemGap, itemTotalHeight: itemTotalH } = metrics;
 
       for (let i = 0; i < secWords.length; i++) {
         if (currentY + itemTotalH > maxContentY && !isAtTopOfPage) {
@@ -5319,27 +5901,70 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         doc.setFontSize(effectiveSecFontSize);
         doc.setTextColor(30, 41, 59);
 
+        const wordsLines = doc.splitTextToSize(displayedText, printableWidth - 4);
+        const wordsLineCount = Math.max(1, Array.isArray(wordsLines) ? wordsLines.length : 1);
+        const wordsLineHeight = effectiveSecFontSize * 0.352778 * 1.25;
+
         const wordsY = imgY + imgSize + gapImgToWords + (effectiveSecFontSize * 0.352778 * 0.85);
         doc.text(displayedText, pageWidth / 2, wordsY, {
           align: 'center',
           maxWidth: printableWidth - 4
         });
 
-        const hintY = wordsY + (effectiveSecFontSize * 0.352778 * 0.35) + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
-        doc.setTextColor(51, 65, 85);
-        if (hintStyle === 'dots') {
+        const wordsBottom = wordsY + (wordsLineCount - 1) * wordsLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
+        let actualHintBottom = wordsBottom;
+
+        if (hintStyle === 'trace') {
+          doc.setFont('KGPrimaryDots', 'normal');
+          let actualTraceFontSize = traceFontSize;
+          doc.setFontSize(actualTraceFontSize);
+          doc.setTextColor(30, 41, 59);
+
+          // Auto-fit protection: iteratively decrease font size down to 14pt so it fits on 1 single continuous line for kids
+          const maxHintW = printableWidth - 4;
+          while (doc.getTextWidth(hintText) > maxHintW && actualTraceFontSize > 14) {
+            actualTraceFontSize--;
+            doc.setFontSize(actualTraceFontSize);
+          }
+
+          const traceLines = doc.splitTextToSize(hintText, maxHintW);
+          const traceLineCount = Math.max(1, Array.isArray(traceLines) ? traceLines.length : 1);
+          const traceLineHeight = actualTraceFontSize * 0.352778 * 1.2;
+
+          const hintY = wordsBottom + gapWordsToHint + (actualTraceFontSize * 0.352778 * 0.85);
+          doc.text(hintText, pageWidth / 2, hintY, {
+            align: 'center',
+            maxWidth: maxHintW
+          });
+          actualHintBottom = hintY + (traceLineCount - 1) * traceLineHeight + (actualTraceFontSize * 0.352778 * 0.35);
+        } else if (hintStyle === 'dots') {
+          applyFont(doc, secFont, 'normal');
+          doc.setFontSize(effectiveSecFontSize);
+          doc.setTextColor(51, 65, 85);
+          const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
           doc.text(hintText, pageWidth / 2, hintY, {
             align: 'center'
           });
+          actualHintBottom = hintY + (effectiveSecFontSize * 0.352778 * 0.35);
         } else {
+          // underscores
+          applyFont(doc, secFont, 'normal');
+          doc.setFontSize(effectiveSecFontSize);
+          doc.setTextColor(51, 65, 85);
+          const hintLines = doc.splitTextToSize(hintText, printableWidth - 4);
+          const hintLineCount = Math.max(1, Array.isArray(hintLines) ? hintLines.length : 1);
+          const hintLineHeight = effectiveSecFontSize * 0.352778 * 1.2;
+
+          const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
           doc.text(hintText, pageWidth / 2, hintY, {
             align: 'center',
             maxWidth: printableWidth - 4
           });
+          actualHintBottom = hintY + (hintLineCount - 1) * hintLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         }
         doc.setTextColor(0, 0, 0);
 
-        currentY += itemTotalH;
+        currentY = actualHintBottom + itemGap;
         isAtTopOfPage = false;
       }
     } else if (section.type === 2) {
@@ -5394,7 +6019,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         // TYPE 4 - Mode 'table': Look and write in Composite Mode
         // -------------------------------------------------------------
         const colMode = section.type4ColumnMode || 'both_trace_first';
-        const numTextCols = (colMode === 'initial_only' || colMode === 'final_only') ? 2 : 4;
+        const numTextCols = (colMode === 'initial_only' || colMode === 'final_only' || colMode === 'alphabet_order' || colMode === 'vowels_only') ? 2 : 4;
         const tableX = margin;
         const tableWidth = printableWidth;
         const col1Width = 18; // 18mm provides comfortable spacing around 12.7mm (0.5 inch) image
@@ -5476,10 +6101,55 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
           const baselineY = rowCenterY + (cellTraceFontSize * 0.352778) * 0.28;
 
-          for (let c = 0; c < cellTypes.length; c++) {
-            const cellType = cellTypes[c];
-            const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
-            drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+          if (colMode === 'alphabet_order' || colMode === 'vowels_only') {
+            const letters = term.toLowerCase();
+            let targetChar = '';
+            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+              const ch = letters[chIdx];
+              if (ch >= 'a' && ch <= 'z') {
+                if (colMode === 'vowels_only') {
+                  if (['a', 'e', 'i', 'o', 'u'].includes(ch)) {
+                    targetChar = ch;
+                    break;
+                  }
+                } else {
+                  if (!targetChar || ch < targetChar) {
+                    targetChar = ch;
+                  }
+                }
+              }
+            }
+            if (!targetChar) {
+              for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+                if (letters[chIdx] >= 'a' && letters[chIdx] <= 'z') {
+                  targetChar = letters[chIdx];
+                  break;
+                }
+              }
+            }
+            if (!targetChar && letters.length > 0) targetChar = letters[0];
+
+            const traceSet = new Set<number>();
+            const blankSet = new Set<number>();
+
+            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
+              if (letters[chIdx] === targetChar) {
+                traceSet.add(chIdx);
+                blankSet.add(chIdx);
+              }
+            }
+
+            const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
+            const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
+
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: traceSet, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices: blankSet } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+          } else {
+            for (let c = 0; c < cellTypes.length; c++) {
+              const cellType = cellTypes[c];
+              const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
+              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            }
           }
 
           currentY += rowHeight;
@@ -7096,6 +7766,94 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         }
 
         currentY += rowHeight;
+        isAtTopOfPage = false;
+      }
+    } else if (section.type === 17) {
+      // -------------------------------------------------------------
+      // TYPE 17: Look and color the words / Cross out in Composite Mode
+      // -------------------------------------------------------------
+      const cols = isA5 ? 2 : 3;
+      const colGap = isA5 ? 5.0 : 6.0;
+      const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 13 : 15);
+      const secSpacing = section.spacing !== undefined ? section.spacing : (globalSpacing !== undefined ? globalSpacing : 0);
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
+
+      const taskMode: Type17TaskMode = section.type17TaskMode || 'color';
+      const borderStyle: Type17Border = section.type17Border || 'full';
+      const cardBorderStyle: Type17CardBorder = section.type17CardBorder || 'none';
+      const letterCase: Type17LetterCase = section.type17LetterCase || 'lower';
+      const stripLengthOpt: Type17StripLength = section.type17StripLength || 'auto';
+      const highlightTarget: Type17HighlightTarget = section.type17HighlightTarget || 'none';
+      const showExample = section.type17ShowExample !== false;
+
+      const totalRows = Math.ceil(secWords.length / cols);
+      for (let r = 0; r < totalRows; r++) {
+        const rowWordIndices: number[] = [];
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          if (idx < secWords.length) rowWordIndices.push(idx);
+        }
+
+        const rowGens = rowWordIndices.map((idx) =>
+          generateType17Letters(secWords[idx].term, stripLengthOpt, taskMode, letterCase, idx)
+        );
+        const rowMaxStripLen = Math.max(...rowGens.map((g) => g.stripLength), taskMode === 'cross' ? 6 : 8);
+
+        const rowMetrics = calculateType17Metrics(
+          secFontSize,
+          secSpacing,
+          rowMaxStripLen,
+          cardBorderStyle,
+          imgSize,
+          isA5,
+          secFont
+        );
+
+        if (!isAtTopOfPage && currentY + rowMetrics.rowHeight > maxContentY) {
+          await addNewPage();
+        }
+
+        for (let c = 0; c < rowWordIndices.length; c++) {
+          const wordIdx = rowWordIndices[c];
+          const currentWord = secWords[wordIdx];
+          const cardX = margin + c * (cardWidth + colGap);
+          const cardY = currentY;
+
+          const targetImg = currentWord.imageUrl ? await fetchImageAsBase64(currentWord.imageUrl) : null;
+          const itemGen = rowGens[c];
+
+          const itemMetrics = calculateType17Metrics(
+            secFontSize,
+            secSpacing,
+            itemGen.stripLength,
+            cardBorderStyle,
+            imgSize,
+            isA5,
+            secFont
+          );
+
+          drawType17Item(
+            doc,
+            cardX,
+            cardY,
+            cardWidth,
+            targetImg,
+            itemGen.cells,
+            taskMode,
+            borderStyle,
+            cardBorderStyle,
+            highlightTarget,
+            showExample,
+            wordIdx === 0,
+            itemMetrics,
+            secFont,
+            showImageBorder
+          );
+        }
+
+        currentY += rowMetrics.rowHeight;
         isAtTopOfPage = false;
       }
     }

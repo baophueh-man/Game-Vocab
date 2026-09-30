@@ -18,7 +18,13 @@ import {
   Type16ChoiceCount,
   Type16Layout,
   Type16LetterCase,
-  Type16Border
+  Type16Border,
+  Type17TaskMode,
+  Type17Border,
+  Type17CardBorder,
+  Type17LetterCase,
+  Type17StripLength,
+  Type17HighlightTarget
 } from './worksheetGenerator';
 import { generateId } from '../lib/utils';
 
@@ -28,9 +34,9 @@ export const IDB_DATABASE_NAME = 'VocaGameTemplatesDB';
 export const IDB_STORE_NAME = 'templates';
 export const IDB_VERSION = 1;
 
-// Allowed section types for composite worksheets (1-16 except 5)
+// Allowed section types for composite worksheets (1-17 except 5)
 export const VALID_WORKSHEET_SECTION_TYPES: readonly WorksheetType[] = [
-  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
 ];
 
 export interface WorksheetTemplateSection {
@@ -67,7 +73,8 @@ export interface WorksheetTemplateSection {
   showWordLabels?: boolean;
   sentenceScramble?: boolean;
   sentenceSeparator?: 'space' | 'slash';
-  sentenceHintStyle?: 'underscores' | 'dots';
+  sentenceHintStyle?: 'underscores' | 'dots' | 'trace';
+  sentenceTraceFontSize?: number;
   type15NumberStyle?: 'none' | 'traditional';
   type15Border?: 'full' | 'outerOnly' | 'none';
   type15ChoiceMode?: 'ab' | 'checkbox' | 'none';
@@ -77,6 +84,13 @@ export interface WorksheetTemplateSection {
   type16Layout?: Type16Layout;
   type16LetterCase?: Type16LetterCase;
   type16Border?: Type16Border;
+  type17TaskMode?: Type17TaskMode;
+  type17Border?: Type17Border;
+  type17CardBorder?: Type17CardBorder;
+  type17LetterCase?: Type17LetterCase;
+  type17StripLength?: Type17StripLength;
+  type17HighlightTarget?: Type17HighlightTarget;
+  type17ShowExample?: boolean;
 }
 
 export interface WorksheetTemplate {
@@ -823,6 +837,7 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(typeof item.sentenceScramble === 'boolean' ? { sentenceScramble: item.sentenceScramble } : {}),
       ...(item.sentenceSeparator ? { sentenceSeparator: item.sentenceSeparator } : {}),
       ...(item.sentenceHintStyle ? { sentenceHintStyle: item.sentenceHintStyle } : {}),
+      ...(item.sentenceTraceFontSize ? { sentenceTraceFontSize: item.sentenceTraceFontSize } : {}),
       ...(item.type15NumberStyle === 'none' || item.type15NumberStyle === 'traditional' ? { type15NumberStyle: item.type15NumberStyle } : {}),
       ...(item.type15Border === 'full' || item.type15Border === 'outerOnly' || item.type15Border === 'none' ? { type15Border: item.type15Border } : {}),
       ...(item.type15ChoiceMode === 'ab' || item.type15ChoiceMode === 'checkbox' || item.type15ChoiceMode === 'none' ? { type15ChoiceMode: item.type15ChoiceMode } : {}),
@@ -831,7 +846,14 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type16ChoiceCount === 2 || item.type16ChoiceCount === 3 || item.type16ChoiceCount === 4 ? { type16ChoiceCount: item.type16ChoiceCount } : {}),
       ...(item.type16Layout === 'lettersLeft' || item.type16Layout === 'lettersRight' || item.type16Layout === 'lettersBottom' ? { type16Layout: item.type16Layout } : {}),
       ...(item.type16LetterCase === 'lower' || item.type16LetterCase === 'upper' || item.type16LetterCase === 'both' ? { type16LetterCase: item.type16LetterCase } : {}),
-      ...(item.type16Border === 'none' || item.type16Border === 'outerOnly' || item.type16Border === 'full' ? { type16Border: item.type16Border } : {})
+      ...(item.type16Border === 'none' || item.type16Border === 'outerOnly' || item.type16Border === 'full' ? { type16Border: item.type16Border } : {}),
+      ...(item.type17TaskMode === 'color' || item.type17TaskMode === 'cross' ? { type17TaskMode: item.type17TaskMode } : {}),
+      ...(item.type17Border === 'full' || item.type17Border === 'outerOnly' || item.type17Border === 'none' ? { type17Border: item.type17Border } : {}),
+      ...(item.type17CardBorder === 'none' || item.type17CardBorder === 'rounded' ? { type17CardBorder: item.type17CardBorder } : {}),
+      ...(item.type17LetterCase === 'lower' || item.type17LetterCase === 'upper' ? { type17LetterCase: item.type17LetterCase } : {}),
+      ...(item.type17StripLength !== undefined ? { type17StripLength: item.type17StripLength } : {}),
+      ...(item.type17HighlightTarget === 'none' || item.type17HighlightTarget === 'red' ? { type17HighlightTarget: item.type17HighlightTarget } : {}),
+      ...(typeof item.type17ShowExample === 'boolean' ? { type17ShowExample: item.type17ShowExample } : {})
     };
 
     sanitized.push(sec);
