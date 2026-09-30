@@ -3039,7 +3039,7 @@ export default function WorksheetGenerator() {
 
                 {/* Type 16 Options: Look and circle sound */}
                 {worksheetMode === 'single' && worksheetType === 16 && (
-                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                  <div data-testid="type16-options-panel" className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
                     <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
                       <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                         <span>🔤</span> Tuỳ Chọn Nhìn Tranh Khoanh Âm (Loại 16)
