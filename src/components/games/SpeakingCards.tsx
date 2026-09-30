@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { Volume2, ArrowRight, ArrowLeft, Repeat } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
+import { parseHighlightedSentence } from '../../utils/worksheetGenerator';
 
 export default function SpeakingCards({ words, onExit }: { words: Word[], onExit: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -55,7 +56,11 @@ export default function SpeakingCards({ words, onExit }: { words: Word[], onExit
                 />
               </div>
             )}
-            <h2 className="text-6xl md:text-8xl font-bold text-slate-900 mb-8">{currentWord.term}</h2>
+            <h2 className="text-6xl md:text-8xl font-bold text-slate-900 mb-2">{currentWord.term}</h2>
+            {currentWord.phonetic && (
+              <p className="text-xl md:text-2xl text-slate-400 font-mono mb-6">{currentWord.phonetic}</p>
+            )}
+            {!currentWord.phonetic && <div className="mb-6" />}
             <div className="flex items-center justify-center gap-4 md:gap-6">
               <button 
                 onClick={(e) => { e.stopPropagation(); speakEn(currentWord.term, currentWord.audioUrl); }}
@@ -76,6 +81,22 @@ export default function SpeakingCards({ words, onExit }: { words: Word[], onExit
                 <span className="font-bold text-lg md:text-xl">10x</span>
               </button>
             </div>
+
+            {currentWord.exampleSentence && (
+              <div className="mt-6 px-5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-700 text-lg md:text-2xl font-medium max-w-2xl text-center shadow-xs">
+                {parseHighlightedSentence(currentWord.exampleSentence, currentWord.term).map((span, sIdx) => (
+                  <span
+                    key={sIdx}
+                    className={span.isHighlighted ? "font-bold text-red-600 bg-red-50/80 px-1.5 py-0.5 rounded-md" : ""}
+                  >
+                    {span.text}
+                  </span>
+                ))}
+                {currentWord.exampleTranslation && (
+                  <p className="text-sm md:text-base text-teal-600 mt-1.5 italic font-normal">{currentWord.exampleTranslation}</p>
+                )}
+              </div>
+            )}
             <p className="absolute bottom-8 text-slate-400 text-base md:text-lg font-medium">Tap to flip</p>
           </div>
           

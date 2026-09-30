@@ -32,7 +32,12 @@ import {
   ChoiceLayout,
   Type15NumberStyle,
   Type15Border,
-  Type15ChoiceMode
+  Type15ChoiceMode,
+  Type16SoundMode,
+  Type16ChoiceCount,
+  Type16Layout,
+  Type16LetterCase,
+  Type16Border
 } from '../../utils/worksheetGenerator';
 import { pickQuotaAwareRandomWordIndices } from '../../utils/worksheetVocabEngine';
 
@@ -61,6 +66,7 @@ export interface UICompositeSection {
   lookMatchWriteShuffleSuffix?: boolean;
   lookMatchWriteMode?: 'trace' | 'blank';
   lookMatchWriteShowBaseline?: boolean;
+  lookMatchWriteTraceFontSize?: number;
   wordsearchDirections?: WordsearchDirection[];
   wordsearchHintType?: WordsearchHintType;
   wordsearchGridSize?: number | 'auto';
@@ -75,6 +81,11 @@ export interface UICompositeSection {
   type15Border?: Type15Border;
   type15ChoiceMode?: Type15ChoiceMode;
   type15LetterBandBg?: 'tint' | 'white';
+  type16SoundMode?: Type16SoundMode;
+  type16ChoiceCount?: Type16ChoiceCount;
+  type16Layout?: Type16Layout;
+  type16LetterCase?: Type16LetterCase;
+  type16Border?: Type16Border;
 }
 
 interface CompositeSectionCardProps {
@@ -454,7 +465,8 @@ export default function CompositeSectionCard({
                     12: { title: 'Look and write' },
                     13: { title: 'Word Search Puzzle' },
                     14: { title: 'Circle the pictures that have letter V v' },
-                    15: { title: 'Read the sentence and circle the correct picture.' }
+                    15: { title: 'Read the sentence and circle the correct picture.' },
+                    16: { title: 'Look and circle the beginning sound' }
                   };
                   const meta = defaultTitles[t.type];
                   const isType8 = t.type === 8;
@@ -479,7 +491,12 @@ export default function CompositeSectionCard({
                     type15NumberStyle: t.type === 15 ? (section.type15NumberStyle || 'none') : section.type15NumberStyle,
                     type15Border: t.type === 15 ? (section.type15Border || 'full') : section.type15Border,
                     type15ChoiceMode: t.type === 15 ? (section.type15ChoiceMode || 'ab') : section.type15ChoiceMode,
-                    type15LetterBandBg: t.type === 15 ? 'white' : section.type15LetterBandBg
+                    type15LetterBandBg: t.type === 15 ? 'white' : section.type15LetterBandBg,
+                    type16SoundMode: t.type === 16 ? (section.type16SoundMode || 'beginning') : section.type16SoundMode,
+                    type16ChoiceCount: t.type === 16 ? (section.type16ChoiceCount || 3) : section.type16ChoiceCount,
+                    type16Layout: t.type === 16 ? (section.type16Layout || 'lettersLeft') : section.type16Layout,
+                    type16LetterCase: t.type === 16 ? (section.type16LetterCase || 'lower') : section.type16LetterCase,
+                    type16Border: t.type === 16 ? (section.type16Border || 'none') : section.type16Border
                   });
                 }}
                 data-testid={`section-type-button-${t.type}-${index}`}
@@ -881,6 +898,30 @@ export default function CompositeSectionCard({
                     Để trống tự viết (__)
                   </button>
                 </div>
+              </div>
+
+              {/* Trace Font Size option */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-indigo-900">Cỡ chữ Cột Viết / Trace:</span>
+                  <span className="text-[10px] text-indigo-600 font-semibold">
+                    {section.lookMatchWriteTraceFontSize || 28} pt
+                  </span>
+                </div>
+                <select
+                  value={section.lookMatchWriteTraceFontSize || 28}
+                  onChange={(e) => onUpdateSection(index, { lookMatchWriteTraceFontSize: Number(e.target.value) })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  {[16, 18, 20, 22, 24, 26, 28, 30, 32, 36].map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz} pt {sz === 28 ? '(Chuẩn tập viết 28 pt)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Cột 1 & 2 dùng cỡ chữ chung ({section.fontSize || 12} pt), cột Trace dùng cỡ chữ to riêng để học sinh dễ viết.
+                </p>
               </div>
 
               {/* Baseline toggle */}
@@ -1359,6 +1400,162 @@ export default function CompositeSectionCard({
               >
                 Có (Chữ số truyền thống màu đen)
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Type 16: Look and circle sound */}
+      {section.type === 16 && (
+        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3">
+          <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+            <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+              <span>🔤</span> Tuỳ Chọn Nhìn Tranh Khoanh Âm (Loại 16)
+            </span>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              Lưới 3 cột • Tràn trang tự động
+            </span>
+          </div>
+
+          {/* Sound Mode */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Âm Thanh Mục Tiêu (Sound Target)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'beginning', label: 'Âm đầu (Beginning sound)', title: 'Look and circle the beginning sound' },
+                { value: 'ending', label: 'Âm cuối (Ending sound)', title: 'Look and circle the ending sound' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, {
+                    type16SoundMode: opt.value as Type16SoundMode,
+                    title: opt.title
+                  })}
+                  data-testid={`section-type16-sound-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type16SoundMode || 'beginning') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Number of Choices */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Số Lượng Chữ Cái Lựa Chọn (Choices Count)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 2, label: '2 chữ cái' },
+                { value: 3, label: '3 chữ cái (Chuẩn)' },
+                { value: 4, label: '4 chữ cái' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type16ChoiceCount: opt.value as Type16ChoiceCount })}
+                  data-testid={`section-type16-choice-count-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type16ChoiceCount || 3) === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Layout Orientation */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Bố Cục Hiển Thị (Item Layout)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'lettersLeft', label: 'Chữ trái - Tranh phải' },
+                { value: 'lettersRight', label: 'Tranh trái - Chữ phải' },
+                { value: 'lettersBottom', label: 'Chữ ngang dưới tranh' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type16Layout: opt.value as Type16Layout })}
+                  data-testid={`section-type16-layout-${opt.value}-${index}`}
+                  className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                    (section.type16Layout || 'lettersLeft') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Letter Case */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Định Dạng Chữ Cái (Letter Case)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'lower', label: 'Chữ thường (b, p, r)' },
+                { value: 'upper', label: 'Chữ hoa (B, P, R)' },
+                { value: 'both', label: 'Cặp chữ (Bb, Pp, Rr)' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type16LetterCase: opt.value as Type16LetterCase })}
+                  data-testid={`section-type16-case-${opt.value}-${index}`}
+                  className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                    (section.type16LetterCase || 'lower') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Border Style */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Đường Viền Khung (Border Style)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'none', label: 'Không viền' },
+                { value: 'outerOnly', label: 'Chỉ viền ngoài' },
+                { value: 'full', label: 'Có cả viền trong' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onUpdateSection(index, { type16Border: opt.value as Type16Border })}
+                  data-testid={`section-type16-border-${opt.value}-${index}`}
+                  className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type16Border || 'none') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

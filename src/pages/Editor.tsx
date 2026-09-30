@@ -149,6 +149,8 @@ export default function Editor() {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [pasteTargetWordId, setPasteTargetWordId] = useState<string | null>(null);
   const [isProcessingPasteImage, setIsProcessingPasteImage] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddText, setQuickAddText] = useState('');
 
   useEffect(() => {
     const loadSet = async () => {
@@ -538,7 +540,7 @@ export default function Editor() {
     setWords(words.filter((w) => w.id !== wordId));
   };
 
-  const handleWordChange = (wordId: string, field: 'term' | 'definition' | 'imageUrl' | 'audioUrl' | 'viAudioUrl', value: string) => {
+  const handleWordChange = (wordId: string, field: 'term' | 'definition' | 'imageUrl' | 'audioUrl' | 'viAudioUrl' | 'exampleSentence' | 'phonetic' | 'exampleTranslation', value: string) => {
     setWords(words.map((w) => (w.id === wordId ? { ...w, [field]: value } : w)));
   };
 
@@ -687,10 +689,11 @@ export default function Editor() {
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Term (English)', 'Definition (Vietnamese)'],
-      ['Hello', 'Xin chào'],
-      ['Goodbye', 'Tạm biệt'],
-      ['Thank you', 'Cảm ơn']
+      ['Term (English)', 'Definition (Vietnamese)', 'Phonetic (IPA)', 'Example Sentence (EN)', 'Example Translation (VI)'],
+      ['apple', 'quả táo', '/ˈæpəl/', 'This is an <#apple#>.', 'Đây là quả táo.'],
+      ['dog', 'con chó', '/dɒɡ/', 'I have 2 <#dogs#>.', 'Tôi có 2 con chó.'],
+      ['banana', 'quả chuối', '/bəˈnænə/', 'I like <#bananas#>.', 'Tôi thích chuối.'],
+      ['volleyball', 'bóng chuyền', '/ˈvɒlibɔːl/', "She's playing <#volleyball#>.", 'Cô ấy đang chơi bóng chuyền.']
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -857,8 +860,8 @@ export default function Editor() {
     }
     
     const wsData = [
-      ['Term (English)', 'Definition (Vietnamese)'],
-      ...validWords.map(w => [w.term, w.definition])
+      ['Term (English)', 'Definition (Vietnamese)', 'Phonetic (IPA)', 'Example Sentence (EN)', 'Example Translation (VI)'],
+      ...validWords.map(w => [w.term, w.definition, w.phonetic || '', w.exampleSentence || '', w.exampleTranslation || ''])
     ];
     
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -881,8 +884,17 @@ export default function Editor() {
         text: w.term,
         translation: w.definition
       };
+      if (w.phonetic) {
+        item.phonetic = w.phonetic;
+      }
       if (w.imageUrl) {
         item.imageUrl = w.imageUrl;
+      }
+      if (w.exampleSentence) {
+        item.exampleSentence = w.exampleSentence;
+      }
+      if (w.exampleTranslation) {
+        item.exampleTranslation = w.exampleTranslation;
       }
       return item;
     });
@@ -912,19 +924,28 @@ export default function Editor() {
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
 
-      // Assuming row 1 is header, or just try to detect
-      // We look for 2 columns.
+      // Detect columns: Col 0: Term, Col 1: Def, Col 2: Example Sentence
       const newWords: Word[] = [];
       
-      data.forEach((row) => {
+      data.forEach((row, rIdx) => {
+        // Skip header row if it contains keywords
+        if (rIdx === 0 && (String(row[0]).toLowerCase().includes('term') || String(row[0]).toLowerCase().includes('english'))) {
+          return;
+        }
         if (row.length >= 2) {
           const term = String(row[0] || '').trim();
           const def = String(row[1] || '').trim();
+          const phonetic = row.length >= 3 ? String(row[2] || '').trim() : undefined;
+          const exampleSentence = row.length >= 4 ? String(row[3] || '').trim() : undefined;
+          const exampleTranslation = row.length >= 5 ? String(row[4] || '').trim() : undefined;
           if (term && def) {
             newWords.push({
               id: generateId(),
               term,
-              definition: def
+              definition: def,
+              phonetic: phonetic || undefined,
+              exampleSentence: exampleSentence || undefined,
+              exampleTranslation: exampleTranslation || undefined,
             });
           }
         }
@@ -969,7 +990,10 @@ export default function Editor() {
           id: generateId(),
           term: item.text || item.term || '',
           definition: item.translation || item.definition || '',
-          imageUrl: imageUrl
+          phonetic: item.phonetic || undefined,
+          imageUrl: imageUrl,
+          exampleSentence: item.exampleSentence || undefined,
+          exampleTranslation: item.exampleTranslation || undefined,
         };
       }).filter(w => w.term && w.definition);
 
@@ -987,6 +1011,48 @@ export default function Editor() {
     } catch (error) {
       console.error('Error parsing JSON:', error);
       alert('Invalid JSON format. Please check your syntax.');
+    }
+  };
+
+  const handleQuickAddSubmit = () => {
+    if (!quickAddText.trim()) {
+      alert('Vui lòng dán nội dung từ vựng trước.');
+      return;
+    }
+
+    const lines = quickAddText.split('\n').filter(l => l.trim());
+    const newWords: Word[] = [];
+
+    for (const line of lines) {
+      const parts = line.split('|').map(p => p.trim());
+      if (parts.length < 2) continue; // Need at least term|definition
+      const term = parts[0];
+      const definition = parts[1];
+      if (!term || !definition) continue;
+
+      const phonetic = parts.length >= 3 && parts[2] ? parts[2] : undefined;
+      const exampleSentence = parts.length >= 4 && parts[3] ? parts[3] : undefined;
+      const exampleTranslation = parts.length >= 5 && parts[4] ? parts[4] : undefined;
+
+      newWords.push({
+        id: generateId(),
+        term,
+        definition,
+        phonetic,
+        exampleSentence,
+        exampleTranslation,
+      });
+    }
+
+    if (newWords.length > 0) {
+      setWords((prev) => {
+        const filteredPrev = prev.filter(w => w.term.trim() || w.definition.trim());
+        return [...filteredPrev, ...newWords];
+      });
+      setIsQuickAddOpen(false);
+      setQuickAddText('');
+    } else {
+      alert('Không tìm thấy dữ liệu hợp lệ. Mỗi dòng cần ít nhất: từ|nghĩa');
     }
   };
 
@@ -1271,53 +1337,128 @@ export default function Editor() {
   };
 
 
+const removeVietnameseTones = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+};
+
+const isWordMatchingFileName = (term: string, rawFileName: string): boolean => {
+  const cleanTerm = (term || '').trim();
+  if (!cleanTerm) return false;
+
+  // Strip file extension (.png, .jpg, .jpeg, .webp, .svg, .gif, etc.)
+  const cleanFile = rawFileName.replace(/\.[^/.]+$/, "").trim();
+  if (!cleanFile) return false;
+
+  // Level 1: direct lowercase NFC match
+  const tLower = cleanTerm.toLowerCase().normalize('NFC');
+  const fLower = cleanFile.toLowerCase().normalize('NFC');
+  if (tLower === fLower) return true;
+
+  // Level 1b: remove duplicate suffixes commonly added by browsers / OS: e.g. "apple (1)", "apple_1", "apple-1", "apple copy"
+  const fLowerNoSuffix = fLower
+    .replace(/\s*\(\d+\)$/, '')
+    .replace(/[_-]\d+$/, '')
+    .replace(/\s*copy$/i, '')
+    .trim();
+  if (fLowerNoSuffix && tLower === fLowerNoSuffix) return true;
+
+  // Level 2: normalize hyphens, underscores and multiple spaces
+  const tNormSpaces = tLower.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const fNormSpaces = fLower.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (tNormSpaces === fNormSpaces) return true;
+
+  const fNormSpacesNoSuffix = fLowerNoSuffix.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (fNormSpacesNoSuffix && tNormSpaces === fNormSpacesNoSuffix) return true;
+
+  // Level 3: unicode alphanumeric only (e.g. "don't" vs "dont", "ice-cream" vs "icecream")
+  const tAlpha = tNormSpaces.replace(/[^\p{L}\p{N}]/gu, '');
+  const fAlpha = fNormSpaces.replace(/[^\p{L}\p{N}]/gu, '');
+  if (tAlpha && fAlpha && tAlpha === fAlpha) return true;
+
+  const fAlphaNoSuffix = fNormSpacesNoSuffix.replace(/[^\p{L}\p{N}]/gu, '');
+  if (tAlpha && fAlphaNoSuffix && tAlpha === fAlphaNoSuffix) return true;
+
+  // Level 4: diacritic-insensitive (e.g. "cà chua" vs "ca chua")
+  const tNoTone = removeVietnameseTones(tAlpha);
+  const fNoTone = removeVietnameseTones(fAlpha);
+  if (tNoTone && fNoTone && tNoTone === fNoTone) return true;
+
+  const fNoToneNoSuffix = removeVietnameseTones(fAlphaNoSuffix);
+  if (tNoTone && fNoToneNoSuffix && tNoTone === fNoToneNoSuffix) return true;
+
+  return false;
+};
+
   const handleImportImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Check if there are any words with terms
+    const hasValidTerms = words.some(w => w.term.trim().length > 0);
+    if (!hasValidTerms) {
+      alert('Vui lòng nhập danh sách từ vựng trước khi chọn ảnh để hệ thống có thể nhận diện đúng từ.');
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+
     setIsAutoFilling(true);
     setAutoFillProgress({ current: 0, total: files.length });
     
+    let matchedCount = 0;
+    let skippedCount = 0;
+
     try {
       const newWords = [...words];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         setAutoFillProgress({ current: i + 1, total: files.length });
         
-        const fileName = file.name.replace(/\.[^/.]+$/, ""); // strip extension
+        // Find all cards matching this file name
+        const matchingIndices = newWords
+          .map((w, idx) => ({ w, idx }))
+          .filter(({ w }) => isWordMatchingFileName(w.term, file.name));
         
+        // If no matching word in current deck, completely ignore this extra file
+        if (matchingIndices.length === 0) {
+          skippedCount++;
+          continue;
+        }
+
+        // If matched, read file and resize
         const rawBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+
+        // Resize image to max 400x400 for speed and low storage footprint
+        const resized = await resizeBase64Image(rawBase64, 400, 400);
+
+        // Save to firestore / local storage
+        const firestoreUrl = await saveImageFile(resized);
         
-        // Save to firestore
-        const firestoreUrl = await saveImageFile(rawBase64);
-        
-        const safeFileName = fileName.replace(/[^a-z0-9]/gi, '').toLowerCase();
-        
-        // Match word
-        const matchingWordIndex = newWords.findIndex(w => w.term.replace(/[^a-z0-9]/gi, '').toLowerCase() === safeFileName);
-        
-        if (matchingWordIndex !== -1) {
-          newWords[matchingWordIndex] = { ...newWords[matchingWordIndex], imageUrl: firestoreUrl };
-        } else {
-          const emptyIndex = newWords.findIndex(w => !w.imageUrl && w.term);
-          if (emptyIndex !== -1) {
-            newWords[emptyIndex] = { ...newWords[emptyIndex], imageUrl: firestoreUrl };
-          } else {
-            newWords.push({
-              id: generateId(),
-              term: fileName,
-              definition: '',
-              imageUrl: firestoreUrl
-            });
-          }
-        }
+        // Assign to target word: prefer word that doesn't have an image yet
+        const target = matchingIndices.find(({ w }) => !w.imageUrl) || matchingIndices[0];
+        newWords[target.idx] = { ...newWords[target.idx], imageUrl: firestoreUrl };
+        matchedCount++;
       }
+
       setWords(newWords);
+
+      if (matchedCount > 0) {
+        let msg = `⚡ Quick Add Image thành công!\n- Đã gắn ảnh cho: ${matchedCount} từ vựng khớp đúng.`;
+        if (skippedCount > 0) {
+          msg += `\n- Đã bỏ qua an toàn: ${skippedCount} ảnh dư thừa (không thuộc danh sách từ).`;
+        }
+        alert(msg);
+      } else {
+        alert(`Không tìm thấy ảnh nào khớp với các từ vựng đang tạo (${files.length} ảnh đã được bỏ qua an toàn).\nVui lòng đặt tên file ảnh trùng với tên từ vựng (ví dụ: apple.jpg cho từ "apple").`);
+      }
     } catch (error) {
       console.error('Error importing images:', error);
       alert('Có lỗi xảy ra khi nhập ảnh.');
@@ -1518,12 +1659,21 @@ export default function Editor() {
                 JSON
               </button>
               <button
+                onClick={() => setIsQuickAddOpen(true)}
+                className="text-xs bg-cyan-50 border border-cyan-300 hover:bg-cyan-100 text-cyan-700 font-semibold px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Dán nhanh nhiều từ theo cú pháp: từ|nghĩa|phiên âm|câu ví dụ EN|dịch VI"
+              >
+                <ClipboardPaste className="w-3.5 h-3.5 text-cyan-600" />
+                ⚡ Quick Add
+              </button>
+              <button
                 onClick={() => imageInputRef.current?.click()}
                 disabled={isAutoFilling}
-                className="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors"
+                className="text-xs bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors shadow-xs"
+                title="⚡ Quick Add Image: Chọn nhiều ảnh từ máy, tự động nhận diện và gán đúng ảnh theo tên từ vựng (bỏ qua mọi ảnh dư thừa)"
               >
-                <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
-                Images
+                <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                ⚡ Quick Add Image
               </button>
               <button
                 onClick={() => audioInputRef.current?.click()}
@@ -1678,10 +1828,11 @@ export default function Editor() {
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`grid grid-cols-12 gap-4 px-6 py-3 items-center hover:bg-slate-50 transition-all group ${
+                className={`px-6 py-3 hover:bg-slate-50 transition-all group ${
                   isDragging ? 'opacity-40 bg-slate-100' : ''
                 } ${isOver ? 'border-t-2 border-indigo-500 bg-indigo-50/50' : ''}`}
               >
+                <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-1 flex items-center justify-center gap-1">
                   <button
                     type="button"
@@ -1861,6 +2012,46 @@ export default function Editor() {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+                </div>
+                {/* Phonetic + Example sentence sub-rows */}
+                <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-purple-600 uppercase tracking-wider pl-8 whitespace-nowrap">
+                      IPA:
+                    </span>
+                    <input
+                      type="text"
+                      value={word.phonetic || ''}
+                      onChange={(e) => handleWordChange(word.id, 'phonetic', e.target.value)}
+                      placeholder="/ˈæpəl/"
+                      className="w-40 text-xs bg-slate-50/80 hover:bg-white focus:bg-white border border-slate-200 focus:border-purple-500 rounded-md px-2.5 py-1 text-slate-700 outline-none transition-all placeholder:text-slate-400 font-mono"
+                    />
+                    <span className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
+                      Câu ví dụ:
+                    </span>
+                    <input
+                      type="text"
+                      value={word.exampleSentence || ''}
+                      onChange={(e) => handleWordChange(word.id, 'exampleSentence', e.target.value)}
+                      placeholder="I have 2 <#dogs#>. (highlight đặt trong <#...#>)"
+                      className="flex-1 text-xs bg-slate-50/80 hover:bg-white focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-md px-2.5 py-1 text-slate-700 outline-none transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+                  {(word.exampleSentence || word.exampleTranslation) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-teal-600 uppercase tracking-wider pl-8 whitespace-nowrap">
+                        Dịch VD:
+                      </span>
+                      <input
+                        type="text"
+                        value={word.exampleTranslation || ''}
+                        onChange={(e) => handleWordChange(word.id, 'exampleTranslation', e.target.value)}
+                        placeholder="Tôi có 2 con chó."
+                        className="flex-1 text-xs bg-slate-50/80 hover:bg-white focus:bg-white border border-slate-200 focus:border-teal-500 rounded-md px-2.5 py-1 text-slate-700 outline-none transition-all placeholder:text-slate-400"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1938,6 +2129,56 @@ export default function Editor() {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
               >
                 Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isQuickAddOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-cyan-50">
+              <div>
+                <h3 className="font-semibold text-slate-800">⚡ Dán nhanh từ vựng (Quick Add)</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mỗi dòng: <code className="bg-slate-100 px-1 py-0.5 rounded text-cyan-700">từ|nghĩa|phiên âm IPA|câu ví dụ EN|dịch câu ví dụ VI</code>
+                </p>
+              </div>
+              <button onClick={() => setIsQuickAddOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">
+                  Tối thiểu 2 cột (<code>từ|nghĩa</code>), tối đa 5 cột. Phân cách bằng dấu <code>|</code>
+                </p>
+                <span className="text-xs font-semibold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full">
+                  {quickAddText.split('\n').filter(l => l.trim() && l.includes('|')).length} dòng hợp lệ
+                </span>
+              </div>
+              <textarea
+                value={quickAddText}
+                onChange={(e) => setQuickAddText(e.target.value)}
+                className="w-full h-72 p-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-cyan-500 outline-none resize-y"
+                placeholder={`apple|quả táo|/ˈæpəl/|This is an apple.|Đây là quả táo.\nbanana|quả chuối|/bəˈnænə/|I like bananas.|Tôi thích chuối.\ndog|con chó|/dɒɡ/|I have 2 <#dogs#>.|Tôi có 2 con chó.\ncat|con mèo\nbook|quyển sách|/bʊk/`}
+                autoFocus
+              />
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50">
+              <button
+                onClick={() => setIsQuickAddOpen(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleQuickAddSubmit}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors font-semibold flex items-center gap-1.5"
+              >
+                <ClipboardPaste className="w-4 h-4" />
+                Import {quickAddText.split('\n').filter(l => l.trim() && l.includes('|')).length} từ
               </button>
             </div>
           </div>

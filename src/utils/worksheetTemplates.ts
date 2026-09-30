@@ -13,7 +13,12 @@ import {
   WordsearchDirection,
   WordsearchHintType,
   WordsearchGridBorder,
-  WordsearchCase
+  WordsearchCase,
+  Type16SoundMode,
+  Type16ChoiceCount,
+  Type16Layout,
+  Type16LetterCase,
+  Type16Border
 } from './worksheetGenerator';
 import { generateId } from '../lib/utils';
 
@@ -23,9 +28,9 @@ export const IDB_DATABASE_NAME = 'VocaGameTemplatesDB';
 export const IDB_STORE_NAME = 'templates';
 export const IDB_VERSION = 1;
 
-// Allowed section types for composite worksheets (1-15 except 5)
+// Allowed section types for composite worksheets (1-16 except 5)
 export const VALID_WORKSHEET_SECTION_TYPES: readonly WorksheetType[] = [
-  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 ];
 
 export interface WorksheetTemplateSection {
@@ -52,6 +57,7 @@ export interface WorksheetTemplateSection {
   lookMatchWriteShuffleSuffix?: boolean;
   lookMatchWriteMode?: 'trace' | 'blank';
   lookMatchWriteShowBaseline?: boolean;
+  lookMatchWriteTraceFontSize?: number;
   wordsearchDirections?: WordsearchDirection[];
   wordsearchHintType?: WordsearchHintType;
   wordsearchGridSize?: number | 'auto';
@@ -66,6 +72,11 @@ export interface WorksheetTemplateSection {
   type15Border?: 'full' | 'outerOnly' | 'none';
   type15ChoiceMode?: 'ab' | 'checkbox' | 'none';
   type15LetterBandBg?: 'tint' | 'white';
+  type16SoundMode?: Type16SoundMode;
+  type16ChoiceCount?: Type16ChoiceCount;
+  type16Layout?: Type16Layout;
+  type16LetterCase?: Type16LetterCase;
+  type16Border?: Type16Border;
 }
 
 export interface WorksheetTemplate {
@@ -801,6 +812,7 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(typeof item.lookMatchWriteShuffleSuffix === 'boolean' ? { lookMatchWriteShuffleSuffix: item.lookMatchWriteShuffleSuffix } : {}),
       ...(item.lookMatchWriteMode ? { lookMatchWriteMode: item.lookMatchWriteMode } : {}),
       ...(typeof item.lookMatchWriteShowBaseline === 'boolean' ? { lookMatchWriteShowBaseline: item.lookMatchWriteShowBaseline } : {}),
+      ...(typeof item.lookMatchWriteTraceFontSize === 'number' ? { lookMatchWriteTraceFontSize: item.lookMatchWriteTraceFontSize } : {}),
       ...(Array.isArray(item.wordsearchDirections) ? { wordsearchDirections: item.wordsearchDirections } : {}),
       ...(item.wordsearchHintType ? { wordsearchHintType: item.wordsearchHintType } : {}),
       ...(item.wordsearchGridSize !== undefined ? { wordsearchGridSize: item.wordsearchGridSize } : {}),
@@ -814,7 +826,12 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type15NumberStyle === 'none' || item.type15NumberStyle === 'traditional' ? { type15NumberStyle: item.type15NumberStyle } : {}),
       ...(item.type15Border === 'full' || item.type15Border === 'outerOnly' || item.type15Border === 'none' ? { type15Border: item.type15Border } : {}),
       ...(item.type15ChoiceMode === 'ab' || item.type15ChoiceMode === 'checkbox' || item.type15ChoiceMode === 'none' ? { type15ChoiceMode: item.type15ChoiceMode } : {}),
-      ...(item.type15LetterBandBg === 'tint' || item.type15LetterBandBg === 'white' ? { type15LetterBandBg: item.type15LetterBandBg } : {})
+      ...(item.type15LetterBandBg === 'tint' || item.type15LetterBandBg === 'white' ? { type15LetterBandBg: item.type15LetterBandBg } : {}),
+      ...(item.type16SoundMode === 'beginning' || item.type16SoundMode === 'ending' ? { type16SoundMode: item.type16SoundMode } : {}),
+      ...(item.type16ChoiceCount === 2 || item.type16ChoiceCount === 3 || item.type16ChoiceCount === 4 ? { type16ChoiceCount: item.type16ChoiceCount } : {}),
+      ...(item.type16Layout === 'lettersLeft' || item.type16Layout === 'lettersRight' || item.type16Layout === 'lettersBottom' ? { type16Layout: item.type16Layout } : {}),
+      ...(item.type16LetterCase === 'lower' || item.type16LetterCase === 'upper' || item.type16LetterCase === 'both' ? { type16LetterCase: item.type16LetterCase } : {}),
+      ...(item.type16Border === 'none' || item.type16Border === 'outerOnly' || item.type16Border === 'full' ? { type16Border: item.type16Border } : {})
     };
 
     sanitized.push(sec);

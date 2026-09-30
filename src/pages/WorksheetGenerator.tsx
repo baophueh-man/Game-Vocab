@@ -74,7 +74,12 @@ import {
   MatchHintMode,
   Type15NumberStyle,
   Type15Border,
-  Type15ChoiceMode
+  Type15ChoiceMode,
+  Type16SoundMode,
+  Type16ChoiceCount,
+  Type16Layout,
+  Type16LetterCase,
+  Type16Border
 } from '../utils/worksheetGenerator';
 
 export default function WorksheetGenerator() {
@@ -127,6 +132,7 @@ export default function WorksheetGenerator() {
   const [lookMatchWriteShuffleSuffix, setLookMatchWriteShuffleSuffix] = useState<boolean>(false);
   const [lookMatchWriteMode, setLookMatchWriteMode] = useState<'trace' | 'blank'>('trace');
   const [lookMatchWriteShowBaseline, setLookMatchWriteShowBaseline] = useState<boolean>(true);
+  const [lookMatchWriteTraceFontSize, setLookMatchWriteTraceFontSize] = useState<number>(28);
   const [wordsearchDirections, setWordsearchDirections] = useState<WordsearchDirection[]>([
     'horizontal',
     'vertical',
@@ -145,6 +151,11 @@ export default function WorksheetGenerator() {
   const [type15Border, setType15Border] = useState<'full' | 'outerOnly' | 'none'>('full');
   const [type15ChoiceMode, setType15ChoiceMode] = useState<'ab' | 'checkbox' | 'none'>('ab');
   const [type15LetterBandBg, setType15LetterBandBg] = useState<'tint' | 'white'>('white');
+  const [type16SoundMode, setType16SoundMode] = useState<Type16SoundMode>('beginning');
+  const [type16ChoiceCount, setType16ChoiceCount] = useState<Type16ChoiceCount>(3);
+  const [type16Layout, setType16Layout] = useState<Type16Layout>('lettersLeft');
+  const [type16LetterCase, setType16LetterCase] = useState<Type16LetterCase>('lower');
+  const [type16Border, setType16Border] = useState<Type16Border>('none');
   const [background, setBackground] = useState<string>('');
   const [showHeader, setShowHeader] = useState<boolean>(false);
   const [showFooter, setShowFooter] = useState<boolean>(false);
@@ -258,7 +269,8 @@ export default function WorksheetGenerator() {
       12: { title: 'Look and write' },
       13: { title: 'Word Search Puzzle' },
       14: { title: 'Circle the pictures that have letter V v' },
-      15: { title: 'Read the sentence and circle the correct picture.' }
+      15: { title: 'Read the sentence and circle the correct picture.' },
+      16: { title: 'Look and circle the beginning sound' }
     };
     const meta = titles[defaultType];
     const newSec: UICompositeSection = {
@@ -329,6 +341,7 @@ export default function WorksheetGenerator() {
       updated.lookMatchWriteShuffleSuffix !== undefined ||
       updated.lookMatchWriteMode !== undefined ||
       updated.lookMatchWriteShowBaseline !== undefined ||
+      updated.lookMatchWriteTraceFontSize !== undefined ||
       updated.type4LayoutMode !== undefined ||
       updated.type4ColumnMode !== undefined ||
       updated.type4TraceFontSize !== undefined ||
@@ -557,6 +570,7 @@ export default function WorksheetGenerator() {
       lookMatchWriteShuffleSuffix: s.lookMatchWriteShuffleSuffix,
       lookMatchWriteMode: s.lookMatchWriteMode,
       lookMatchWriteShowBaseline: s.lookMatchWriteShowBaseline,
+      lookMatchWriteTraceFontSize: s.lookMatchWriteTraceFontSize,
       wordsearchDirections: s.wordsearchDirections,
       wordsearchHintType: s.wordsearchHintType,
       wordsearchGridSize: s.wordsearchGridSize,
@@ -930,6 +944,7 @@ export default function WorksheetGenerator() {
       lookMatchWriteShuffleSuffix?: boolean;
       lookMatchWriteMode?: 'trace' | 'blank';
       lookMatchWriteShowBaseline?: boolean;
+      lookMatchWriteTraceFontSize?: number;
       wordsearchDirections?: WordsearchDirection[];
       wordsearchHintType?: WordsearchHintType;
       wordsearchGridSize?: number | 'auto';
@@ -947,6 +962,11 @@ export default function WorksheetGenerator() {
       type15Border?: Type15Border;
       type15ChoiceMode?: Type15ChoiceMode;
       type15LetterBandBg?: 'tint' | 'white';
+      type16SoundMode?: Type16SoundMode;
+      type16ChoiceCount?: Type16ChoiceCount;
+      type16Layout?: Type16Layout;
+      type16LetterCase?: Type16LetterCase;
+      type16Border?: Type16Border;
     },
     sectionsToUse?: UICompositeSection[],
     modeOverride?: 'single' | 'composite'
@@ -1004,6 +1024,7 @@ export default function WorksheetGenerator() {
             lookMatchWriteShuffleSuffix: sec.lookMatchWriteShuffleSuffix,
             lookMatchWriteMode: sec.lookMatchWriteMode,
             lookMatchWriteShowBaseline: sec.lookMatchWriteShowBaseline,
+            lookMatchWriteTraceFontSize: sec.lookMatchWriteTraceFontSize,
             wordsearchDirections: sec.wordsearchDirections,
             wordsearchHintType: sec.wordsearchHintType,
             wordsearchGridSize: sec.wordsearchGridSize,
@@ -1018,6 +1039,11 @@ export default function WorksheetGenerator() {
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
             type15LetterBandBg: sec.type15LetterBandBg,
+            type16SoundMode: sec.type16SoundMode,
+            type16ChoiceCount: sec.type16ChoiceCount,
+            type16Layout: sec.type16Layout,
+            type16LetterCase: sec.type16LetterCase,
+            type16Border: sec.type16Border,
             words: sec.selectedWordIndices.map((i) => allAvailableWords[i]).filter(Boolean)
           }))
         };
@@ -1072,6 +1098,7 @@ export default function WorksheetGenerator() {
         lookMatchWriteShuffleSuffix: customOptions?.lookMatchWriteShuffleSuffix !== undefined ? customOptions.lookMatchWriteShuffleSuffix : lookMatchWriteShuffleSuffix,
         lookMatchWriteMode: customOptions?.lookMatchWriteMode !== undefined ? customOptions.lookMatchWriteMode : lookMatchWriteMode,
         lookMatchWriteShowBaseline: customOptions?.lookMatchWriteShowBaseline !== undefined ? customOptions.lookMatchWriteShowBaseline : lookMatchWriteShowBaseline,
+        lookMatchWriteTraceFontSize: customOptions?.lookMatchWriteTraceFontSize !== undefined ? customOptions.lookMatchWriteTraceFontSize : lookMatchWriteTraceFontSize,
         wordsearchDirections: customOptions?.wordsearchDirections ?? wordsearchDirections,
         wordsearchHintType: customOptions?.wordsearchHintType ?? wordsearchHintType,
         wordsearchGridSize: customOptions?.wordsearchGridSize ?? wordsearchGridSize,
@@ -1088,7 +1115,12 @@ export default function WorksheetGenerator() {
         type15NumberStyle: customOptions?.type15NumberStyle !== undefined ? customOptions.type15NumberStyle : type15NumberStyle,
         type15Border: customOptions?.type15Border !== undefined ? customOptions.type15Border : type15Border,
         type15ChoiceMode: customOptions?.type15ChoiceMode !== undefined ? customOptions.type15ChoiceMode : type15ChoiceMode,
-        type15LetterBandBg: customOptions?.type15LetterBandBg !== undefined ? customOptions.type15LetterBandBg : type15LetterBandBg
+        type15LetterBandBg: customOptions?.type15LetterBandBg !== undefined ? customOptions.type15LetterBandBg : type15LetterBandBg,
+        type16SoundMode: customOptions?.type16SoundMode !== undefined ? customOptions.type16SoundMode : type16SoundMode,
+        type16ChoiceCount: customOptions?.type16ChoiceCount !== undefined ? customOptions.type16ChoiceCount : type16ChoiceCount,
+        type16Layout: customOptions?.type16Layout !== undefined ? customOptions.type16Layout : type16Layout,
+        type16LetterCase: customOptions?.type16LetterCase !== undefined ? customOptions.type16LetterCase : type16LetterCase,
+        type16Border: customOptions?.type16Border !== undefined ? customOptions.type16Border : type16Border
       });
 
       const blob = doc.output('blob');
@@ -1150,6 +1182,7 @@ export default function WorksheetGenerator() {
             lookMatchWriteShuffleSuffix: sec.lookMatchWriteShuffleSuffix,
             lookMatchWriteMode: sec.lookMatchWriteMode,
             lookMatchWriteShowBaseline: sec.lookMatchWriteShowBaseline,
+            lookMatchWriteTraceFontSize: sec.lookMatchWriteTraceFontSize,
             wordsearchDirections: sec.wordsearchDirections,
             wordsearchHintType: sec.wordsearchHintType,
             wordsearchGridSize: sec.wordsearchGridSize,
@@ -1167,6 +1200,11 @@ export default function WorksheetGenerator() {
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
             type15LetterBandBg: sec.type15LetterBandBg,
+            type16SoundMode: sec.type16SoundMode,
+            type16ChoiceCount: sec.type16ChoiceCount,
+            type16Layout: sec.type16Layout,
+            type16LetterCase: sec.type16LetterCase,
+            type16Border: sec.type16Border,
             words: sec.selectedWordIndices.map((i) => words[i]).filter(Boolean)
           }))
         };
@@ -1217,6 +1255,7 @@ export default function WorksheetGenerator() {
         lookMatchWriteShuffleSuffix,
         lookMatchWriteMode,
         lookMatchWriteShowBaseline,
+        lookMatchWriteTraceFontSize,
         wordsearchDirections,
         wordsearchHintType,
         wordsearchGridSize,
@@ -1230,7 +1269,12 @@ export default function WorksheetGenerator() {
         type15NumberStyle,
         type15Border,
         type15ChoiceMode,
-        type15LetterBandBg
+        type15LetterBandBg,
+        type16SoundMode,
+        type16ChoiceCount,
+        type16Layout,
+        type16LetterCase,
+        type16Border
       });
       const cleanTitle = (title || 'Worksheet').replace(/[/\\?%*:|"<>]/g, '-');
       doc.save(`PDF ${worksheetType} - ${cleanTitle}.pdf`);
@@ -1612,6 +1656,22 @@ export default function WorksheetGenerator() {
                             type15ChoiceMode,
                             type15LetterBandBg,
                             showHeader: true
+                          });
+                        } else if (t.type === 16) {
+                          const newTitle = type16SoundMode === 'ending'
+                            ? 'Look and circle the ending sound'
+                            : 'Look and circle the beginning sound';
+                          setTitle(newTitle);
+                          setShowHeader(true);
+                          setSpacing(0);
+                          handleGeneratePreview(undefined, newTitle, 16, {
+                            type16SoundMode,
+                            type16ChoiceCount,
+                            type16Layout,
+                            type16LetterCase,
+                            type16Border,
+                            showHeader: true,
+                            spacing: 0
                           });
                         } else if (t.type === 3) {
                           const newTitle = matchMode === 'look_match_write'
@@ -2328,6 +2388,35 @@ export default function WorksheetGenerator() {
                           </div>
                         </div>
 
+                        {/* Trace Font Size option */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-indigo-900">Cỡ Chữ Cột Viết / Trace:</span>
+                            <span className="text-[10px] text-indigo-600 font-semibold">
+                              {lookMatchWriteTraceFontSize} pt
+                            </span>
+                          </div>
+                          <select
+                            value={lookMatchWriteTraceFontSize}
+                            onChange={(e) => {
+                              const sz = Number(e.target.value);
+                              setLookMatchWriteTraceFontSize(sz);
+                              handleGeneratePreview(undefined, undefined, 3, { lookMatchWriteTraceFontSize: sz });
+                            }}
+                            data-testid="single-look-trace-font-size-select"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"
+                          >
+                            {[16, 18, 20, 22, 24, 26, 28, 30, 32, 36].map((sz) => (
+                              <option key={sz} value={sz}>
+                                {sz} pt {sz === 28 ? '(Mặc định - Chuẩn tập viết 28 pt)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-slate-400">
+                            Cột chữ 1 & 2 dùng cỡ chữ chung ({fontSize} pt), cột Trace dùng cỡ to riêng (26-28 pt) để học sinh dễ viết.
+                          </p>
+                        </div>
+
                         {/* Baseline toggle */}
                         <div className="flex items-center justify-between pt-1">
                           <span className="text-[11px] font-semibold text-indigo-900">Dòng kẻ gạch đứt chân chữ:</span>
@@ -2943,6 +3032,180 @@ export default function WorksheetGenerator() {
                         >
                           Có (Chữ số truyền thống màu đen)
                         </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 16 Options: Look and circle sound */}
+                {worksheetMode === 'single' && worksheetType === 16 && (
+                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                        <span>🔤</span> Tuỳ Chọn Nhìn Tranh Khoanh Âm (Loại 16)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        Lưới 3 cột • Tràn trang tự động
+                      </span>
+                    </div>
+
+                    {/* Sound Mode */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Âm Thanh Mục Tiêu (Sound Target)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'beginning', label: 'Âm đầu (Beginning sound)', title: 'Look and circle the beginning sound' },
+                          { value: 'ending', label: 'Âm cuối (Ending sound)', title: 'Look and circle the ending sound' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type16SoundMode;
+                              setType16SoundMode(val);
+                              setTitle(opt.title);
+                              handleGeneratePreview(undefined, opt.title, 16, { type16SoundMode: val });
+                            }}
+                            data-testid={`type16-sound-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type16SoundMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Choice Count */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Số Lượng Chữ Cái Lựa Chọn (Choices Count)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 2, label: '2 chữ cái' },
+                          { value: 3, label: '3 chữ cái (Chuẩn)' },
+                          { value: 4, label: '4 chữ cái' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type16ChoiceCount;
+                              setType16ChoiceCount(val);
+                              handleGeneratePreview(undefined, undefined, 16, { type16ChoiceCount: val });
+                            }}
+                            data-testid={`type16-choice-count-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type16ChoiceCount === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Layout Orientation */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Bố Cục Hiển Thị (Item Layout)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 'lettersLeft', label: 'Chữ trái - Tranh phải' },
+                          { value: 'lettersRight', label: 'Tranh trái - Chữ phải' },
+                          { value: 'lettersBottom', label: 'Chữ ngang dưới tranh' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type16Layout;
+                              setType16Layout(val);
+                              handleGeneratePreview(undefined, undefined, 16, { type16Layout: val });
+                            }}
+                            data-testid={`type16-layout-${opt.value}`}
+                            className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                              type16Layout === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Letter Case */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Định Dạng Chữ Cái (Letter Case)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 'lower', label: 'Chữ thường (b, p, r)' },
+                          { value: 'upper', label: 'Chữ hoa (B, P, R)' },
+                          { value: 'both', label: 'Cặp chữ (Bb, Pp, Rr)' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type16LetterCase;
+                              setType16LetterCase(val);
+                              handleGeneratePreview(undefined, undefined, 16, { type16LetterCase: val });
+                            }}
+                            data-testid={`type16-case-${opt.value}`}
+                            className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                              type16LetterCase === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Border Style */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Đường Viền Khung (Border Style)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: 'none', label: 'Không viền' },
+                          { value: 'outerOnly', label: 'Chỉ viền ngoài' },
+                          { value: 'full', label: 'Có cả viền trong' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type16Border;
+                              setType16Border(val);
+                              handleGeneratePreview(undefined, undefined, 16, { type16Border: val });
+                            }}
+                            data-testid={`type16-border-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type16Border === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>

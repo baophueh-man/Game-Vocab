@@ -3,7 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>VocaGame - Hoc Tu Vung & Tao Worksheet</title>
+    <script>
+      (function() {
+        var tabId = sessionStorage.getItem('voca_tab_id');
+        if (!tabId) {
+          tabId = 'tab_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+          sessionStorage.setItem('voca_tab_id', tabId);
+        }
+
+        function sendPing() {
+          fetch('/api/heartbeat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tabId: tabId }),
+            keepalive: true
+          }).catch(function() {});
+        }
+
+        sendPing();
+        setInterval(sendPing, 2000);
+
+        function notifyClose() {
+          var url = '/api/heartbeat/close?tabId=' + encodeURIComponent(tabId);
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(url);
+          } else {
+            fetch(url, { method: 'POST', keepalive: true }).catch(function() {});
+          }
+        }
+
+        window.addEventListener('pagehide', notifyClose);
+        window.addEventListener('beforeunload', notifyClose);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

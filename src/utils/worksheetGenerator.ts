@@ -24,7 +24,7 @@ export interface WorksheetWord {
   deckRole?: 'primary' | 'review';
 }
 
-export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
 export type BlankMode = 'vowels' | 'random1' | 'random2' | 'random3';
 export type Type4LayoutMode = 'grid' | 'table';
 export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only';
@@ -38,6 +38,12 @@ export type MatchHintMode = 'none' | 'match' | 'side' | 'multi';
 export type Type15NumberStyle = 'none' | 'traditional';
 export type Type15Border = 'full' | 'outerOnly' | 'none';
 export type Type15ChoiceMode = 'ab' | 'checkbox' | 'none';
+
+export type Type16SoundMode = 'beginning' | 'ending';
+export type Type16ChoiceCount = 2 | 3 | 4;
+export type Type16Layout = 'lettersLeft' | 'lettersRight' | 'lettersBottom';
+export type Type16LetterCase = 'lower' | 'upper' | 'both';
+export type Type16Border = 'none' | 'outerOnly' | 'full';
 
 export interface PlacedWordInfo {
   word: WorksheetWord;
@@ -123,6 +129,7 @@ export interface WorksheetOptions {
   lookMatchWriteShuffleSuffix?: boolean; // for Type 3 look_match_write: default false (suffix aligned with prefix)
   lookMatchWriteMode?: 'trace' | 'blank'; // for Type 3 look_match_write: 'trace' (default) or 'blank' ('__')
   lookMatchWriteShowBaseline?: boolean; // for Type 3 look_match_write: default true (dashed line underneath write column)
+  lookMatchWriteTraceFontSize?: number; // for Type 3 look_match_write: trace font size in pt (default: 28)
   wordsearchDirections?: WordsearchDirection[]; // for Type 13 (default: ['horizontal', 'vertical', 'diagonalDown'])
   wordsearchHintType?: WordsearchHintType; // for Type 13 (default: 'word')
   wordsearchGridSize?: number | 'auto'; // for Type 13 (default: 'auto')
@@ -140,11 +147,16 @@ export interface WorksheetOptions {
   type15Border?: Type15Border; // for Type 15: 'full' (default), 'outerOnly', 'none'
   type15ChoiceMode?: Type15ChoiceMode; // for Type 15: 'ab' (default), 'checkbox', 'none'
   type15LetterBandBg?: 'tint' | 'white'; // for Type 15: 'tint' (default) or 'white' (when choiceMode is 'ab')
+  type16SoundMode?: Type16SoundMode; // for Type 16: 'beginning' (default) or 'ending'
+  type16ChoiceCount?: Type16ChoiceCount; // for Type 16: 2, 3 (default), 4
+  type16Layout?: Type16Layout; // for Type 16: 'lettersLeft' (default), 'lettersRight', 'lettersBottom'
+  type16LetterCase?: Type16LetterCase; // for Type 16: 'lower' (default), 'upper', 'both'
+  type16Border?: Type16Border; // for Type 16: 'none' (default), 'outerOnly', 'full'
 }
 
 export interface CompositeWorksheetSection {
   id: string;
-  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
+  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16
   title: string;
   instruction?: string;
   words: WorksheetWord[];
@@ -161,6 +173,7 @@ export interface CompositeWorksheetSection {
   lookMatchWriteShuffleSuffix?: boolean;
   lookMatchWriteMode?: 'trace' | 'blank';
   lookMatchWriteShowBaseline?: boolean;
+  lookMatchWriteTraceFontSize?: number;
   wordsearchDirections?: WordsearchDirection[]; // for Type 13
   wordsearchHintType?: WordsearchHintType; // for Type 13
   wordsearchGridSize?: number | 'auto'; // for Type 13
@@ -178,6 +191,11 @@ export interface CompositeWorksheetSection {
   type15Border?: Type15Border;
   type15ChoiceMode?: Type15ChoiceMode;
   type15LetterBandBg?: 'tint' | 'white';
+  type16SoundMode?: Type16SoundMode;
+  type16ChoiceCount?: Type16ChoiceCount;
+  type16Layout?: Type16Layout;
+  type16LetterCase?: Type16LetterCase;
+  type16Border?: Type16Border;
 }
 
 export interface CompositeWorksheetConfig {
@@ -295,6 +313,14 @@ export const WORKSHEET_TYPES: WorksheetTypeMeta[] = [
     name: 'Loại 15: Đọc câu và khoanh tròn hình đúng (Read and circle)',
     description: 'Mỗi câu có 2 tranh lựa chọn (a và b) được đóng khung chia đôi, học sinh đọc câu và khoanh tròn hình/chữ cái đúng.',
     thumbnail: '/worksheet/types/loai-pdf-15.PNG',
+    isNew: false
+  },
+  {
+    type: 16,
+    id: 16,
+    name: 'Loại 16: Nhìn tranh khoanh âm (Look and circle the sound)',
+    description: 'Mỗi tranh có các chữ cái lựa chọn (2, 3 hoặc 4 chữ cái) xếp theo cột hoặc hàng, học sinh nhìn tranh và khoanh tròn âm đầu/cuối đúng.',
+    thumbnail: '/worksheet/types/loai-pdf-16.PNG',
     isNew: true
   }
 ];
@@ -609,6 +635,147 @@ export function getType15SentenceSpans(word: WorksheetWord): HighlightedSpan[] {
   }
   return [{ text: '', isHighlighted: false }];
 }
+/**
+ * Helper to generate choices for Type 16: Look and circle sound
+ * - Extracts target letter:
+ *   - beginning: first alphabetic letter of word (e.g. "bell" -> "b", "dog" -> "d")
+ *   - ending: last alphabetic letter of word (e.g. "bell" -> "l", "cat" -> "t")
+ * - Generates distinct distractors:
+ *   - Pulls from other words in the deck if available
+ *   - Complements with common phonics distractor letters
+ *   - Guarantees target is among choices exactly once, shuffled deterministically
+ * - Formats letter case:
+ *   - 'lower': 'b'
+ *   - 'upper': 'B'
+ *   - 'both': 'Bb'
+ */
+export function generateType16Choices(
+  word: string,
+  soundMode: Type16SoundMode = 'beginning',
+  choiceCount: Type16ChoiceCount = 3,
+  letterCase: Type16LetterCase = 'lower',
+  allWords?: (WorksheetWord | string)[]
+): { choices: string[]; targetLetter: string; targetIndex: number } {
+  const clean = (word || '').trim();
+  const alphaMatches = clean.match(/[a-zA-Z]/g);
+  let target = 'a';
+  if (alphaMatches && alphaMatches.length > 0) {
+    target = (soundMode === 'ending' ? alphaMatches[alphaMatches.length - 1] : alphaMatches[0]).toLowerCase();
+  }
+
+  // Pool of letters
+  const phonicsPool = ['b', 'd', 'p', 'q', 'm', 'n', 'c', 'k', 's', 't', 'f', 'v', 'w', 'r', 'l', 'h', 'j', 'g', 'z', 'a', 'e', 'i', 'o', 'u'];
+  const otherDeckLetters: string[] = [];
+  if (allWords && allWords.length > 0) {
+    for (const w of allWords) {
+      const t = typeof w === 'string' ? w : w.term;
+      const m = (t || '').trim().match(/[a-zA-Z]/g);
+      if (m && m.length > 0) {
+        const ch = (soundMode === 'ending' ? m[m.length - 1] : m[0]).toLowerCase();
+        if (ch !== target && !otherDeckLetters.includes(ch)) {
+          otherDeckLetters.push(ch);
+        }
+      }
+    }
+  }
+
+  // Combine unique candidates excluding target
+  const candidatePool = Array.from(new Set([...otherDeckLetters, ...phonicsPool])).filter((ch) => ch !== target);
+
+  // Deterministic hash based on word, soundMode, choiceCount so preview remains stable
+  let hashSeed = 0;
+  const hashKey = clean + soundMode + choiceCount;
+  for (let i = 0; i < hashKey.length; i++) {
+    hashSeed = (hashSeed * 31 + hashKey.charCodeAt(i)) % 10007;
+  }
+
+  const shuffledCandidates = [...candidatePool].sort((a, b) => {
+    const valA = ((a.charCodeAt(0) * 17) + hashSeed) % 101;
+    const valB = ((b.charCodeAt(0) * 17) + hashSeed) % 101;
+    return valA - valB;
+  });
+
+  const neededDistractors = Math.max(1, choiceCount - 1);
+  const distractors = shuffledCandidates.slice(0, neededDistractors);
+
+  // Place target at deterministic index between 0 and choiceCount - 1
+  const targetIndex = hashSeed % choiceCount;
+  const rawChoices: string[] = [];
+  let dIdx = 0;
+  for (let i = 0; i < choiceCount; i++) {
+    if (i === targetIndex) {
+      rawChoices.push(target);
+    } else {
+      rawChoices.push(distractors[dIdx++] || 'x');
+    }
+  }
+
+  const formatCase = (ch: string) => {
+    const low = ch.toLowerCase();
+    if (letterCase === 'upper') return low.toUpperCase();
+    if (letterCase === 'both') return low.toUpperCase() + low;
+    return low;
+  };
+
+  return {
+    choices: rawChoices.map(formatCase),
+    targetLetter: formatCase(target),
+    targetIndex
+  };
+}
+
+/**
+ * Calculate geometry metrics for Type 16 items
+ */
+export function calculateType16Metrics(
+  fontSizePt: number,
+  spacingPt: number = 0,
+  choiceCount: Type16ChoiceCount = 3,
+  layout: Type16Layout = 'lettersLeft',
+  borderStyle: Type16Border = 'none',
+  imgSize: number = 12.7,
+  isA5: boolean = false
+) {
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 0) * 0.352778;
+  const isZero = spacingPt === 0;
+  const fontHeightMm = fontSizePt * 0.352778;
+
+  let optPitch = 0;
+  let choicesBlockH = 0;
+  let contentHeight = 0;
+
+  if (layout === 'lettersBottom') {
+    const gapImgToChoices = (isZero ? 1.5 : 2.5) + (spacingMm * 0.2);
+    contentHeight = imgSize + gapImgToChoices + fontHeightMm;
+  } else {
+    // For vertical letters, give ample space for student to circle each letter
+    const baseOptPitch = Math.max(fontHeightMm * 1.35, fontHeightMm + 2.0);
+    optPitch = baseOptPitch + (spacingMm * 0.25);
+    choicesBlockH = (choiceCount - 1) * optPitch + fontHeightMm;
+    contentHeight = Math.max(imgSize, choicesBlockH);
+  }
+
+  const padY = (borderStyle !== 'none') ? 2.5 : 0;
+  const cardHeight = contentHeight + padY * 2;
+
+  // At Spacing 0 pt: rowGap is compact (3.0mm A4, 2.0mm A5)
+  // At spacing > 0 pt: scales smoothly with spacingMm * 0.7
+  const baseRowGap = isZero ? (isA5 ? 2.0 : 3.0) : (isA5 ? 3.5 : 5.0);
+  const rowGap = baseRowGap + (spacingMm * 0.7);
+  const rowHeight = cardHeight + rowGap;
+
+  return {
+    spacingMm,
+    isZero,
+    fontHeightMm,
+    optPitch,
+    choicesBlockH,
+    contentHeight,
+    cardHeight,
+    rowGap,
+    rowHeight
+  };
+}
 
 export interface HighlightedSpan {
   text: string;
@@ -848,12 +1015,13 @@ export function calculateType3LookMatchWriteMetrics(
   isA5: boolean,
   imgSize: number,
   fontSize: number = 12,
-  spacing: number = 0
+  spacing: number = 0,
+  customTraceFontSize?: number
 ): Type3LookMatchWriteMetrics {
   const prefixFontSize = fontSize || 12;
-  const traceFontSize = isA5
-    ? Math.max(Math.round(prefixFontSize * 1.5), 18)
-    : Math.max(Math.round(prefixFontSize * 1.6), 22);
+  const traceFontSize = (customTraceFontSize !== undefined && customTraceFontSize > 0)
+    ? customTraceFontSize
+    : (isA5 ? 24 : 28);
 
   const fontHeightMm = prefixFontSize * 0.352778;
   const traceHeightMm = traceFontSize * 0.352778;
@@ -2193,7 +2361,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
     matchHint = 'none',
     lookMatchWriteShuffleSuffix = false,
     lookMatchWriteMode = 'trace',
-    lookMatchWriteShowBaseline = true
+    lookMatchWriteShowBaseline = true,
+    lookMatchWriteTraceFontSize
   } = options;
 
   const gapMm = (spacing !== undefined ? spacing : 0) * 0.352778; // Convert pt to mm (1 pt = 0.352778 mm)
@@ -2535,7 +2704,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
       const bottomLimit = pageHeight - margin - (showFooter ? 8 : 4);
       const availHeight = bottomLimit - topStart;
 
-      const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, fontSize, spacing);
+      const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, fontSize, spacing, lookMatchWriteTraceFontSize);
       const { rowContentHeight, rowGap, traceFontSize, prefixFontSize } = metrics;
       const rowPitch = rowContentHeight + rowGap;
 
@@ -4526,6 +4695,204 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
         }
       }
     }
+  } else if (type === 16) {
+    // -------------------------------------------------------------
+    // TYPE 16: Look and circle sound (beginning or ending sound)
+    // 3 columns grid, dynamic pagination, compact 0pt spacing
+    // -------------------------------------------------------------
+    const cols = 3;
+    const colGap = isA5 ? 4.0 : 6.0;
+    const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+
+    const soundMode: Type16SoundMode = options.type16SoundMode || 'beginning';
+    const choiceCount: Type16ChoiceCount = options.type16ChoiceCount || 3;
+    const layout: Type16Layout = options.type16Layout || 'lettersLeft';
+    const letterCase: Type16LetterCase = options.type16LetterCase || 'lower';
+    const borderStyle: Type16Border = options.type16Border || 'none';
+
+    const effectiveFontSize = fontSize || (isA5 ? 13 : 15);
+    const effectiveSpacing = spacing !== undefined ? spacing : 0;
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+    const metrics = calculateType16Metrics(
+      effectiveFontSize,
+      effectiveSpacing,
+      choiceCount,
+      layout,
+      borderStyle,
+      imgSize,
+      isA5
+    );
+
+    const { fontHeightMm, optPitch, choicesBlockH, contentHeight, cardHeight, rowHeight } = metrics;
+    const padY = (borderStyle !== 'none') ? 2.5 : 0;
+
+    const defaultTitle = soundMode === 'ending'
+      ? 'Look and circle the ending sound'
+      : 'Look and circle the beginning sound';
+    const finalTitle = title || defaultTitle;
+
+    const topMargin = (showHeader && finalTitle) ? margin + (isA5 ? 12 : 14) : margin + 4;
+    const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
+
+    const maxRowsPerPage = Math.max(1, Math.floor(availHeight / rowHeight));
+    const wordsPerPage = cols * maxRowsPerPage;
+    const totalPages = Math.ceil(validWords.length / wordsPerPage);
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) doc.addPage();
+      await insertBackground(doc, background, isA5);
+
+      // Title & Header
+      if (showHeader && finalTitle) {
+        doc.setFont('fff', 'bold');
+        doc.setFontSize(isA5 ? 16 : 22);
+        doc.setTextColor(30, 41, 59);
+        doc.text(finalTitle, margin, margin + (isA5 ? 5.5 : 7));
+        doc.setTextColor(0, 0, 0);
+      }
+
+      const startIdx = page * wordsPerPage;
+      const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
+
+      for (let i = startIdx; i < endIdx; i++) {
+        const itemIdx = i - startIdx;
+        const col = itemIdx % cols;
+        const row = Math.floor(itemIdx / cols);
+
+        const cardX = margin + col * (cardWidth + colGap);
+        const cardY = topMargin + row * rowHeight;
+
+        const currentWord = validWords[i];
+        const targetImg = wordImages[i];
+
+        // Generate choices for current word
+        const { choices } = generateType16Choices(
+          currentWord.term,
+          soundMode,
+          choiceCount,
+          letterCase,
+          validWords
+        );
+
+        // 1. Draw Card Border if requested
+        const cornerR = 2.0;
+        if (borderStyle === 'full' || borderStyle === 'outerOnly') {
+          doc.setDrawColor(148, 163, 184); // slate-400
+          doc.setLineWidth(0.4);
+          setDocLineDash(doc, [0.4, 0.8]);
+          doc.roundedRect(cardX, cardY, cardWidth, cardHeight, cornerR, cornerR, 'S');
+          setDocLineDash(doc, []);
+        }
+
+        // 2. Layout variants
+        if (layout === 'lettersBottom') {
+          // Horizontal choices below image
+          const imgX = cardX + (cardWidth - imgSize) / 2;
+          const imgY = cardY + padY + 1.0;
+
+          // Draw Image
+          if (targetImg) {
+            try {
+              doc.addImage(targetImg, 'JPEG', imgX, imgY, imgSize, imgSize);
+            } catch {
+              if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
+            }
+          } else if (showImageBorder) {
+            doc.rect(imgX, imgY, imgSize, imgSize);
+          }
+
+          const gapImgToChoices = (effectiveSpacing === 0 ? 1.5 : 2.5) + (effectiveSpacing * 0.352778 * 0.2);
+
+          // Divider line if full border
+          if (borderStyle === 'full') {
+            const divY = imgY + imgSize + gapImgToChoices / 2;
+            doc.setDrawColor(148, 163, 184);
+            doc.setLineWidth(0.28);
+            setDocLineDash(doc, [0.3, 0.7]);
+            doc.line(cardX, divY, cardX + cardWidth, divY);
+            setDocLineDash(doc, []);
+          }
+
+          // Draw horizontal choices
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(30, 41, 59);
+
+          const choiceY = imgY + imgSize + gapImgToChoices + fontHeightMm * 0.75;
+          const choiceStep = cardWidth / (choiceCount + 1);
+          for (let j = 0; j < choiceCount; j++) {
+            const choiceX = cardX + (j + 1) * choiceStep;
+            doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+          }
+          doc.setTextColor(0, 0, 0);
+
+        } else {
+          // Vertical layout: 'lettersLeft' (default) or 'lettersRight'
+          const colChoicesW = Math.max(12, Math.min(cardWidth * 0.34, 18));
+          const colImgW = cardWidth - colChoicesW;
+
+          let choicesCenterX: number;
+          let imgX: number;
+          let divX: number;
+
+          if (layout === 'lettersLeft') {
+            choicesCenterX = cardX + colChoicesW / 2;
+            imgX = cardX + colChoicesW + (colImgW - imgSize) / 2;
+            divX = cardX + colChoicesW;
+          } else {
+            // 'lettersRight'
+            imgX = cardX + (colImgW - imgSize) / 2;
+            choicesCenterX = cardX + colImgW + colChoicesW / 2;
+            divX = cardX + colImgW;
+          }
+
+          const imgY = cardY + padY + (contentHeight - imgSize) / 2;
+
+          // Inner divider for full border
+          if (borderStyle === 'full') {
+            doc.setDrawColor(148, 163, 184);
+            doc.setLineWidth(0.28);
+            setDocLineDash(doc, [0.3, 0.7]);
+            doc.line(divX, cardY, divX, cardY + cardHeight);
+            setDocLineDash(doc, []);
+          }
+
+          // Draw Image
+          if (targetImg) {
+            try {
+              doc.addImage(targetImg, 'JPEG', imgX, imgY, imgSize, imgSize);
+            } catch {
+              if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
+            }
+          } else if (showImageBorder) {
+            doc.rect(imgX, imgY, imgSize, imgSize);
+          }
+
+          // Draw Vertical Choices
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(30, 41, 59);
+
+          const choicesStartY = cardY + padY + (contentHeight - choicesBlockH) / 2 + fontHeightMm * 0.75;
+          for (let j = 0; j < choiceCount; j++) {
+            const choiceY = choicesStartY + j * optPitch;
+            doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+          }
+          doc.setTextColor(0, 0, 0);
+        }
+      }
+
+      // Footer
+      if (showFooter) {
+        doc.setFont('fff', 'normal');
+        doc.setFontSize(isA5 ? 8 : 10);
+        if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        if (totalPages > 1) {
+          doc.text(`${page + 1}`, pageWidth - margin, pageHeight - margin + 3);
+        }
+      }
+    }
   }
 
   return doc;
@@ -4739,7 +5106,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       minUnitH = rowHeight;
     } else if (section.type === 3) {
       if (section.matchMode === 'look_match_write') {
-        const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, secFontSize, secSpacing);
+        const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, secFontSize, secSpacing, section.lookMatchWriteTraceFontSize);
         const { rowContentHeight, rowGap } = metrics;
         const maxCount = Math.max(3, Math.floor((maxContentY - margin - 14) / (rowContentHeight + rowGap)));
         const count = Math.min(secWords.length, maxCount);
@@ -4809,6 +5176,19 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const baseGap = (secSpacing === 0) ? 1.5 : (isA5 ? 3.5 : 5.0);
       const rowGap = baseGap + (secSpacing !== undefined ? secSpacing : 0) * 0.352778 * 0.7;
       rowHeight = secSentenceH + secCardH + rowGap;
+      minUnitH = rowHeight + 4;
+    } else if (section.type === 16) {
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 13 : 15);
+      const metrics = calculateType16Metrics(
+        secFontSize,
+        secSpacing,
+        section.type16ChoiceCount || 3,
+        section.type16Layout || 'lettersLeft',
+        section.type16Border || 'none',
+        imgSize,
+        isA5
+      );
+      rowHeight = metrics.rowHeight;
       minUnitH = rowHeight + 4;
     }
 
@@ -5315,7 +5695,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       // Strictly NO bounding boxes/frames!
       // -------------------------------------------------------------
       if (section.matchMode === 'look_match_write') {
-        const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, secFontSize, secSpacing);
+        const metrics = calculateType3LookMatchWriteMetrics(isA5, imgSize, secFontSize, secSpacing, section.lookMatchWriteTraceFontSize);
         const { rowContentHeight, rowGap, traceFontSize, prefixFontSize } = metrics;
         const rowPitch = rowContentHeight + rowGap;
         const maxChunkSize = Math.max(3, Math.floor((maxContentY - margin - 14) / rowPitch));
@@ -6467,6 +6847,166 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             }
           } else if (showImageBorder) {
             doc.rect(rx, ry, maxImgDim, maxImgDim);
+          }
+        }
+
+        currentY += rowHeight;
+        isAtTopOfPage = false;
+      }
+    } else if (section.type === 16) {
+      // -------------------------------------------------------------
+      // TYPE 16: Look and circle sound in Composite Mode
+      // -------------------------------------------------------------
+      const cols = 3;
+      const colGap = isA5 ? 4.0 : 6.0;
+      const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 13 : 15);
+      const secSpacing = section.spacing !== undefined ? section.spacing : (globalSpacing !== undefined ? globalSpacing : 0);
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
+      const soundMode = section.type16SoundMode || 'beginning';
+      const choiceCount = section.type16ChoiceCount || 3;
+      const layout = section.type16Layout || 'lettersLeft';
+      const letterCase = section.type16LetterCase || 'lower';
+      const borderStyle = section.type16Border || 'none';
+
+      const metrics = calculateType16Metrics(
+        secFontSize,
+        secSpacing,
+        choiceCount,
+        layout,
+        borderStyle,
+        imgSize,
+        isA5
+      );
+
+      const { fontHeightMm, optPitch, choicesBlockH, contentHeight, cardHeight, rowHeight } = metrics;
+      const padY = (borderStyle !== 'none') ? 2.5 : 0;
+
+      const totalRows = Math.ceil(secWords.length / cols);
+
+      for (let r = 0; r < totalRows; r++) {
+        if (!isAtTopOfPage && currentY + rowHeight > maxContentY) {
+          await addNewPage();
+        }
+
+        const startIdx = r * cols;
+        const endIdx = Math.min(startIdx + cols, secWords.length);
+
+        for (let i = startIdx; i < endIdx; i++) {
+          const col = i % cols;
+          const cardX = margin + col * (cardWidth + colGap);
+          const cardY = currentY;
+
+          const currentWord = secWords[i];
+          const targetImg = currentWord.imageUrl ? await fetchImageAsBase64(currentWord.imageUrl) : null;
+
+          const { choices } = generateType16Choices(
+            currentWord.term,
+            soundMode,
+            choiceCount,
+            letterCase,
+            masterWordPool
+          );
+
+          // 1. Draw Card Border if requested
+          const cornerR = 2.0;
+          if (borderStyle === 'full' || borderStyle === 'outerOnly') {
+            doc.setDrawColor(148, 163, 184); // slate-400
+            doc.setLineWidth(0.4);
+            setDocLineDash(doc, [0.4, 0.8]);
+            doc.roundedRect(cardX, cardY, cardWidth, cardHeight, cornerR, cornerR, 'S');
+            setDocLineDash(doc, []);
+          }
+
+          // 2. Layout variants
+          if (layout === 'lettersBottom') {
+            // Horizontal choices below image
+            const imgX = cardX + (cardWidth - imgSize) / 2;
+            const imgY = cardY + padY + 1.0;
+
+            if (targetImg) {
+              try {
+                doc.addImage(targetImg, 'JPEG', imgX, imgY, imgSize, imgSize);
+              } catch {
+                if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
+              }
+            } else if (showImageBorder) {
+              doc.rect(imgX, imgY, imgSize, imgSize);
+            }
+
+            const gapImgToChoices = (secSpacing === 0 ? 1.5 : 2.5) + (secSpacing * 0.352778 * 0.2);
+
+            if (borderStyle === 'full') {
+              const divY = imgY + imgSize + gapImgToChoices / 2;
+              doc.setDrawColor(148, 163, 184);
+              doc.setLineWidth(0.28);
+              setDocLineDash(doc, [0.3, 0.7]);
+              doc.line(cardX, divY, cardX + cardWidth, divY);
+              setDocLineDash(doc, []);
+            }
+
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(secFontSize);
+            doc.setTextColor(30, 41, 59);
+
+            const choiceY = imgY + imgSize + gapImgToChoices + fontHeightMm * 0.75;
+            const choiceStep = cardWidth / (choiceCount + 1);
+            for (let j = 0; j < choiceCount; j++) {
+              const choiceX = cardX + (j + 1) * choiceStep;
+              doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+            }
+            doc.setTextColor(0, 0, 0);
+
+          } else {
+            // Vertical layout: 'lettersLeft' or 'lettersRight'
+            const colChoicesW = Math.max(12, Math.min(cardWidth * 0.34, 18));
+            const colImgW = cardWidth - colChoicesW;
+
+            let choicesCenterX: number;
+            let imgX: number;
+            let divX: number;
+
+            if (layout === 'lettersLeft') {
+              choicesCenterX = cardX + colChoicesW / 2;
+              imgX = cardX + colChoicesW + (colImgW - imgSize) / 2;
+              divX = cardX + colChoicesW;
+            } else {
+              imgX = cardX + (colImgW - imgSize) / 2;
+              choicesCenterX = cardX + colImgW + colChoicesW / 2;
+              divX = cardX + colImgW;
+            }
+
+            const imgY = cardY + padY + (contentHeight - imgSize) / 2;
+
+            if (borderStyle === 'full') {
+              doc.setDrawColor(148, 163, 184);
+              doc.setLineWidth(0.28);
+              setDocLineDash(doc, [0.3, 0.7]);
+              doc.line(divX, cardY, divX, cardY + cardHeight);
+              setDocLineDash(doc, []);
+            }
+
+            if (targetImg) {
+              try {
+                doc.addImage(targetImg, 'JPEG', imgX, imgY, imgSize, imgSize);
+              } catch {
+                if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
+              }
+            } else if (showImageBorder) {
+              doc.rect(imgX, imgY, imgSize, imgSize);
+            }
+
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(secFontSize);
+            doc.setTextColor(30, 41, 59);
+
+            const choicesStartY = cardY + padY + (contentHeight - choicesBlockH) / 2 + fontHeightMm * 0.75;
+            for (let j = 0; j < choiceCount; j++) {
+              const choiceY = choicesStartY + j * optPitch;
+              doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+            }
+            doc.setTextColor(0, 0, 0);
           }
         }
 

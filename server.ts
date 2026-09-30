@@ -1,7 +1,18 @@
+process.env.NODE_ENV = 'production';
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Modality } from "@google/genai";
+
+process.on('exit', (code) => {
+  console.log(`[Process Exit] code=${code}`);
+});
+process.on('uncaughtException', (err) => {
+  console.log('[Uncaught Exception]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.log('[Unhandled Rejection]', reason);
+});
 
 function pcmBase64ToWavBase64(base64Pcm: string, sampleRate: number = 24000): string | null {
   if (!base64Pcm || typeof base64Pcm !== 'string') return null;
@@ -66,7 +77,7 @@ let geminiCooldownUntil = 0;
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3005;
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -75,14 +86,79 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // --- Auto-Shutdown on Browser Tab Close ---
+  const activeTabs = new Map<string, number>();
+  const SERVER_START_TIME = Date.now();
+  const INITIAL_GRACE_PERIOD_MS = 25000; // 25s cho phép trình duyệt mở và nạp trang lần đầu
+  const TAB_TIMEOUT_MS = 6000; // Tab không gửi ping quá 6s sẽ coi là đã đóng
+  let hasConnectedAtLeastOnce = false;
+  let lastHeartbeatTime = Date.now();
+
+  app.all("/api/heartbeat", (req, res) => {
+    const tabId = req.body?.tabId || req.query?.tabId;
+    if (tabId && typeof tabId === "string") {
+      activeTabs.set(tabId, Date.now());
+      hasConnectedAtLeastOnce = true;
+      lastHeartbeatTime = Date.now();
+    }
+    res.json({ status: "alive", activeTabsCount: activeTabs.size });
+  });
+
+  app.all("/api/heartbeat/close", (req, res) => {
+    const tabId = req.body?.tabId || req.query?.tabId;
+    if (tabId && typeof tabId === "string") {
+      activeTabs.delete(tabId);
+    }
+    res.json({ status: "closed", activeTabsCount: activeTabs.size });
+  });
+
+  // Kiểm tra định kỳ mỗi 2 giây để tự động tắt máy chủ khi không còn tab nào mở
+  if (process.env.DISABLE_AUTO_SHUTDOWN !== 'true') {
+    const shutdownInterval = setInterval(() => {
+      const now = Date.now();
+
+      // Dọn dẹp các tab không còn gửi heartbeat quá 6 giây
+      for (const [id, lastTime] of activeTabs.entries()) {
+        if (now - lastTime > TAB_TIMEOUT_MS) {
+          activeTabs.delete(id);
+        }
+      }
+
+      if (hasConnectedAtLeastOnce) {
+        // Đã từng có tab kết nối, nhưng hiện tại tất cả đã đóng và im lặng quá 30s
+        if (activeTabs.size === 0 && (now - lastHeartbeatTime > 30000)) {
+          console.log("[Auto-Shutdown] Tat ca tab trinh duyet da dong. Tu dong tat may chu de giai phong tai nguyen...");
+          clearInterval(shutdownInterval);
+          process.exit(0);
+        }
+      } else {
+        // Quá 35 giây mà chưa có bất kỳ trình duyệt nào kết nối
+        if (now - SERVER_START_TIME > INITIAL_GRACE_PERIOD_MS + 10000) {
+          console.log("[Auto-Shutdown] Khong co trinh duyet nao ket noi sau 35s. Tu dong tat may chu...");
+          clearInterval(shutdownInterval);
+          process.exit(0);
+        }
+      }
+    }, 2000);
+  }
+
   // Proxy Image Endpoint to bypass CORS
   app.get("/api/proxy-image", async (req, res) => {
-    const imageUrl = req.query.url as string;
+    let imageUrl = req.query.url as string;
     if (!imageUrl) {
       res.status(400).json({ error: "Missing url parameter" });
       return;
     }
     
+    // Auto prefix relative yourhomework images
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      if (imageUrl.startsWith('/')) {
+        imageUrl = `https://yourhomework.net${imageUrl}`;
+      } else {
+        imageUrl = `https://yourhomework.net/yhw/f/yhw-voca/${imageUrl}`;
+      }
+    }
+
     try {
       const response = await fetch(imageUrl, {
         headers: {
@@ -97,11 +173,89 @@ async function startServer() {
       const buffer = await response.arrayBuffer();
       const contentType = response.headers.get('content-type') || 'image/jpeg';
       
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
       res.setHeader('Content-Type', contentType);
       res.send(Buffer.from(buffer));
     } catch (error) {
       console.error('Image proxy error:', error);
       res.status(500).json({ error: "Failed to fetch image" });
+    }
+  });
+
+  // Fetch Vocab from YourHomework
+  app.all(["/api/fetch-vocab", "/api/yourhomework/vocab/:id?"], async (req, res) => {
+    let input = (req.params.id || req.query.url || req.query.id || req.body?.url || req.body?.id || '') as string;
+    input = input.trim();
+
+    if (!input) {
+      res.status(400).json({ error: "Vui lòng cung cấp link hoặc ID bài học YourHomework." });
+      return;
+    }
+
+    // Extract ID from link or raw ID
+    let vocabId = '';
+    const matchId = input.match(/(\d{8,12})/);
+    if (matchId) {
+      vocabId = matchId[1];
+    } else {
+      res.status(400).json({ error: "Không tìm thấy ID bài học hợp lệ trong link." });
+      return;
+    }
+
+    try {
+      const targetUrl = `https://yourhomework.net/api/v1/vocab/${vocabId}/activity-data`;
+      const response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Không thể nạp dữ liệu từ YourHomework: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+
+      const words = items.map((item: any, idx: number) => {
+        let img = item.imageUrl || '';
+        let fullImageUrl = '';
+        if (img) {
+          if (img.startsWith('http://') || img.startsWith('https://')) {
+            fullImageUrl = img;
+          } else if (img.startsWith('/')) {
+            fullImageUrl = `https://yourhomework.net${img}`;
+          } else {
+            fullImageUrl = `https://yourhomework.net/yhw/f/yhw-voca/${img}`;
+          }
+        }
+
+        return {
+          id: `w-${idx + 1}-${Date.now()}`,
+          term: (item.word || '').trim(),
+          definition: (item.meaning || '').trim(),
+          phonetic: (item.phonetic || '').trim(),
+          imageUrl: fullImageUrl,
+          rawImage: img
+        };
+      });
+
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.json({
+        success: true,
+        vocabId: data.vocabId || vocabId,
+        publicId: data.publicId || vocabId,
+        title: data.vocabTitle || `Bài học ${vocabId}`,
+        description: data.vocabDescription || '',
+        sourceLang: data.sourceLangValue || 'en',
+        count: words.length,
+        words
+      });
+    } catch (error: any) {
+      console.error('Fetch vocab error:', error);
+      res.status(500).json({ error: error.message || 'Lỗi khi tải dữ liệu bài học.' });
     }
   });
 
@@ -346,7 +500,12 @@ Words: ${JSON.stringify(terms)}`;
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ['**/.agents/**', '**/.git/**', '**/dist/**', '**/.system_generated/**', '**/*.log']
+        }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

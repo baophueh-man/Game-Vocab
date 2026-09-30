@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Gamepad2, Home, PlusCircle, LogOut } from 'lucide-react';
+import { Gamepad2, Home, PlusCircle, LogOut, FileText } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import VoiceSettings from './ui/VoiceSettings';
@@ -12,6 +12,7 @@ export default function Layout() {
   const navItems = [
     { href: '/', icon: Home, label: 'Home' },
     { href: '/create', icon: PlusCircle, label: 'Create' },
+    { href: '/worksheet', icon: FileText, label: 'Worksheet' },
   ];
 
   return (

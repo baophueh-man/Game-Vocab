@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getSets, deleteSet, saveSet } from '../lib/storage';
 import { WordSet } from '../types';
-import { Play, Edit, Trash2, Book, Plus, X, AlertTriangle, Share2, Check, Package, Download, Copy, Loader2, Cloud, ExternalLink, QrCode } from 'lucide-react';
+import { Play, Edit, Trash2, Book, Plus, X, AlertTriangle, Share2, Check, Package, Download, Copy, Loader2, Cloud, ExternalLink, QrCode, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportWordSetPackage, importWordSetPackage } from '../utils/packageZip';
 import { generateId } from '../lib/utils';
@@ -222,6 +222,14 @@ export default function Home() {
             Nhập Gói ZIP (1-Click)
           </button>
           <Link
+            to="/worksheet"
+            className="bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-xs"
+            title="Tạo Worksheet PDF từ link YourHomework hoặc bộ từ vựng"
+          >
+            <FileText className="w-4 h-4 text-indigo-600" />
+            Tạo Worksheet
+          </Link>
+          <Link
             to="/create"
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
           >
@@ -286,6 +294,13 @@ export default function Home() {
                     >
                       {copiedId === set.id ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
                     </button>
+                    <Link
+                      to={`/worksheet/${set.id}`}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                      title="Tạo Worksheet PDF"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </Link>
                     <Link
                       to={`/edit/${set.id}`}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"

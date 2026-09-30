@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Editor from './pages/Editor';
 import GamePlayer from './pages/GamePlayer';
+import WorksheetGenerator from './pages/WorksheetGenerator';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
 import ZoomControl from './components/ZoomControl';
@@ -19,6 +20,8 @@ export default function App() {
               <Route path="create" element={<Editor />} />
               <Route path="edit/:id" element={<Editor />} />
               <Route path="play/:id" element={<GamePlayer />} />
+              <Route path="worksheet" element={<WorksheetGenerator />} />
+              <Route path="worksheet/:id" element={<WorksheetGenerator />} />
             </Route>
           </Routes>
         </BrowserRouter>
