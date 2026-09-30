@@ -466,6 +466,7 @@ export function applyTemplateToSections(
       type4LayoutMode: ts.type4LayoutMode,
       type4ColumnMode: ts.type4ColumnMode,
       type4TraceFontSize: ts.type4TraceFontSize,
+      type4AlphabetTargetLetter: ts.type4AlphabetTargetLetter,
       pageBreakBefore: ts.pageBreakBefore,
       fontSize: ts.fontSize,
       fontFamily: ts.fontFamily,

@@ -24,7 +24,12 @@ import {
   Type17CardBorder,
   Type17LetterCase,
   Type17StripLength,
-  Type17HighlightTarget
+  Type17HighlightTarget,
+  Type18Mode,
+  Type18Border,
+  Type18CircleStyle,
+  Type18DistractorCasing,
+  Type18HighlightTarget
 } from './worksheetGenerator';
 import { generateId } from '../lib/utils';
 
@@ -34,9 +39,9 @@ export const IDB_DATABASE_NAME = 'VocaGameTemplatesDB';
 export const IDB_STORE_NAME = 'templates';
 export const IDB_VERSION = 1;
 
-// Allowed section types for composite worksheets (1-17 except 5)
+// Allowed section types for composite worksheets (1-18 except 5)
 export const VALID_WORKSHEET_SECTION_TYPES: readonly WorksheetType[] = [
-  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
 ];
 
 export interface WorksheetTemplateSection {
@@ -51,6 +56,7 @@ export interface WorksheetTemplateSection {
   type4LayoutMode?: Type4LayoutMode;
   type4ColumnMode?: Type4ColumnMode;
   type4TraceFontSize?: number;
+  type4AlphabetTargetLetter?: string;
   pageBreakBefore?: boolean;
   fontSize?: number;
   fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';
@@ -91,6 +97,16 @@ export interface WorksheetTemplateSection {
   type17StripLength?: Type17StripLength;
   type17HighlightTarget?: Type17HighlightTarget;
   type17ShowExample?: boolean;
+  type18TargetLetter?: string;
+  type18Mode?: Type18Mode;
+  type18ColorUpper?: string;
+  type18ColorLower?: string;
+  type18GridRows?: number;
+  type18GridCols?: number;
+  type18Border?: Type18Border;
+  type18CircleStyle?: Type18CircleStyle;
+  type18DistractorCasing?: Type18DistractorCasing;
+  type18HighlightTarget?: Type18HighlightTarget;
 }
 
 export interface WorksheetTemplate {
@@ -814,6 +830,7 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type4LayoutMode ? { type4LayoutMode: item.type4LayoutMode } : {}),
       ...(item.type4ColumnMode ? { type4ColumnMode: item.type4ColumnMode } : {}),
       ...(typeof item.type4TraceFontSize === 'number' ? { type4TraceFontSize: item.type4TraceFontSize } : {}),
+      ...(typeof item.type4AlphabetTargetLetter === 'string' ? { type4AlphabetTargetLetter: item.type4AlphabetTargetLetter } : {}),
       ...(typeof item.pageBreakBefore === 'boolean' ? { pageBreakBefore: item.pageBreakBefore } : {}),
       ...(typeof item.fontSize === 'number' ? { fontSize: item.fontSize } : {}),
       ...(item.fontFamily ? { fontFamily: item.fontFamily } : {}),
@@ -853,7 +870,17 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type17LetterCase === 'lower' || item.type17LetterCase === 'upper' ? { type17LetterCase: item.type17LetterCase } : {}),
       ...(item.type17StripLength !== undefined ? { type17StripLength: item.type17StripLength } : {}),
       ...(item.type17HighlightTarget === 'none' || item.type17HighlightTarget === 'red' ? { type17HighlightTarget: item.type17HighlightTarget } : {}),
-      ...(typeof item.type17ShowExample === 'boolean' ? { type17ShowExample: item.type17ShowExample } : {})
+      ...(typeof item.type17ShowExample === 'boolean' ? { type17ShowExample: item.type17ShowExample } : {}),
+      ...(typeof item.type18TargetLetter === 'string' ? { type18TargetLetter: item.type18TargetLetter } : {}),
+      ...(item.type18Mode ? { type18Mode: item.type18Mode } : {}),
+      ...(typeof item.type18ColorUpper === 'string' ? { type18ColorUpper: item.type18ColorUpper } : {}),
+      ...(typeof item.type18ColorLower === 'string' ? { type18ColorLower: item.type18ColorLower } : {}),
+      ...(typeof item.type18GridRows === 'number' ? { type18GridRows: item.type18GridRows } : {}),
+      ...(typeof item.type18GridCols === 'number' ? { type18GridCols: item.type18GridCols } : {}),
+      ...(item.type18Border ? { type18Border: item.type18Border } : {}),
+      ...(item.type18CircleStyle ? { type18CircleStyle: item.type18CircleStyle } : {}),
+      ...(item.type18DistractorCasing ? { type18DistractorCasing: item.type18DistractorCasing } : {}),
+      ...(item.type18HighlightTarget ? { type18HighlightTarget: item.type18HighlightTarget } : {})
     };
 
     sanitized.push(sec);

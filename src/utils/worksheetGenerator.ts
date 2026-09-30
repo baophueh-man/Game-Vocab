@@ -24,7 +24,7 @@ export interface WorksheetWord {
   deckRole?: 'primary' | 'review';
 }
 
-export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
 export type BlankMode = 'vowels' | 'random1' | 'random2' | 'random3';
 export type Type4LayoutMode = 'grid' | 'table';
 export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only' | 'alphabet_order' | 'vowels_only';
@@ -57,6 +57,20 @@ export type Type17CardBorder = 'none' | 'rounded';
 export type Type17LetterCase = 'lower' | 'upper';
 export type Type17StripLength = 'auto' | 6 | 8 | 10;
 export type Type17HighlightTarget = 'none' | 'red';
+
+export type Type18Mode = 'both' | 'upper_only' | 'lower_only' | 'single_color';
+export type Type18Border = 'rounded' | 'rect' | 'none';
+export type Type18CircleStyle = 'solid' | 'dashed' | 'double';
+export type Type18DistractorCasing = 'mixed' | 'upper' | 'lower';
+export type Type18HighlightTarget = 'none' | 'answer_key';
+
+export interface Type18Cell {
+  char: string;
+  isTargetUpper: boolean;
+  isTargetLower: boolean;
+  row: number;
+  col: number;
+}
 
 export interface PlacedWordInfo {
   word: WorksheetWord;
@@ -92,7 +106,9 @@ export const TYPE4_COLUMN_OPTIONS = [
   { id: 'both_trace_first', name: 'Cả âm đầu & cuối: Tô trước -> Điền sau (Mẫu 1)' },
   { id: 'both_blank_first', name: 'Cả âm đầu & cuối: Điền trước -> Tô sau (Mẫu 2 & 3)' },
   { id: 'initial_only', name: 'Chỉ luyện âm đầu (Beginning sounds - 2 cột)' },
-  { id: 'final_only', name: 'Chỉ luyện âm cuối (Ending sounds - 2 cột)' }
+  { id: 'final_only', name: 'Chỉ luyện âm cuối (Ending sounds - 2 cột)' },
+  { id: 'alphabet_order', name: 'Luyện tới chữ cái được chọn theo bảng chữ cái (2 cột)' },
+  { id: 'vowels_only', name: 'Chỉ luyện nguyên âm (Vowels: a, e, i, o, u - 2 cột)' }
 ];
 
 export const IMAGE_SIZE_OPTIONS = [
@@ -157,6 +173,7 @@ export interface WorksheetOptions {
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' (default) or 'table' (Look and write)
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode (default: 'both_trace_first')
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
+  type4AlphabetTargetLetter?: string; // for Type 4 table mode alphabet order (default: 'c')
   type15NumberStyle?: Type15NumberStyle; // for Type 15: 'none' (default) or 'traditional' (Có: traditional black number)
   type15Border?: Type15Border; // for Type 15: 'full' (default), 'outerOnly', 'none'
   type15ChoiceMode?: Type15ChoiceMode; // for Type 15: 'ab' (default), 'checkbox', 'none'
@@ -173,11 +190,21 @@ export interface WorksheetOptions {
   type17StripLength?: Type17StripLength; // for Type 17: 'auto' (default) | 6 | 8 | 10
   type17HighlightTarget?: Type17HighlightTarget; // for Type 17: 'none' (default: black for student) | 'red' (answer key)
   type17ShowExample?: boolean; // for Type 17: default true (first item has example slash/highlight)
+  type18TargetLetter?: string; // for Type 18: target letter, default 'E'
+  type18Mode?: Type18Mode; // for Type 18: 'both' (default) | 'upper_only' | 'lower_only' | 'single_color'
+  type18ColorUpper?: string; // for Type 18: color for uppercase target, default 'green'
+  type18ColorLower?: string; // for Type 18: color for lowercase target, default 'red'
+  type18GridRows?: number; // for Type 18: rows in grid, default 4 (3-6)
+  type18GridCols?: number; // for Type 18: cols in grid, default 7 (5-8)
+  type18Border?: Type18Border; // for Type 18: outer border, 'rounded' (default) | 'rect' | 'none'
+  type18CircleStyle?: Type18CircleStyle; // for Type 18: circle border style, 'solid' (default) | 'dashed' | 'double'
+  type18DistractorCasing?: Type18DistractorCasing; // for Type 18: 'upper' (default) | 'lower' | 'mixed'
+  type18HighlightTarget?: Type18HighlightTarget; // for Type 18: 'none' (default for student) | 'answer_key'
 }
 
 export interface CompositeWorksheetSection {
   id: string;
-  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
+  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18
   title: string;
   instruction?: string;
   words: WorksheetWord[];
@@ -209,6 +236,7 @@ export interface CompositeWorksheetSection {
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' or 'table'
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
+  type4AlphabetTargetLetter?: string; // for Type 4 table mode alphabet order (default: 'c')
   type15NumberStyle?: Type15NumberStyle;
   type15Border?: Type15Border;
   type15ChoiceMode?: Type15ChoiceMode;
@@ -225,6 +253,16 @@ export interface CompositeWorksheetSection {
   type17StripLength?: Type17StripLength;
   type17HighlightTarget?: Type17HighlightTarget;
   type17ShowExample?: boolean;
+  type18TargetLetter?: string;
+  type18Mode?: Type18Mode;
+  type18ColorUpper?: string;
+  type18ColorLower?: string;
+  type18GridRows?: number;
+  type18GridCols?: number;
+  type18Border?: Type18Border;
+  type18CircleStyle?: Type18CircleStyle;
+  type18DistractorCasing?: Type18DistractorCasing;
+  type18HighlightTarget?: Type18HighlightTarget;
 }
 
 export interface CompositeWorksheetConfig {
@@ -358,6 +396,14 @@ export const WORKSHEET_TYPES: WorksheetTypeMeta[] = [
     name: 'Loại 17: Nhìn tranh tô màu từ đúng (Look and color the words)',
     description: 'Mỗi tranh có dải các ô chữ cái chứa từ mục tiêu và chữ cái dư. Hỗ trợ 2 chế độ: Tô màu từ đúng (Look and color) hoặc Gạch bỏ chữ dư (Cross out the extra letters).',
     thumbnail: '/worksheet/types/loai-pdf-17.PNG',
+    isNew: false
+  },
+  {
+    type: 18,
+    id: 18,
+    name: 'Loại 18: Tô màu chữ cái mục tiêu (Color the letters)',
+    description: 'Tìm và tô màu các chữ cái mục tiêu (chữ hoa/thường) trong khung các hình tròn bao quanh chữ (ví dụ: Color E green and e red).',
+    thumbnail: '/worksheet/types/loai-pdf-18.PNG',
     isNew: true
   }
 ];
@@ -1098,6 +1144,362 @@ export function drawType17Item(
   doc.setTextColor(0, 0, 0);
 }
 
+// -------------------------------------------------------------
+// TYPE 18: COLOR THE LETTERS (Find and color target letters in circles)
+// -------------------------------------------------------------
+
+export const TYPE18_COLOR_MAP: Record<string, { name: string; viName: string; rgb: [number, number, number]; hex: string }> = {
+  green: { name: 'green', viName: 'Xanh lá', rgb: [22, 163, 74], hex: '#16a34a' },
+  red: { name: 'red', viName: 'Đỏ', rgb: [220, 38, 38], hex: '#dc2626' },
+  blue: { name: 'blue', viName: 'Xanh dương', rgb: [37, 99, 235], hex: '#2563eb' },
+  yellow: { name: 'yellow', viName: 'Vàng', rgb: [202, 138, 4], hex: '#ca8a04' },
+  orange: { name: 'orange', viName: 'Cam', rgb: [234, 88, 12], hex: '#ea580c' },
+  purple: { name: 'purple', viName: 'Tím', rgb: [147, 51, 234], hex: '#9333ea' },
+  pink: { name: 'pink', viName: 'Hồng', rgb: [219, 39, 119], hex: '#db2777' }
+};
+
+export function generateType18Grid(
+  targetLetter: string = 'E',
+  mode: Type18Mode = 'both',
+  rows: number = 4,
+  cols: number = 7,
+  distractorCasing: Type18DistractorCasing = 'upper',
+  seed: number = 0
+): { cells: Type18Cell[]; targetUpperCount: number; targetLowerCount: number; distractorCount: number } {
+  const cleanLetter = (targetLetter || 'E').trim().charAt(0).toUpperCase() || 'E';
+  const upperChar = cleanLetter;
+  const lowerChar = cleanLetter.toLowerCase();
+
+  const totalCells = rows * cols;
+  let targetUpperCount = 0;
+  let targetLowerCount = 0;
+
+  if (mode === 'both') {
+    targetUpperCount = Math.max(2, Math.round(totalCells * 0.25)); // 7 for 28
+    targetLowerCount = Math.max(2, Math.round(totalCells * 0.21)); // 6 for 28
+  } else if (mode === 'upper_only') {
+    targetUpperCount = Math.max(4, Math.round(totalCells * 0.40)); // 11 for 28
+    targetLowerCount = 0;
+  } else if (mode === 'lower_only') {
+    targetUpperCount = 0;
+    targetLowerCount = Math.max(4, Math.round(totalCells * 0.40)); // 11 for 28
+  } else if (mode === 'single_color') {
+    targetUpperCount = Math.max(2, Math.round(totalCells * 0.25));
+    targetLowerCount = Math.max(2, Math.round(totalCells * 0.25));
+  }
+
+  const distractorCount = totalCells - (targetUpperCount + targetLowerCount);
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(c => c !== upperChar);
+  const prioritizedDistractors = ['A', 'B', 'C', 'D', 'F', 'H', 'P', 'R', 'S', 'T', 'M', 'N', 'O', 'L', 'G']
+    .filter(c => c !== upperChar && alphabet.includes(c));
+  const candidatePool = prioritizedDistractors.length >= 4 ? prioritizedDistractors : alphabet;
+
+  let s = (seed + 1) * 12345;
+  const nextRnd = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+
+  const cellList: { char: string; isTargetUpper: boolean; isTargetLower: boolean }[] = [];
+
+  for (let i = 0; i < targetUpperCount; i++) {
+    cellList.push({ char: upperChar, isTargetUpper: true, isTargetLower: false });
+  }
+  for (let i = 0; i < targetLowerCount; i++) {
+    cellList.push({ char: lowerChar, isTargetUpper: false, isTargetLower: true });
+  }
+
+  for (let i = 0; i < distractorCount; i++) {
+    const rawDist = candidatePool[Math.floor(nextRnd() * candidatePool.length)];
+    let finalDist = rawDist;
+    if (distractorCasing === 'upper') {
+      finalDist = rawDist.toUpperCase();
+    } else if (distractorCasing === 'lower') {
+      finalDist = rawDist.toLowerCase();
+    } else {
+      finalDist = nextRnd() > 0.5 ? rawDist.toUpperCase() : rawDist.toLowerCase();
+    }
+    cellList.push({ char: finalDist, isTargetUpper: false, isTargetLower: false });
+  }
+
+  // Shuffle cells with deterministic seed
+  for (let i = cellList.length - 1; i > 0; i--) {
+    const j = Math.floor(nextRnd() * (i + 1));
+    const temp = cellList[i];
+    cellList[i] = cellList[j];
+    cellList[j] = temp;
+  }
+
+  const gridCells: Type18Cell[] = [];
+  let idx = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const item = cellList[idx++];
+      gridCells.push({
+        char: item.char,
+        isTargetUpper: item.isTargetUpper,
+        isTargetLower: item.isTargetLower,
+        row: r,
+        col: c
+      });
+    }
+  }
+
+  return {
+    cells: gridCells,
+    targetUpperCount,
+    targetLowerCount,
+    distractorCount
+  };
+}
+
+export function calculateType18Metrics(
+  fontSizePt: number = 20,
+  spacingPt: number = 0,
+  rows: number = 4,
+  cols: number = 7,
+  outerBorder: Type18Border = 'rounded',
+  isA5: boolean = false,
+  containerWidthMm?: number,
+  containerMaxHeightMm?: number
+) {
+  const defaultContainerW = isA5 ? 132 : 184.6;
+  const cardWidth = containerWidthMm || defaultContainerW;
+
+  const effectiveSpacing = spacingPt !== undefined ? spacingPt : 0;
+  const spacingMm = effectiveSpacing * 0.352778;
+  const isZero = effectiveSpacing === 0;
+
+  // Container padding: compact at 0pt, expands with spacing
+  const padX = outerBorder !== 'none' ? ((isZero ? 5.0 : 7.0) + spacingMm * 0.15) : 1.0;
+  const padY = outerBorder !== 'none' ? ((isZero ? 5.0 : 7.0) + spacingMm * 0.15) : 1.0;
+
+  const innerW = cardWidth - 2 * padX;
+  const cellW = innerW / cols;
+
+  const maxCircleDiameterX = cellW * (isZero ? 0.90 : 0.82);
+  const baseTargetDiameter = isA5 ? 14.5 : 19.5;
+  const circleDiameter = Math.min(maxCircleDiameterX, baseTargetDiameter);
+  const circleRadius = circleDiameter / 2;
+
+  // Row gap between circle centers:
+  // At spacing 0 pt: tight (2.8mm A4, 2.0mm A5)
+  // At spacing > 0 pt: expands linearly with spacingMm
+  const baseGapBetweenCirclesY = isZero ? (isA5 ? 2.0 : 2.8) : ((isA5 ? 3.5 : 4.5) + spacingMm * 0.45);
+  const cellH = circleDiameter + baseGapBetweenCirclesY;
+  const gridH = cellH * rows;
+  const cardHeight = gridH + 2 * padY;
+
+  // Font Scaling Protection:
+  // Circle interior safe zone is ~68% of diameter
+  const maxSafeFontPt = (circleDiameter * 0.68) / 0.352778;
+  const effectiveCellFontSize = Math.min(fontSizePt, maxSafeFontPt);
+
+  return {
+    cols,
+    rows,
+    cardWidth,
+    cardHeight,
+    padX,
+    padY,
+    cellW,
+    cellH,
+    circleDiameter,
+    circleRadius,
+    gridH,
+    baseGapBetweenCirclesY,
+    effectiveCellFontSize,
+    spacingMm,
+    isZero
+  };
+}
+
+export function drawType18Title(
+  doc: jsPDF,
+  title: string,
+  targetLetter: string = 'E',
+  mode: Type18Mode = 'both',
+  colorUpper: string = 'green',
+  colorLower: string = 'red',
+  x: number = 12.7,
+  y: number = 18.0,
+  fontSizePt: number = 20,
+  fontFamily: string = 'r0c0i Linotte'
+) {
+  doc.setFontSize(fontSizePt);
+  applyFont(doc, fontFamily, 'bold');
+
+  const upperInfo = TYPE18_COLOR_MAP[colorUpper.toLowerCase()] || TYPE18_COLOR_MAP.green;
+  const lowerInfo = TYPE18_COLOR_MAP[colorLower.toLowerCase()] || TYPE18_COLOR_MAP.red;
+
+  // If title has markup <#color:text#> or <#text#>
+  if (/<#[\s\S]*?#>/.test(title)) {
+    const regex = /<#([\s\S]*?)#>/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+    let curX = x;
+    while ((match = regex.exec(title)) !== null) {
+      if (match.index > lastIdx) {
+        const seg = title.substring(lastIdx, match.index);
+        doc.setTextColor(30, 41, 59);
+        doc.text(seg, curX, y);
+        curX += doc.getTextWidth(seg);
+      }
+      const token = match[1];
+      let colorRgb: [number, number, number] = upperInfo.rgb;
+      let text = token;
+      if (token.includes(':')) {
+        const [cName, cText] = token.split(':');
+        const cInfo = TYPE18_COLOR_MAP[cName.toLowerCase()];
+        if (cInfo) colorRgb = cInfo.rgb;
+        text = cText;
+      }
+      doc.setTextColor(colorRgb[0], colorRgb[1], colorRgb[2]);
+      doc.text(text, curX, y);
+      curX += doc.getTextWidth(text);
+      lastIdx = regex.lastIndex;
+    }
+    if (lastIdx < title.length) {
+      const remaining = title.substring(lastIdx);
+      doc.setTextColor(30, 41, 59);
+      doc.text(remaining, curX, y);
+    }
+    doc.setTextColor(0, 0, 0);
+    return;
+  }
+
+  // Tokenize words and style color words with their matching RGB
+  const words = title.split(/(\s+)/);
+  let curX = x;
+
+  for (const w of words) {
+    const cleanWord = w.toLowerCase().replace(/[.,!?;:]/g, '');
+    const matchedColor = TYPE18_COLOR_MAP[cleanWord];
+
+    if (matchedColor) {
+      doc.setTextColor(matchedColor.rgb[0], matchedColor.rgb[1], matchedColor.rgb[2]);
+      applyFont(doc, fontFamily, 'bold');
+      doc.text(w, curX, y);
+      curX += doc.getTextWidth(w);
+    } else {
+      doc.setTextColor(30, 41, 59);
+      applyFont(doc, fontFamily, 'bold');
+      doc.text(w, curX, y);
+      curX += doc.getTextWidth(w);
+    }
+  }
+
+  doc.setTextColor(0, 0, 0);
+}
+
+export function drawType18ContainerAndGrid(
+  doc: jsPDF,
+  startX: number,
+  startY: number,
+  cells: Type18Cell[],
+  metrics: ReturnType<typeof calculateType18Metrics>,
+  options: {
+    outerBorder?: Type18Border;
+    circleStyle?: Type18CircleStyle;
+    highlightTarget?: Type18HighlightTarget;
+    colorUpper?: string;
+    colorLower?: string;
+    fontFamily?: string;
+  },
+  isA5: boolean = false
+) {
+  const { cardWidth, cardHeight, padX, padY, cellW, cellH, circleRadius, effectiveCellFontSize } = metrics;
+  const outerBorder = options.outerBorder || 'rounded';
+  const circleStyle = options.circleStyle || 'solid';
+  const highlightTarget = options.highlightTarget || 'none';
+  const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+  const upperInfo = TYPE18_COLOR_MAP[(options.colorUpper || 'green').toLowerCase()] || TYPE18_COLOR_MAP.green;
+  const lowerInfo = TYPE18_COLOR_MAP[(options.colorLower || 'red').toLowerCase()] || TYPE18_COLOR_MAP.red;
+
+  // 1. Draw outer container box
+  if (outerBorder === 'rounded') {
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(isA5 ? 0.5 : 0.65);
+    doc.roundedRect(startX, startY, cardWidth, cardHeight, isA5 ? 6 : 8, isA5 ? 6 : 8, 'S');
+  } else if (outerBorder === 'rect') {
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(isA5 ? 0.5 : 0.65);
+    doc.rect(startX, startY, cardWidth, cardHeight, 'S');
+  }
+
+  // 2. Draw circles & letters (Referencing WS 9 style)
+  for (const cell of cells) {
+    const cx = startX + padX + (cell.col + 0.5) * cellW;
+    const cy = startY + padY + (cell.row + 0.5) * cellH;
+
+    if (highlightTarget === 'answer_key') {
+      // Teacher Answer Key Mode: Fill circle with respective target color
+      if (cell.isTargetUpper) {
+        doc.setFillColor(upperInfo.rgb[0], upperInfo.rgb[1], upperInfo.rgb[2]);
+        doc.setDrawColor(upperInfo.rgb[0], upperInfo.rgb[1], upperInfo.rgb[2]);
+        doc.setLineWidth(0.35);
+        doc.circle(cx, cy, circleRadius, 'FD');
+
+        const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
+        applyFont(doc, activeFont, cellFontStyle);
+        doc.setFontSize(effectiveCellFontSize);
+        doc.setTextColor(255, 255, 255);
+        doc.text(cell.char, cx, cy, { align: 'center', baseline: 'middle' });
+      } else if (cell.isTargetLower) {
+        doc.setFillColor(lowerInfo.rgb[0], lowerInfo.rgb[1], lowerInfo.rgb[2]);
+        doc.setDrawColor(lowerInfo.rgb[0], lowerInfo.rgb[1], lowerInfo.rgb[2]);
+        doc.setLineWidth(0.35);
+        doc.circle(cx, cy, circleRadius, 'FD');
+
+        const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
+        applyFont(doc, activeFont, cellFontStyle);
+        doc.setFontSize(effectiveCellFontSize);
+        doc.setTextColor(255, 255, 255);
+        doc.text(cell.char, cx, cy, { align: 'center', baseline: 'middle' });
+      } else {
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(180, 185, 195);
+        doc.setLineWidth(0.3);
+        doc.circle(cx, cy, circleRadius, 'FD');
+
+        const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
+        applyFont(doc, activeFont, cellFontStyle);
+        doc.setFontSize(effectiveCellFontSize);
+        doc.setTextColor(100, 116, 139);
+        doc.text(cell.char, cx, cy, { align: 'center', baseline: 'middle' });
+      }
+    } else {
+      // Normal Student Worksheet Mode: Crisp outline circle, letter in middle
+      doc.setDrawColor(30, 41, 59);
+
+      if (circleStyle === 'solid') {
+        doc.setLineWidth(isA5 ? 0.35 : 0.45);
+        doc.circle(cx, cy, circleRadius, 'S');
+      } else if (circleStyle === 'dashed') {
+        doc.setLineWidth(isA5 ? 0.35 : 0.45);
+        setDocLineDash(doc, [1.5, 1.0]);
+        doc.circle(cx, cy, circleRadius, 'S');
+        setDocLineDash(doc, []);
+      } else if (circleStyle === 'double') {
+        doc.setLineWidth(0.3);
+        doc.circle(cx, cy, circleRadius, 'S');
+        doc.circle(cx, cy, circleRadius - 0.7, 'S');
+      }
+
+      const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
+      applyFont(doc, activeFont, cellFontStyle);
+      doc.setFontSize(effectiveCellFontSize);
+      doc.setTextColor(30, 41, 59);
+      doc.text(cell.char, cx, cy, { align: 'center', baseline: 'middle' });
+    }
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setLineWidth(0.2);
+}
+
 export interface HighlightedSpan {
   text: string;
   isHighlighted: boolean;
@@ -1445,6 +1847,55 @@ export function drawTargetLetterTitle(
 }
 
 /**
+ * Helper to determine target letter indices for Type 4 Look and write
+ * Handles 'alphabet_order' (from 'a' up to target letter, e.g. 'c' -> a, b, c)
+ * and 'vowels_only' (a, e, i, o, u)
+ */
+export function getType4TargetLetterIndices(
+  term: string,
+  colMode: Type4ColumnMode,
+  alphabetTargetLetter: string = 'c'
+): { traceIndices: Set<number>, blankIndices: Set<number> } {
+  const letters = term.trim().toLowerCase();
+  const targetSet = new Set<number>();
+
+  if (colMode === 'vowels_only') {
+    const vowels = new Set(['a', 'e', 'i', 'o', 'u']);
+    for (let i = 0; i < letters.length; i++) {
+      if (vowels.has(letters[i])) {
+        targetSet.add(i);
+      }
+    }
+  } else if (colMode === 'alphabet_order') {
+    const targetChar = (alphabetTargetLetter && alphabetTargetLetter.trim().length > 0)
+      ? alphabetTargetLetter.trim().toLowerCase()[0]
+      : 'c';
+    for (let i = 0; i < letters.length; i++) {
+      const ch = letters[i];
+      if (ch >= 'a' && ch <= targetChar) {
+        targetSet.add(i);
+      }
+    }
+  }
+
+  // Fallback: if no character matched in the word, target the first alphabet letter
+  if (targetSet.size === 0 && letters.length > 0) {
+    for (let i = 0; i < letters.length; i++) {
+      if (letters[i] >= 'a' && letters[i] <= 'z') {
+        targetSet.add(i);
+        break;
+      }
+    }
+    if (targetSet.size === 0) targetSet.add(0);
+  }
+
+  return {
+    traceIndices: targetSet,
+    blankIndices: new Set(targetSet)
+  };
+}
+
+/**
  * Draw a word cell for Worksheet Type 4 Table Mode (Look and write)
  * Supports initial/final trace and initial/final blank
  */
@@ -1476,6 +1927,12 @@ export function drawType4WordCell(
 
   if (typeof cellType === 'object') {
     if (cellType.mode === 'custom') {
+      applyFont(doc, regularFont, 'normal');
+      doc.setFontSize(fontSize);
+      const spaceW = doc.getTextWidth(' ');
+      const blankStr = '__';
+      const blankW = doc.getTextWidth(blankStr);
+
       let curX = startX;
       for (let idx = 0; idx < trimmed.length; idx++) {
         const ch = trimmed[idx];
@@ -1491,9 +1948,14 @@ export function drawType4WordCell(
           applyFont(doc, regularFont, 'normal');
           doc.setFontSize(fontSize);
           doc.setTextColor(0, 0, 0);
-          const blankStr = '__';
+          if (idx > 0) {
+            curX += cellType.blankIndices.has(idx - 1) ? spaceW * 0.55 : spaceW * 0.35;
+          }
           doc.text(blankStr, curX, baselineY);
-          curX += doc.getTextWidth(blankStr) + 0.8;
+          curX += blankW;
+          if (idx < trimmed.length - 1 && !cellType.blankIndices.has(idx + 1)) {
+            curX += spaceW * 0.35;
+          }
         } else {
           applyFont(doc, regularFont, 'normal');
           doc.setFontSize(fontSize);
@@ -2695,7 +3157,7 @@ export function registerFonts(doc: jsPDF, activeFont: string = 'r0c0i Linotte') 
   }
 }
 
-export async function generateWorksheetPDF(options: WorksheetOptions): Promise<jsPDF> {
+export async function generateWorksheetPDF(options: WorksheetOptions, secondaryWords?: WorksheetWord[]): Promise<jsPDF> {
   const {
     type,
     title,
@@ -2729,8 +3191,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
   const printableHeight = pageHeight - margin * 2; // 184.6 mm for A5
   const imgSize = imageSize || 12.7; // 12.7 mm = 0.5 in
 
-  const validWords = words.filter((w) => w && w.term && w.term.trim().length > 0);
-  if (validWords.length === 0) {
+  const rawWords = words || secondaryWords || (options as any).wordsList || [];
+  const validWords = rawWords.filter((w: any) => w && w.term && w.term.trim().length > 0);
+  if (type !== 18 && validWords.length === 0) {
     throw new Error('Danh sách từ vựng trống. Vui lòng chọn ít nhất 1 từ.');
   }
 
@@ -3666,49 +4129,17 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
           const baselineY = rowCenterY + (cellTraceFontSize * 0.352778) * 0.28;
 
           if (colMode === 'alphabet_order' || colMode === 'vowels_only') {
-            const letters = term.toLowerCase();
-            let targetChar = '';
-            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-              const ch = letters[chIdx];
-              if (ch >= 'a' && ch <= 'z') {
-                if (colMode === 'vowels_only') {
-                  if (['a', 'e', 'i', 'o', 'u'].includes(ch)) {
-                    targetChar = ch;
-                    break;
-                  }
-                } else {
-                  if (!targetChar || ch < targetChar) {
-                    targetChar = ch;
-                  }
-                }
-              }
-            }
-            // Fallback if no matching letter found
-            if (!targetChar) {
-              for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-                if (letters[chIdx] >= 'a' && letters[chIdx] <= 'z') {
-                  targetChar = letters[chIdx];
-                  break;
-                }
-              }
-            }
-            if (!targetChar && letters.length > 0) targetChar = letters[0];
-
-            const traceSet = new Set<number>();
-            const blankSet = new Set<number>();
-
-            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-              if (letters[chIdx] === targetChar) {
-                traceSet.add(chIdx);
-                blankSet.add(chIdx);
-              }
-            }
+            const { traceIndices, blankIndices } = getType4TargetLetterIndices(
+              term,
+              colMode,
+              options.type4AlphabetTargetLetter || 'c'
+            );
 
             const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
             const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
 
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: traceSet, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices: blankSet } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
           } else {
             for (let c = 0; c < cellTypes.length; c++) {
               const cellType = cellTypes[c];
@@ -5499,6 +5930,135 @@ export async function generateWorksheetPDF(options: WorksheetOptions): Promise<j
         }
       }
     }
+  } else if (type === 18) {
+    // -------------------------------------------------------------
+    // TYPE 18: Color the letters (Find and color target letters in circles)
+    // Inspired by WS 9 circular letter frames and rounded outer container
+    // -------------------------------------------------------------
+    const targetLetterOpt = options.type18TargetLetter || 'E';
+    const taskMode: Type18Mode = options.type18Mode || 'both';
+    const colorUpper = options.type18ColorUpper || 'green';
+    const colorLower = options.type18ColorLower || 'red';
+    const rows = options.type18GridRows || 4;
+    const cols = options.type18GridCols || 7;
+    const outerBorder: Type18Border = options.type18Border || 'rounded';
+    const circleStyle: Type18CircleStyle = options.type18CircleStyle || 'solid';
+    const distractorCasing: Type18DistractorCasing = options.type18DistractorCasing || 'upper';
+    const highlightTarget: Type18HighlightTarget = options.type18HighlightTarget || 'none';
+
+    const effectiveFontSize = fontSize || (isA5 ? 16 : 20);
+    const effectiveSpacing = spacing !== undefined ? spacing : 0;
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+    // Determine target letters to generate
+    // If user provided words in vocabulary list and multiple words exist, can generate 1 target letter per page
+    // Otherwise generate single page with chosen target letter
+    let targetLetters: string[] = [];
+    if (options.type18TargetLetter && options.type18TargetLetter.trim()) {
+      targetLetters = [options.type18TargetLetter.trim().charAt(0).toUpperCase()];
+    } else if (validWords.length > 0) {
+      const uniqueLetters = Array.from(new Set(validWords.map(w => w.term.trim().charAt(0).toUpperCase()).filter(Boolean)));
+      targetLetters = uniqueLetters.length > 0 ? uniqueLetters : ['E'];
+    } else {
+      targetLetters = ['E'];
+    }
+
+    const totalPages = targetLetters.length;
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) doc.addPage();
+      await insertBackground(doc, background, isA5);
+
+      const currentTarget = targetLetters[page] || 'E';
+      const upperChar = currentTarget.toUpperCase();
+      const lowerChar = currentTarget.toLowerCase();
+
+      // Title determination
+      let defaultTitle = '';
+      if (taskMode === 'upper_only') {
+        defaultTitle = `Color ${upperChar} ${colorUpper}`;
+      } else if (taskMode === 'lower_only') {
+        defaultTitle = `Color ${lowerChar} ${colorLower}`;
+      } else if (taskMode === 'single_color') {
+        defaultTitle = `Color letter ${upperChar} and ${lowerChar} ${colorUpper}`;
+      } else {
+        defaultTitle = `Color ${upperChar} ${colorUpper} and ${lowerChar} ${colorLower}`;
+      }
+      const finalTitle = title || defaultTitle;
+
+      // 1. Draw Title
+      const titleY = margin + (isA5 ? 6 : 8);
+      if (showHeader && finalTitle) {
+        drawType18Title(
+          doc,
+          finalTitle,
+          currentTarget,
+          taskMode,
+          colorUpper,
+          colorLower,
+          margin,
+          titleY,
+          isA5 ? 15 : 20,
+          activeFont
+        );
+      }
+
+      // 2. Metrics & Grid Generation
+      const topMargin = (showHeader && finalTitle) ? titleY + (isA5 ? 8 : 10) : margin + 4;
+      const availWidth = printableWidth;
+      const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
+
+      const metrics = calculateType18Metrics(
+        effectiveFontSize,
+        effectiveSpacing,
+        rows,
+        cols,
+        outerBorder,
+        isA5,
+        availWidth,
+        availHeight
+      );
+
+      const gridData = generateType18Grid(
+        currentTarget,
+        taskMode,
+        rows,
+        cols,
+        distractorCasing,
+        page
+      );
+
+      // Centered position on page
+      const startX = margin + (availWidth - metrics.cardWidth) / 2;
+      const startY = topMargin + (availHeight - metrics.cardHeight) / 2;
+
+      drawType18ContainerAndGrid(
+        doc,
+        startX,
+        Math.max(topMargin, startY),
+        gridData.cells,
+        metrics,
+        {
+          outerBorder,
+          circleStyle,
+          highlightTarget,
+          colorUpper,
+          colorLower,
+          fontFamily: activeFont
+        },
+        isA5
+      );
+
+      // 3. Footer
+      if (showFooter) {
+        doc.setFont('fff', 'normal');
+        doc.setFontSize(isA5 ? 8 : 10);
+        if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        if (totalPages > 1) {
+          doc.text(`${page + 1}`, pageWidth - margin, pageHeight - margin + 3);
+        }
+      }
+    }
   }
 
   return doc;
@@ -5816,6 +6376,22 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       );
       rowHeight = metrics.rowHeight;
       minUnitH = rowHeight + 4;
+    } else if (section.type === 18) {
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 16 : 20);
+      const rows = section.type18GridRows || 4;
+      const cols = section.type18GridCols || 7;
+      const outerBorder = section.type18Border || 'rounded';
+      const metrics = calculateType18Metrics(
+        secFontSize,
+        secSpacing,
+        rows,
+        cols,
+        outerBorder,
+        isA5,
+        printableWidth
+      );
+      rowHeight = metrics.cardHeight;
+      minUnitH = rowHeight + 4;
     }
 
     // Page break evaluation before section starts
@@ -5834,6 +6410,19 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       doc.setTextColor(15, 23, 42);
       if (section.type === 14) {
         drawTargetLetterTitle(doc, section.title.trim(), section.targetLetter || 'V v', margin, currentY + 3.5, isA5 ? 11.5 : 13.5, 'r0c0i Linotte');
+      } else if (section.type === 18) {
+        drawType18Title(
+          doc,
+          section.title.trim(),
+          section.type18TargetLetter || 'E',
+          section.type18Mode || 'both',
+          section.type18ColorUpper || 'green',
+          section.type18ColorLower || 'red',
+          margin,
+          currentY + 3.5,
+          isA5 ? 11.5 : 13.5,
+          'r0c0i Linotte'
+        );
       } else {
         doc.text(section.title.trim(), margin, currentY + 3.5);
       }
@@ -6102,48 +6691,17 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const baselineY = rowCenterY + (cellTraceFontSize * 0.352778) * 0.28;
 
           if (colMode === 'alphabet_order' || colMode === 'vowels_only') {
-            const letters = term.toLowerCase();
-            let targetChar = '';
-            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-              const ch = letters[chIdx];
-              if (ch >= 'a' && ch <= 'z') {
-                if (colMode === 'vowels_only') {
-                  if (['a', 'e', 'i', 'o', 'u'].includes(ch)) {
-                    targetChar = ch;
-                    break;
-                  }
-                } else {
-                  if (!targetChar || ch < targetChar) {
-                    targetChar = ch;
-                  }
-                }
-              }
-            }
-            if (!targetChar) {
-              for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-                if (letters[chIdx] >= 'a' && letters[chIdx] <= 'z') {
-                  targetChar = letters[chIdx];
-                  break;
-                }
-              }
-            }
-            if (!targetChar && letters.length > 0) targetChar = letters[0];
-
-            const traceSet = new Set<number>();
-            const blankSet = new Set<number>();
-
-            for (let chIdx = 0; chIdx < letters.length; chIdx++) {
-              if (letters[chIdx] === targetChar) {
-                traceSet.add(chIdx);
-                blankSet.add(chIdx);
-              }
-            }
+            const { traceIndices, blankIndices } = getType4TargetLetterIndices(
+              term,
+              colMode,
+              section.type4AlphabetTargetLetter || 'c'
+            );
 
             const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
             const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
 
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: traceSet, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices: blankSet } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
           } else {
             for (let c = 0; c < cellTypes.length; c++) {
               const cellType = cellTypes[c];
@@ -7856,6 +8414,68 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         currentY += rowMetrics.rowHeight;
         isAtTopOfPage = false;
       }
+    } else if (section.type === 18) {
+      // -------------------------------------------------------------
+      // TYPE 18: Color the letters in Composite Mode
+      // -------------------------------------------------------------
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 16 : 20);
+      const secSpacing = section.spacing !== undefined ? section.spacing : (globalSpacing !== undefined ? globalSpacing : 0);
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
+
+      const targetLetter = section.type18TargetLetter || (secWords.length > 0 ? secWords[0].term.charAt(0) : 'E') || 'E';
+      const taskMode: Type18Mode = section.type18Mode || 'both';
+      const colorUpper = section.type18ColorUpper || 'green';
+      const colorLower = section.type18ColorLower || 'red';
+      const rows = section.type18GridRows || 4;
+      const cols = section.type18GridCols || 7;
+      const outerBorder: Type18Border = section.type18Border || 'rounded';
+      const circleStyle: Type18CircleStyle = section.type18CircleStyle || 'solid';
+      const distractorCasing: Type18DistractorCasing = section.type18DistractorCasing || 'upper';
+      const highlightTarget: Type18HighlightTarget = section.type18HighlightTarget || 'none';
+
+      const metrics = calculateType18Metrics(
+        secFontSize,
+        secSpacing,
+        rows,
+        cols,
+        outerBorder,
+        isA5,
+        printableWidth
+      );
+
+      if (!isAtTopOfPage && currentY + metrics.cardHeight > maxContentY) {
+        await addNewPage();
+      }
+
+      const gridData = generateType18Grid(
+        targetLetter,
+        taskMode,
+        rows,
+        cols,
+        distractorCasing,
+        secIdx
+      );
+
+      const startX = margin + (printableWidth - metrics.cardWidth) / 2;
+      drawType18ContainerAndGrid(
+        doc,
+        startX,
+        currentY,
+        gridData.cells,
+        metrics,
+        {
+          outerBorder,
+          circleStyle,
+          highlightTarget,
+          colorUpper,
+          colorLower,
+          fontFamily: secFont
+        },
+        isA5
+      );
+
+      currentY += metrics.cardHeight;
+      isAtTopOfPage = false;
     }
 
     // Inter-section vertical separation (Word standard pt converted to mm)

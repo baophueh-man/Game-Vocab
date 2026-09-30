@@ -85,7 +85,13 @@ import {
   Type17CardBorder,
   Type17LetterCase,
   Type17StripLength,
-  Type17HighlightTarget
+  Type17HighlightTarget,
+  Type18Mode,
+  Type18Border,
+  Type18CircleStyle,
+  Type18DistractorCasing,
+  Type18HighlightTarget,
+  TYPE18_COLOR_MAP
 } from '../utils/worksheetGenerator';
 
 export default function WorksheetGenerator() {
@@ -129,6 +135,7 @@ export default function WorksheetGenerator() {
   const [type4LayoutMode, setType4LayoutMode] = useState<Type4LayoutMode>('grid');
   const [type4ColumnMode, setType4ColumnMode] = useState<Type4ColumnMode>('both_trace_first');
   const [type4TraceFontSize, setType4TraceFontSize] = useState<number>(28);
+  const [type4AlphabetTargetLetter, setType4AlphabetTargetLetter] = useState<string>('c');
   const [spacing, setSpacing] = useState<number>(0);
   const [imageSize, setImageSize] = useState<number>(12.7);
   const [choiceCount, setChoiceCount] = useState<2 | 3>(3);
@@ -170,6 +177,16 @@ export default function WorksheetGenerator() {
   const [type17StripLength, setType17StripLength] = useState<Type17StripLength>('auto');
   const [type17HighlightTarget, setType17HighlightTarget] = useState<Type17HighlightTarget>('none');
   const [type17ShowExample, setType17ShowExample] = useState<boolean>(true);
+  const [type18TargetLetter, setType18TargetLetter] = useState<string>('E');
+  const [type18Mode, setType18Mode] = useState<Type18Mode>('both');
+  const [type18ColorUpper, setType18ColorUpper] = useState<string>('green');
+  const [type18ColorLower, setType18ColorLower] = useState<string>('red');
+  const [type18GridRows, setType18GridRows] = useState<number>(4);
+  const [type18GridCols, setType18GridCols] = useState<number>(7);
+  const [type18Border, setType18Border] = useState<Type18Border>('rounded');
+  const [type18CircleStyle, setType18CircleStyle] = useState<Type18CircleStyle>('solid');
+  const [type18DistractorCasing, setType18DistractorCasing] = useState<Type18DistractorCasing>('upper');
+  const [type18HighlightTarget, setType18HighlightTarget] = useState<Type18HighlightTarget>('none');
   const [background, setBackground] = useState<string>('');
   const [showHeader, setShowHeader] = useState<boolean>(false);
   const [showFooter, setShowFooter] = useState<boolean>(false);
@@ -360,6 +377,7 @@ export default function WorksheetGenerator() {
       updated.type4LayoutMode !== undefined ||
       updated.type4ColumnMode !== undefined ||
       updated.type4TraceFontSize !== undefined ||
+      updated.type4AlphabetTargetLetter !== undefined ||
       updated.type !== undefined ||
       updated.blankMode !== undefined ||
       updated.pageBreakBefore !== undefined ||
@@ -573,6 +591,7 @@ export default function WorksheetGenerator() {
       type4LayoutMode: s.type4LayoutMode,
       type4ColumnMode: s.type4ColumnMode,
       type4TraceFontSize: s.type4TraceFontSize,
+      type4AlphabetTargetLetter: s.type4AlphabetTargetLetter,
       pageBreakBefore: s.pageBreakBefore,
       fontSize: s.fontSize,
       fontFamily: s.fontFamily,
@@ -606,7 +625,17 @@ export default function WorksheetGenerator() {
       type17LetterCase: s.type17LetterCase,
       type17StripLength: s.type17StripLength,
       type17HighlightTarget: s.type17HighlightTarget,
-      type17ShowExample: s.type17ShowExample
+      type17ShowExample: s.type17ShowExample,
+      type18TargetLetter: s.type18TargetLetter,
+      type18Mode: s.type18Mode,
+      type18ColorUpper: s.type18ColorUpper,
+      type18ColorLower: s.type18ColorLower,
+      type18GridRows: s.type18GridRows,
+      type18GridCols: s.type18GridCols,
+      type18Border: s.type18Border,
+      type18CircleStyle: s.type18CircleStyle,
+      type18DistractorCasing: s.type18DistractorCasing,
+      type18HighlightTarget: s.type18HighlightTarget
     }));
 
     const saved = saveCustomTemplate({
@@ -982,6 +1011,7 @@ export default function WorksheetGenerator() {
       type4LayoutMode?: Type4LayoutMode;
       type4ColumnMode?: Type4ColumnMode;
       type4TraceFontSize?: number;
+      type4AlphabetTargetLetter?: string;
       type15NumberStyle?: Type15NumberStyle;
       type15Border?: Type15Border;
       type15ChoiceMode?: Type15ChoiceMode;
@@ -998,6 +1028,16 @@ export default function WorksheetGenerator() {
       type17StripLength?: Type17StripLength;
       type17HighlightTarget?: Type17HighlightTarget;
       type17ShowExample?: boolean;
+      type18TargetLetter?: string;
+      type18Mode?: Type18Mode;
+      type18ColorUpper?: string;
+      type18ColorLower?: string;
+      type18GridRows?: number;
+      type18GridCols?: number;
+      type18Border?: Type18Border;
+      type18CircleStyle?: Type18CircleStyle;
+      type18DistractorCasing?: Type18DistractorCasing;
+      type18HighlightTarget?: Type18HighlightTarget;
     },
     sectionsToUse?: UICompositeSection[],
     modeOverride?: 'single' | 'composite'
@@ -1011,7 +1051,7 @@ export default function WorksheetGenerator() {
         setErrorMessage('Danh sách phần bài tập trống. Vui lòng bấm "+ Thêm phần bài tập" để tạo nội dung.');
         return;
       }
-      const emptySection = sections.find((s) => s.selectedWordIndices.length === 0);
+      const emptySection = sections.find((s) => s.type !== 18 && s.selectedWordIndices.length === 0);
       if (emptySection) {
         setErrorMessage(`Phần "${emptySection.title}" chưa có từ vựng nào được chọn. Vui lòng chọn ít nhất 1 từ.`);
         return;
@@ -1043,6 +1083,7 @@ export default function WorksheetGenerator() {
             type4LayoutMode: sec.type4LayoutMode,
             type4ColumnMode: sec.type4ColumnMode,
             type4TraceFontSize: sec.type4TraceFontSize || 28,
+            type4AlphabetTargetLetter: sec.type4AlphabetTargetLetter || 'c',
             pageBreakBefore: sec.pageBreakBefore,
             fontFamily: sec.fontFamily,
             fontSize: sec.fontSize,
@@ -1083,6 +1124,16 @@ export default function WorksheetGenerator() {
             type17StripLength: sec.type17StripLength,
             type17HighlightTarget: sec.type17HighlightTarget,
             type17ShowExample: sec.type17ShowExample,
+            type18TargetLetter: sec.type18TargetLetter,
+            type18Mode: sec.type18Mode,
+            type18ColorUpper: sec.type18ColorUpper,
+            type18ColorLower: sec.type18ColorLower,
+            type18GridRows: sec.type18GridRows,
+            type18GridCols: sec.type18GridCols,
+            type18Border: sec.type18Border,
+            type18CircleStyle: sec.type18CircleStyle,
+            type18DistractorCasing: sec.type18DistractorCasing,
+            type18HighlightTarget: sec.type18HighlightTarget,
             words: sec.selectedWordIndices.map((i) => allAvailableWords[i]).filter(Boolean)
           }))
         };
@@ -1104,8 +1155,9 @@ export default function WorksheetGenerator() {
     }
 
     // Single mode
+    const effectiveType = typeToUse !== undefined ? typeToUse : worksheetType;
     const activeWords = wordsToUse || getActiveWords();
-    if (activeWords.length === 0) {
+    if (effectiveType !== 18 && activeWords.length === 0) {
       setErrorMessage('Vui lòng chọn ít nhất 1 từ vựng trong danh sách.');
       return;
     }
@@ -1152,6 +1204,7 @@ export default function WorksheetGenerator() {
         type4LayoutMode: customOptions?.type4LayoutMode !== undefined ? customOptions.type4LayoutMode : type4LayoutMode,
         type4ColumnMode: customOptions?.type4ColumnMode !== undefined ? customOptions.type4ColumnMode : type4ColumnMode,
         type4TraceFontSize: customOptions?.type4TraceFontSize !== undefined ? customOptions.type4TraceFontSize : type4TraceFontSize,
+        type4AlphabetTargetLetter: customOptions?.type4AlphabetTargetLetter !== undefined ? customOptions.type4AlphabetTargetLetter : type4AlphabetTargetLetter,
         type15NumberStyle: customOptions?.type15NumberStyle !== undefined ? customOptions.type15NumberStyle : type15NumberStyle,
         type15Border: customOptions?.type15Border !== undefined ? customOptions.type15Border : type15Border,
         type15ChoiceMode: customOptions?.type15ChoiceMode !== undefined ? customOptions.type15ChoiceMode : type15ChoiceMode,
@@ -1167,7 +1220,17 @@ export default function WorksheetGenerator() {
         type17LetterCase: customOptions?.type17LetterCase !== undefined ? customOptions.type17LetterCase : type17LetterCase,
         type17StripLength: customOptions?.type17StripLength !== undefined ? customOptions.type17StripLength : type17StripLength,
         type17HighlightTarget: customOptions?.type17HighlightTarget !== undefined ? customOptions.type17HighlightTarget : type17HighlightTarget,
-        type17ShowExample: customOptions?.type17ShowExample !== undefined ? customOptions.type17ShowExample : type17ShowExample
+        type17ShowExample: customOptions?.type17ShowExample !== undefined ? customOptions.type17ShowExample : type17ShowExample,
+        type18TargetLetter: customOptions?.type18TargetLetter !== undefined ? customOptions.type18TargetLetter : type18TargetLetter,
+        type18Mode: customOptions?.type18Mode !== undefined ? customOptions.type18Mode : type18Mode,
+        type18ColorUpper: customOptions?.type18ColorUpper !== undefined ? customOptions.type18ColorUpper : type18ColorUpper,
+        type18ColorLower: customOptions?.type18ColorLower !== undefined ? customOptions.type18ColorLower : type18ColorLower,
+        type18GridRows: customOptions?.type18GridRows !== undefined ? customOptions.type18GridRows : type18GridRows,
+        type18GridCols: customOptions?.type18GridCols !== undefined ? customOptions.type18GridCols : type18GridCols,
+        type18Border: customOptions?.type18Border !== undefined ? customOptions.type18Border : type18Border,
+        type18CircleStyle: customOptions?.type18CircleStyle !== undefined ? customOptions.type18CircleStyle : type18CircleStyle,
+        type18DistractorCasing: customOptions?.type18DistractorCasing !== undefined ? customOptions.type18DistractorCasing : type18DistractorCasing,
+        type18HighlightTarget: customOptions?.type18HighlightTarget !== undefined ? customOptions.type18HighlightTarget : type18HighlightTarget
       });
 
       const blob = doc.output('blob');
@@ -1190,7 +1253,7 @@ export default function WorksheetGenerator() {
         setErrorMessage('Danh sách phần bài tập trống. Vui lòng thêm ít nhất 1 phần bài tập.');
         return;
       }
-      const emptySection = compositeSections.find((s) => s.selectedWordIndices.length === 0);
+      const emptySection = compositeSections.find((s) => s.type !== 18 && s.selectedWordIndices.length === 0);
       if (emptySection) {
         setErrorMessage(`Phần "${emptySection.title}" chưa có từ vựng nào được chọn.`);
         return;
@@ -1244,6 +1307,7 @@ export default function WorksheetGenerator() {
             type4LayoutMode: sec.type4LayoutMode,
             type4ColumnMode: sec.type4ColumnMode,
             type4TraceFontSize: sec.type4TraceFontSize || 28,
+            type4AlphabetTargetLetter: sec.type4AlphabetTargetLetter || 'c',
             type15NumberStyle: sec.type15NumberStyle,
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
@@ -1260,6 +1324,16 @@ export default function WorksheetGenerator() {
             type17StripLength: sec.type17StripLength,
             type17HighlightTarget: sec.type17HighlightTarget,
             type17ShowExample: sec.type17ShowExample,
+            type18TargetLetter: sec.type18TargetLetter,
+            type18Mode: sec.type18Mode,
+            type18ColorUpper: sec.type18ColorUpper,
+            type18ColorLower: sec.type18ColorLower,
+            type18GridRows: sec.type18GridRows,
+            type18GridCols: sec.type18GridCols,
+            type18Border: sec.type18Border,
+            type18CircleStyle: sec.type18CircleStyle,
+            type18DistractorCasing: sec.type18DistractorCasing,
+            type18HighlightTarget: sec.type18HighlightTarget,
             words: sec.selectedWordIndices.map((i) => words[i]).filter(Boolean)
           }))
         };
@@ -1277,7 +1351,7 @@ export default function WorksheetGenerator() {
     }
 
     const activeWords = getActiveWords();
-    if (activeWords.length === 0) {
+    if (worksheetType !== 18 && activeWords.length === 0) {
       setErrorMessage('Vui lòng chọn ít nhất 1 từ vựng.');
       return;
     }
@@ -1294,6 +1368,7 @@ export default function WorksheetGenerator() {
         type4LayoutMode,
         type4ColumnMode,
         type4TraceFontSize,
+        type4AlphabetTargetLetter,
         spacing,
         imageSize,
         background,
@@ -1337,7 +1412,17 @@ export default function WorksheetGenerator() {
         type17LetterCase,
         type17StripLength,
         type17HighlightTarget,
-        type17ShowExample
+        type17ShowExample,
+        type18TargetLetter,
+        type18Mode,
+        type18ColorUpper,
+        type18ColorLower,
+        type18GridRows,
+        type18GridCols,
+        type18Border,
+        type18CircleStyle,
+        type18DistractorCasing,
+        type18HighlightTarget
       });
       const cleanTitle = (title || 'Worksheet').replace(/[/\\?%*:|"<>]/g, '-');
       doc.save(`PDF ${worksheetType} - ${cleanTitle}.pdf`);
@@ -1449,7 +1534,7 @@ export default function WorksheetGenerator() {
 
           <button
             onClick={() => handleGeneratePreview()}
-            disabled={isGeneratingPDF || words.length === 0}
+            disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
             data-testid="generate-worksheet-btn"
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-50"
           >
@@ -1458,7 +1543,7 @@ export default function WorksheetGenerator() {
           </button>
           <button
             onClick={handleDownloadPDF}
-            disabled={isGeneratingPDF || words.length === 0}
+            disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
@@ -1751,6 +1836,36 @@ export default function WorksheetGenerator() {
                             type17StripLength,
                             type17HighlightTarget,
                             type17ShowExample,
+                            showHeader: true,
+                            spacing: 0
+                          });
+                        } else if (t.type === 18) {
+                          const target = type18TargetLetter || 'E';
+                          const upperChar = target.toUpperCase();
+                          const lowerChar = target.toLowerCase();
+                          const c1 = type18ColorUpper || 'green';
+                          const c2 = type18ColorLower || 'red';
+                          const newTitle = type18Mode === 'upper_only'
+                            ? `Color ${upperChar} ${c1}`
+                            : type18Mode === 'lower_only'
+                            ? `Color ${lowerChar} ${c2}`
+                            : type18Mode === 'single_color'
+                            ? `Color letter ${upperChar} and ${lowerChar} ${c1}`
+                            : `Color ${upperChar} ${c1} and ${lowerChar} ${c2}`;
+                          setTitle(newTitle);
+                          setShowHeader(true);
+                          setSpacing(0);
+                          handleGeneratePreview(undefined, newTitle, 18, {
+                            type18TargetLetter: target,
+                            type18Mode,
+                            type18ColorUpper: c1,
+                            type18ColorLower: c2,
+                            type18GridRows,
+                            type18GridCols,
+                            type18Border,
+                            type18CircleStyle,
+                            type18DistractorCasing,
+                            type18HighlightTarget,
                             showHeader: true,
                             spacing: 0
                           });
@@ -2612,7 +2727,9 @@ export default function WorksheetGenerator() {
                             setTitle(newTitle);
                             handleGeneratePreview(undefined, newTitle, 4, {
                               type4LayoutMode: 'table',
-                              type4ColumnMode
+                              type4ColumnMode,
+                              type4TraceFontSize,
+                              type4AlphabetTargetLetter
                             });
                           }}
                           data-testid="type4-layout-table-btn"
@@ -2642,7 +2759,8 @@ export default function WorksheetGenerator() {
                               handleGeneratePreview(undefined, undefined, 4, {
                                 type4LayoutMode: 'table',
                                 type4ColumnMode: cm,
-                                type4TraceFontSize
+                                type4TraceFontSize,
+                                type4AlphabetTargetLetter
                               });
                             }}
                             data-testid="type4-column-mode-select"
@@ -2656,6 +2774,38 @@ export default function WorksheetGenerator() {
                           </select>
                         </div>
 
+                        {type4ColumnMode === 'alphabet_order' && (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-semibold text-indigo-950">
+                              Luyện tới chữ cái theo bảng chữ cái:
+                            </label>
+                            <select
+                              value={type4AlphabetTargetLetter}
+                              onChange={(e) => {
+                                const letter = e.target.value;
+                                setType4AlphabetTargetLetter(letter);
+                                handleGeneratePreview(undefined, undefined, 4, {
+                                  type4LayoutMode: 'table',
+                                  type4ColumnMode,
+                                  type4TraceFontSize,
+                                  type4AlphabetTargetLetter: letter
+                                });
+                              }}
+                              data-testid="type4-alphabet-target-letter-select"
+                              className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
+                            >
+                              {Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).map((letter) => (
+                                <option key={letter} value={letter}>
+                                  Chữ {letter.toUpperCase()} (Luyện từ A đến {letter.toUpperCase()})
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[11px] text-slate-500 italic">
+                              Học sinh sẽ đồ và điền tất cả các chữ cái từ A đến chữ được chọn (Ví dụ: chọn C sẽ luyện A, B, C).
+                            </p>
+                          </div>
+                        )}
+
                         <div className="space-y-1.5">
                           <label className="block text-xs font-semibold text-indigo-950">
                             Cỡ Chữ Gợi Ý Cần Đồ (Trace Font Size)
@@ -2668,7 +2818,8 @@ export default function WorksheetGenerator() {
                               handleGeneratePreview(undefined, undefined, 4, {
                                 type4LayoutMode: 'table',
                                 type4ColumnMode,
-                                type4TraceFontSize: sz
+                                type4TraceFontSize: sz,
+                                type4AlphabetTargetLetter
                               });
                             }}
                             data-testid="type4-trace-font-size-select"
@@ -3525,6 +3676,365 @@ export default function WorksheetGenerator() {
                   </div>
                 )}
 
+                {/* Type 18 Options: Color the letters */}
+                {worksheetMode === 'single' && worksheetType === 18 && (
+                  <div data-testid="type18-options-panel" className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                        <span>🔤</span> Tuỳ Chọn Tô Màu Chữ Cái Mục Tiêu (Loại 18)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        WS 9 Circles • Border Box
+                      </span>
+                    </div>
+
+                    {/* Target Letter */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chữ Cái Mục Tiêu (Target Letter)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={1}
+                          value={type18TargetLetter}
+                          onChange={(e) => {
+                            const val = (e.target.value || 'E').toUpperCase();
+                            setType18TargetLetter(val);
+                            const upperChar = val;
+                            const lowerChar = val.toLowerCase();
+                            const newTitle = type18Mode === 'upper_only'
+                              ? `Color ${upperChar} ${type18ColorUpper}`
+                              : type18Mode === 'lower_only'
+                              ? `Color ${lowerChar} ${type18ColorLower}`
+                              : type18Mode === 'single_color'
+                              ? `Color letter ${upperChar} and ${lowerChar} ${type18ColorUpper}`
+                              : `Color ${upperChar} ${type18ColorUpper} and ${lowerChar} ${type18ColorLower}`;
+                            setTitle(newTitle);
+                            handleGeneratePreview(undefined, newTitle, 18, { type18TargetLetter: val });
+                          }}
+                          data-testid="type18-target-letter-input"
+                          className="w-14 px-3 py-1.5 text-center font-black text-lg bg-white border border-slate-300 rounded-lg text-indigo-700 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div className="flex flex-wrap gap-1 flex-1">
+                          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'S'].map((lettr) => (
+                            <button
+                              key={lettr}
+                              type="button"
+                              onClick={() => {
+                                setType18TargetLetter(lettr);
+                                const upperChar = lettr;
+                                const lowerChar = lettr.toLowerCase();
+                                const newTitle = type18Mode === 'upper_only'
+                                  ? `Color ${upperChar} ${type18ColorUpper}`
+                                  : type18Mode === 'lower_only'
+                                  ? `Color ${lowerChar} ${type18ColorLower}`
+                                  : type18Mode === 'single_color'
+                                  ? `Color letter ${upperChar} and ${lowerChar} ${type18ColorUpper}`
+                                  : `Color ${upperChar} ${type18ColorUpper} and ${lowerChar} ${type18ColorLower}`;
+                                setTitle(newTitle);
+                                handleGeneratePreview(undefined, newTitle, 18, { type18TargetLetter: lettr });
+                              }}
+                              data-testid={`type18-letter-btn-${lettr}`}
+                              className={`px-2 py-1 text-xs font-bold rounded-md border transition-all ${
+                                type18TargetLetter.toUpperCase() === lettr
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {lettr}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Task Mode */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Dạng Bài Tập (Task Mode)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'both', label: 'Cả Hoa & Thường (Color E & e)' },
+                          { value: 'upper_only', label: 'Chỉ chữ Hoa (Color E)' },
+                          { value: 'lower_only', label: 'Chỉ chữ Thường (Color e)' },
+                          { value: 'single_color', label: 'Chung 1 màu (Color E & e)' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type18Mode;
+                              setType18Mode(val);
+                              const upperChar = type18TargetLetter.toUpperCase();
+                              const lowerChar = type18TargetLetter.toLowerCase();
+                              const newTitle = val === 'upper_only'
+                                ? `Color ${upperChar} ${type18ColorUpper}`
+                                : val === 'lower_only'
+                                ? `Color ${lowerChar} ${type18ColorLower}`
+                                : val === 'single_color'
+                                ? `Color letter ${upperChar} and ${lowerChar} ${type18ColorUpper}`
+                                : `Color ${upperChar} ${type18ColorUpper} and ${lowerChar} ${type18ColorLower}`;
+                              setTitle(newTitle);
+                              handleGeneratePreview(undefined, newTitle, 18, { type18Mode: val });
+                            }}
+                            data-testid={`type18-mode-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                              type18Mode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Colors */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Màu Chữ Hoa (Upper Color)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {Object.entries(TYPE18_COLOR_MAP).slice(0, 4).map(([cKey, cVal]) => (
+                            <button
+                              key={cKey}
+                              type="button"
+                              onClick={() => {
+                                setType18ColorUpper(cKey);
+                                const upperChar = type18TargetLetter.toUpperCase();
+                                const lowerChar = type18TargetLetter.toLowerCase();
+                                const newTitle = type18Mode === 'upper_only'
+                                  ? `Color ${upperChar} ${cKey}`
+                                  : type18Mode === 'lower_only'
+                                  ? `Color ${lowerChar} ${type18ColorLower}`
+                                  : type18Mode === 'single_color'
+                                  ? `Color letter ${upperChar} and ${lowerChar} ${cKey}`
+                                  : `Color ${upperChar} ${cKey} and ${lowerChar} ${type18ColorLower}`;
+                                setTitle(newTitle);
+                                handleGeneratePreview(undefined, newTitle, 18, { type18ColorUpper: cKey });
+                              }}
+                              data-testid={`type18-color-upper-${cKey}`}
+                              className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                                type18ColorUpper === cKey
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cVal.hex }} />
+                              {cVal.viName}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Màu Chữ Thường (Lower Color)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {Object.entries(TYPE18_COLOR_MAP).slice(0, 4).map(([cKey, cVal]) => (
+                            <button
+                              key={cKey}
+                              type="button"
+                              onClick={() => {
+                                setType18ColorLower(cKey);
+                                const upperChar = type18TargetLetter.toUpperCase();
+                                const lowerChar = type18TargetLetter.toLowerCase();
+                                const newTitle = type18Mode === 'upper_only'
+                                  ? `Color ${upperChar} ${type18ColorUpper}`
+                                  : type18Mode === 'lower_only'
+                                  ? `Color ${lowerChar} ${cKey}`
+                                  : type18Mode === 'single_color'
+                                  ? `Color letter ${upperChar} and ${lowerChar} ${type18ColorUpper}`
+                                  : `Color ${upperChar} ${type18ColorUpper} and ${lowerChar} ${cKey}`;
+                                setTitle(newTitle);
+                                handleGeneratePreview(undefined, newTitle, 18, { type18ColorLower: cKey });
+                              }}
+                              data-testid={`type18-color-lower-${cKey}`}
+                              className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                                type18ColorLower === cKey
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cVal.hex }} />
+                              {cVal.viName}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Grid Size & Outer Border */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Kích Thước Lưới Ô Chữ
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { r: 4, c: 7, label: '4 x 7 (28 ô)' },
+                            { r: 3, c: 6, label: '3 x 6 (18 ô)' },
+                            { r: 4, c: 6, label: '4 x 6 (24 ô)' },
+                            { r: 5, c: 7, label: '5 x 7 (35 ô)' }
+                          ].map((opt) => (
+                            <button
+                              key={`${opt.r}x${opt.c}`}
+                              type="button"
+                              onClick={() => {
+                                setType18GridRows(opt.r);
+                                setType18GridCols(opt.c);
+                                handleGeneratePreview(undefined, undefined, 18, {
+                                  type18GridRows: opt.r,
+                                  type18GridCols: opt.c
+                                });
+                              }}
+                              data-testid={`type18-grid-${opt.r}x${opt.c}`}
+                              className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all text-center ${
+                                type18GridRows === opt.r && type18GridCols === opt.c
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Khung Viền Bao Ngoài (Border)
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { value: 'rounded', label: 'Bo góc (Mẫu)' },
+                            { value: 'rect', label: 'Vuông' },
+                            { value: 'none', label: 'Không viền' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type18Border;
+                                setType18Border(val);
+                                handleGeneratePreview(undefined, undefined, 18, { type18Border: val });
+                              }}
+                              data-testid={`type18-border-${opt.value}`}
+                              className={`py-1.5 px-1.5 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                                type18Border === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Circle Style & Distractor Casing & Answer Key */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Kiểu Hình Tròn (WS 9)
+                        </label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { value: 'solid', label: 'Liền' },
+                            { value: 'dashed', label: 'Đứt' },
+                            { value: 'double', label: 'Đôi' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type18CircleStyle;
+                                setType18CircleStyle(val);
+                                handleGeneratePreview(undefined, undefined, 18, { type18CircleStyle: val });
+                              }}
+                              data-testid={`type18-circle-${opt.value}`}
+                              className={`py-1 text-[11px] font-semibold rounded border text-center ${
+                                type18CircleStyle === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Chữ Gây Nhiễu
+                        </label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { value: 'upper', label: 'Hoa' },
+                            { value: 'lower', label: 'Thường' },
+                            { value: 'mixed', label: 'Hỗn hợp' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type18DistractorCasing;
+                                setType18DistractorCasing(val);
+                                handleGeneratePreview(undefined, undefined, 18, { type18DistractorCasing: val });
+                              }}
+                              data-testid={`type18-casing-${opt.value}`}
+                              className={`py-1 text-[11px] font-semibold rounded border text-center ${
+                                type18DistractorCasing === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Chế Độ Đáp Án
+                        </label>
+                        <div className="grid grid-cols-2 gap-1">
+                          {[
+                            { value: 'none', label: 'Học sinh' },
+                            { value: 'answer_key', label: 'Đáp án' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type18HighlightTarget;
+                                setType18HighlightTarget(val);
+                                handleGeneratePreview(undefined, undefined, 18, { type18HighlightTarget: val });
+                              }}
+                              data-testid={`type18-key-${opt.value}`}
+                              className={`py-1 text-[11px] font-semibold rounded border text-center ${
+                                type18HighlightTarget === opt.value
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Type 1 Options: Sentence Reorder / Rewrite */}
                 {worksheetMode === 'single' && worksheetType === 1 && (
                   <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
@@ -3917,7 +4427,7 @@ export default function WorksheetGenerator() {
                   <p className="text-sm">Chưa có bản xem trước</p>
                   <button
                     onClick={() => handleGeneratePreview()}
-                    disabled={words.length === 0}
+                    disabled={worksheetType !== 18 && words.length === 0}
                     data-testid="generate-worksheet-btn"
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
                   >
@@ -3942,7 +4452,7 @@ export default function WorksheetGenerator() {
               </span>
               <button
                 onClick={handleDownloadPDF}
-                disabled={isGeneratingPDF || words.length === 0}
+                disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
                 className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
               >
                 <Download className="w-3.5 h-3.5" />

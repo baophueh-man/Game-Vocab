@@ -43,7 +43,13 @@ import {
   Type17CardBorder,
   Type17LetterCase,
   Type17StripLength,
-  Type17HighlightTarget
+  Type17HighlightTarget,
+  Type18Mode,
+  Type18Border,
+  Type18CircleStyle,
+  Type18DistractorCasing,
+  Type18HighlightTarget,
+  TYPE18_COLOR_MAP
 } from '../../utils/worksheetGenerator';
 import { pickQuotaAwareRandomWordIndices } from '../../utils/worksheetVocabEngine';
 
@@ -100,6 +106,16 @@ export interface UICompositeSection {
   type17StripLength?: Type17StripLength;
   type17HighlightTarget?: Type17HighlightTarget;
   type17ShowExample?: boolean;
+  type18TargetLetter?: string;
+  type18Mode?: Type18Mode;
+  type18ColorUpper?: string;
+  type18ColorLower?: string;
+  type18GridRows?: number;
+  type18GridCols?: number;
+  type18Border?: Type18Border;
+  type18CircleStyle?: Type18CircleStyle;
+  type18DistractorCasing?: Type18DistractorCasing;
+  type18HighlightTarget?: Type18HighlightTarget;
 }
 
 interface CompositeSectionCardProps {
@@ -518,7 +534,17 @@ export default function CompositeSectionCard({
                     type17LetterCase: t.type === 17 ? (section.type17LetterCase || 'lower') : section.type17LetterCase,
                     type17StripLength: t.type === 17 ? (section.type17StripLength || 'auto') : section.type17StripLength,
                     type17HighlightTarget: t.type === 17 ? (section.type17HighlightTarget || 'none') : section.type17HighlightTarget,
-                    type17ShowExample: t.type === 17 ? (section.type17ShowExample !== false) : section.type17ShowExample
+                    type17ShowExample: t.type === 17 ? (section.type17ShowExample !== false) : section.type17ShowExample,
+                    type18TargetLetter: t.type === 18 ? (section.type18TargetLetter || 'E') : section.type18TargetLetter,
+                    type18Mode: t.type === 18 ? (section.type18Mode || 'both') : section.type18Mode,
+                    type18ColorUpper: t.type === 18 ? (section.type18ColorUpper || 'green') : section.type18ColorUpper,
+                    type18ColorLower: t.type === 18 ? (section.type18ColorLower || 'red') : section.type18ColorLower,
+                    type18GridRows: t.type === 18 ? (section.type18GridRows || 4) : section.type18GridRows,
+                    type18GridCols: t.type === 18 ? (section.type18GridCols || 7) : section.type18GridCols,
+                    type18Border: t.type === 18 ? (section.type18Border || 'rounded') : section.type18Border,
+                    type18CircleStyle: t.type === 18 ? (section.type18CircleStyle || 'solid') : section.type18CircleStyle,
+                    type18DistractorCasing: t.type === 18 ? (section.type18DistractorCasing || 'upper') : section.type18DistractorCasing,
+                    type18HighlightTarget: t.type === 18 ? (section.type18HighlightTarget || 'none') : section.type18HighlightTarget
                   });
                 }}
                 data-testid={`section-type-button-${t.type}-${index}`}
@@ -708,6 +734,29 @@ export default function CompositeSectionCard({
                   ))}
                 </select>
               </div>
+
+              {section.type4ColumnMode === 'alphabet_order' && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-indigo-800">
+                    Luyện tới chữ cái theo bảng chữ cái:
+                  </label>
+                  <select
+                    value={section.type4AlphabetTargetLetter || 'c'}
+                    onChange={(e) =>
+                      onUpdateSection(index, {
+                        type4AlphabetTargetLetter: e.target.value
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
+                  >
+                    {Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).map((letter) => (
+                      <option key={letter} value={letter}>
+                        Chữ {letter.toUpperCase()} (Luyện từ A đến {letter.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold text-indigo-800">
@@ -1805,6 +1854,328 @@ export default function CompositeSectionCard({
                     onClick={() => onUpdateSection(index, { type17ShowExample: opt.value })}
                     className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
                       (section.type17ShowExample !== false) === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Type 18: Color the target letters */}
+      {section.type === 18 && (
+        <div data-testid={`section-type18-options-panel-${index}`} className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3">
+          <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+            <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+              <span>🔤</span> Tuỳ Chọn Tô Màu Chữ Cái Mục Tiêu (Loại 18)
+            </span>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              Hình tròn WS 9 • Khung bo góc
+            </span>
+          </div>
+
+          {/* Target Letter */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chữ Cái Mục Tiêu (Target Letter)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                maxLength={1}
+                value={section.type18TargetLetter || 'E'}
+                onChange={(e) => {
+                  const val = (e.target.value || 'E').toUpperCase();
+                  const mode = section.type18Mode || 'both';
+                  const c1 = section.type18ColorUpper || 'green';
+                  const c2 = section.type18ColorLower || 'red';
+                  const autoTitle = mode === 'upper_only'
+                    ? `Color ${val} ${c1}`
+                    : mode === 'lower_only'
+                    ? `Color ${val.toLowerCase()} ${c2}`
+                    : mode === 'single_color'
+                    ? `Color letter ${val} and ${val.toLowerCase()} ${c1}`
+                    : `Color ${val} ${c1} and ${val.toLowerCase()} ${c2}`;
+                  onUpdateSection(index, { type18TargetLetter: val, title: autoTitle });
+                }}
+                className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="flex flex-wrap gap-1 flex-1">
+                {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'S'].map((lettr) => (
+                  <button
+                    key={lettr}
+                    type="button"
+                    onClick={() => {
+                      const mode = section.type18Mode || 'both';
+                      const c1 = section.type18ColorUpper || 'green';
+                      const c2 = section.type18ColorLower || 'red';
+                      const autoTitle = mode === 'upper_only'
+                        ? `Color ${lettr} ${c1}`
+                        : mode === 'lower_only'
+                        ? `Color ${lettr.toLowerCase()} ${c2}`
+                        : mode === 'single_color'
+                        ? `Color letter ${lettr} and ${lettr.toLowerCase()} ${c1}`
+                        : `Color ${lettr} ${c1} and ${lettr.toLowerCase()} ${c2}`;
+                      onUpdateSection(index, { type18TargetLetter: lettr, title: autoTitle });
+                    }}
+                    className={`px-2 py-1 text-xs font-bold rounded border ${
+                      (section.type18TargetLetter || 'E').toUpperCase() === lettr
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {lettr}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Task Mode */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Bài Tập (Task Mode)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'both', label: 'Cả Hoa & Thường (E xanh, e đỏ)' },
+                { value: 'upper_only', label: 'Chỉ chữ Hoa (E green)' },
+                { value: 'lower_only', label: 'Chỉ chữ Thường (e red)' },
+                { value: 'single_color', label: 'Chung 1 màu (E & e green)' }
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    const mode = opt.value as Type18Mode;
+                    const val = (section.type18TargetLetter || 'E').toUpperCase();
+                    const c1 = section.type18ColorUpper || 'green';
+                    const c2 = section.type18ColorLower || 'red';
+                    const autoTitle = mode === 'upper_only'
+                      ? `Color ${val} ${c1}`
+                      : mode === 'lower_only'
+                      ? `Color ${val.toLowerCase()} ${c2}`
+                      : mode === 'single_color'
+                      ? `Color letter ${val} and ${val.toLowerCase()} ${c1}`
+                      : `Color ${val} ${c1} and ${val.toLowerCase()} ${c2}`;
+                    onUpdateSection(index, { type18Mode: mode, title: autoTitle });
+                  }}
+                  data-testid={`section-type18-mode-${opt.value}-${index}`}
+                  className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                    (section.type18Mode || 'both') === opt.value
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Colors Selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Màu Chữ Hoa (Upper Color)
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {Object.entries(TYPE18_COLOR_MAP).slice(0, 4).map(([cKey, cVal]) => (
+                  <button
+                    key={cKey}
+                    type="button"
+                    onClick={() => {
+                      const mode = section.type18Mode || 'both';
+                      const val = (section.type18TargetLetter || 'E').toUpperCase();
+                      const c2 = section.type18ColorLower || 'red';
+                      const autoTitle = mode === 'upper_only'
+                        ? `Color ${val} ${cKey}`
+                        : mode === 'lower_only'
+                        ? `Color ${val.toLowerCase()} ${c2}`
+                        : mode === 'single_color'
+                        ? `Color letter ${val} and ${val.toLowerCase()} ${cKey}`
+                        : `Color ${val} ${cKey} and ${val.toLowerCase()} ${c2}`;
+                      onUpdateSection(index, { type18ColorUpper: cKey, title: autoTitle });
+                    }}
+                    className={`py-1 text-[11px] font-semibold rounded border flex items-center justify-center gap-1 ${
+                      (section.type18ColorUpper || 'green') === cKey
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cVal.hex }} />
+                    {cVal.viName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Màu Chữ Thường (Lower Color)
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {Object.entries(TYPE18_COLOR_MAP).slice(0, 4).map(([cKey, cVal]) => (
+                  <button
+                    key={cKey}
+                    type="button"
+                    onClick={() => {
+                      const mode = section.type18Mode || 'both';
+                      const val = (section.type18TargetLetter || 'E').toUpperCase();
+                      const c1 = section.type18ColorUpper || 'green';
+                      const autoTitle = mode === 'upper_only'
+                        ? `Color ${val} ${c1}`
+                        : mode === 'lower_only'
+                        ? `Color ${val.toLowerCase()} ${cKey}`
+                        : mode === 'single_color'
+                        ? `Color letter ${val} and ${val.toLowerCase()} ${c1}`
+                        : `Color ${val} ${c1} and ${val.toLowerCase()} ${cKey}`;
+                      onUpdateSection(index, { type18ColorLower: cKey, title: autoTitle });
+                    }}
+                    className={`py-1 text-[11px] font-semibold rounded border flex items-center justify-center gap-1 ${
+                      (section.type18ColorLower || 'red') === cKey
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cVal.hex }} />
+                    {cVal.viName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Grid Size & Outer Border */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Kích Thước Lưới Ô Chữ
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { r: 4, c: 7, label: '4 hàng x 7 cột (28 ô)' },
+                  { r: 3, c: 6, label: '3 hàng x 6 cột (18 ô)' },
+                  { r: 4, c: 6, label: '4 hàng x 6 cột (24 ô)' },
+                  { r: 5, c: 7, label: '5 hàng x 7 cột (35 ô)' }
+                ].map((opt) => (
+                  <button
+                    key={`${opt.r}x${opt.c}`}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type18GridRows: opt.r, type18GridCols: opt.c })}
+                    className={`py-1.5 px-2 rounded-lg border text-[11px] font-semibold transition-all ${
+                      (section.type18GridRows || 4) === opt.r && (section.type18GridCols || 7) === opt.c
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Khung Viền Bao Ngoài (Container)
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { value: 'rounded', label: 'Bo góc (Mẫu)' },
+                  { value: 'rect', label: 'Vuông' },
+                  { value: 'none', label: 'Không viền' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type18Border: opt.value as Type18Border })}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      (section.type18Border || 'rounded') === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Circle Style & Distractor Casing & Answer Key */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Kiểu Hình Tròn (WS 9)
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { value: 'solid', label: 'Nét liền' },
+                  { value: 'dashed', label: 'Nét đứt' },
+                  { value: 'double', label: 'Viền đôi' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type18CircleStyle: opt.value as Type18CircleStyle })}
+                    className={`py-1 text-[11px] font-semibold rounded border ${
+                      (section.type18CircleStyle || 'solid') === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Chữ Gây Nhiễu
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { value: 'upper', label: 'Chữ hoa' },
+                  { value: 'lower', label: 'Chữ thường' },
+                  { value: 'mixed', label: 'Hỗn hợp' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type18DistractorCasing: opt.value as Type18DistractorCasing })}
+                    className={`py-1 text-[11px] font-semibold rounded border ${
+                      (section.type18DistractorCasing || 'upper') === opt.value
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Chế Độ Đáp Án
+              </label>
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  { value: 'none', label: 'Học sinh' },
+                  { value: 'answer_key', label: 'Đáp án' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onUpdateSection(index, { type18HighlightTarget: opt.value as Type18HighlightTarget })}
+                    className={`py-1 text-[11px] font-semibold rounded border ${
+                      (section.type18HighlightTarget || 'none') === opt.value
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white text-slate-700 border-slate-200'
                     }`}
