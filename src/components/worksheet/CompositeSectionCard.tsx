@@ -1911,7 +1911,7 @@ export default function CompositeSectionCard({
                 className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               />
               <div className="flex flex-wrap gap-1 flex-1">
-                {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'S'].map((lettr) => (
+                {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => (
                   <button
                     key={lettr}
                     type="button"
@@ -1928,9 +1928,10 @@ export default function CompositeSectionCard({
                         : `Color ${lettr} ${c1} and ${lettr.toLowerCase()} ${c2}`;
                       onUpdateSection(index, { type18TargetLetter: lettr, title: autoTitle });
                     }}
-                    className={`px-2 py-1 text-xs font-bold rounded border ${
+                    data-testid={`section-type18-letter-btn-${lettr}-${index}`}
+                    className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
                       (section.type18TargetLetter || 'E').toUpperCase() === lettr
-                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
                         : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                     }`}
                   >

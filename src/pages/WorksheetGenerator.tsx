@@ -3718,7 +3718,7 @@ export default function WorksheetGenerator() {
                           className="w-14 px-3 py-1.5 text-center font-black text-lg bg-white border border-slate-300 rounded-lg text-indigo-700 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                         />
                         <div className="flex flex-wrap gap-1 flex-1">
-                          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'S'].map((lettr) => (
+                          {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => (
                             <button
                               key={lettr}
                               type="button"
@@ -3737,7 +3737,7 @@ export default function WorksheetGenerator() {
                                 handleGeneratePreview(undefined, newTitle, 18, { type18TargetLetter: lettr });
                               }}
                               data-testid={`type18-letter-btn-${lettr}`}
-                              className={`px-2 py-1 text-xs font-bold rounded-md border transition-all ${
+                              className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
                                 type18TargetLetter.toUpperCase() === lettr
                                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                                   : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
