@@ -302,9 +302,10 @@ export default function WorksheetGenerator() {
       14: { title: 'Circle the pictures that have letter V v' },
       15: { title: 'Read the sentence and circle the correct picture.' },
       16: { title: 'Look and circle the beginning sound' },
-      17: { title: 'Look and color the words' }
+      17: { title: 'Look and color the words' },
+      18: { title: 'Color E green and e red' }
     };
-    const meta = titles[defaultType];
+    const meta = titles[defaultType] || { title: 'Worksheet Section' };
     const newSec: UICompositeSection = {
       id: generateId(),
       type: defaultType,

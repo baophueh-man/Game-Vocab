@@ -497,14 +497,19 @@ export default function CompositeSectionCard({
                     14: { title: 'Circle the pictures that have letter V v' },
                     15: { title: 'Read the sentence and circle the correct picture.' },
                     16: { title: 'Look and circle the beginning sound' },
-                    17: { title: 'Look and color the words' }
+                    17: { title: 'Look and color the words' },
+                    18: { title: 'Color E green and e red' }
                   };
-                  const meta = defaultTitles[t.type];
+                  const meta = defaultTitles[t.type] || { title: t.title || t.name || 'Worksheet Section' };
                   const isType8 = t.type === 8;
                   const isType11 = t.type === 11;
+                  const isType18 = t.type === 18;
+                  const targetLtr = (section.type18TargetLetter || 'E').toUpperCase();
+                  const targetLtrLower = (section.type18TargetLetter || 'e').toLowerCase();
+                  const title18 = `Color ${targetLtr} ${section.type18ColorUpper || 'green'} and ${targetLtrLower} ${section.type18ColorLower || 'red'}`;
                   onUpdateSection(index, {
                     type: t.type,
-                    title: meta.title,
+                    title: isType18 ? title18 : meta.title,
                     blankMode: t.type === 4 ? (section.blankMode || 'vowels') : section.blankMode,
                     fontFamily: (isType8 || isType11) ? 'KG Primary Dots' : (section.fontFamily === 'KG Primary Dots' ? 'r0c0i Linotte' : section.fontFamily || 'r0c0i Linotte'),
                     fontSize: (isType8 || isType11) ? 22 : (section.fontSize === 22 ? 12 : section.fontSize || 12),

@@ -1265,35 +1265,50 @@ export function calculateType18Metrics(
   containerMaxHeightMm?: number
 ) {
   const defaultContainerW = isA5 ? 132 : 184.6;
-  const cardWidth = containerWidthMm || defaultContainerW;
+  const maxContainerW = containerWidthMm || defaultContainerW;
 
   const effectiveSpacing = spacingPt !== undefined ? spacingPt : 0;
   const spacingMm = effectiveSpacing * 0.352778;
   const isZero = effectiveSpacing === 0;
 
-  // Container padding: compact at 0pt, expands with spacing
-  const padX = outerBorder !== 'none' ? ((isZero ? 5.0 : 7.0) + spacingMm * 0.15) : 1.0;
-  const padY = outerBorder !== 'none' ? ((isZero ? 5.0 : 7.0) + spacingMm * 0.15) : 1.0;
+  // Base moderate circle diameter (WS 9 style: moderate padding enclosing letter)
+  // Single letter height is ~3.5-5mm. Diameter 9.2mm (A5) / 11.8mm (A4) gives balanced ~2.5-3.4mm padding.
+  const baseTargetDiameter = isA5 ? 9.2 : 11.8;
 
-  const innerW = cardWidth - 2 * padX;
-  const cellW = innerW / cols;
+  // Equal horizontal and vertical gaps between circles
+  // At spacing 0pt: compact 2.0mm (A5) / 2.5mm (A4)
+  // Expands linearly with spacing setting
+  const baseGap = isA5 ? 2.0 : 2.5;
+  let curGapX = baseGap + spacingMm * 0.25;
+  let curGapY = baseGap + spacingMm * 0.25;
 
-  const maxCircleDiameterX = cellW * (isZero ? 0.90 : 0.82);
-  const baseTargetDiameter = isA5 ? 14.5 : 19.5;
-  const circleDiameter = Math.min(maxCircleDiameterX, baseTargetDiameter);
+  // Container padding: compact at 0pt, scales with spacing
+  let padX = outerBorder !== 'none' ? (isA5 ? 3.5 : 4.5) + spacingMm * 0.15 : 0;
+  let padY = outerBorder !== 'none' ? (isA5 ? 3.5 : 4.5) + spacingMm * 0.15 : 0;
+
+  // Containment check: ensure grid doesn't exceed printable/container width
+  let circleDiameter = baseTargetDiameter;
+  const maxAvailW = maxContainerW - 2 * padX;
+  const reqGridW = cols * circleDiameter + (cols - 1) * curGapX;
+  if (reqGridW > maxAvailW) {
+    const scaleFactor = Math.min(1.0, maxAvailW / reqGridW);
+    circleDiameter *= scaleFactor;
+    curGapX *= scaleFactor;
+    curGapY *= scaleFactor;
+  }
+
+  // Dimensions
+  const gridW = cols * circleDiameter + (cols - 1) * curGapX;
+  const gridH = rows * circleDiameter + (rows - 1) * curGapY;
+  const cardWidth = outerBorder !== 'none' ? (gridW + 2 * padX) : gridW;
+  const cardHeight = outerBorder !== 'none' ? (gridH + 2 * padY) : gridH;
   const circleRadius = circleDiameter / 2;
-
-  // Row gap between circle centers:
-  // At spacing 0 pt: tight (2.8mm A4, 2.0mm A5)
-  // At spacing > 0 pt: expands linearly with spacingMm
-  const baseGapBetweenCirclesY = isZero ? (isA5 ? 2.0 : 2.8) : ((isA5 ? 3.5 : 4.5) + spacingMm * 0.45);
-  const cellH = circleDiameter + baseGapBetweenCirclesY;
-  const gridH = cellH * rows;
-  const cardHeight = gridH + 2 * padY;
+  const cellW = circleDiameter + curGapX;
+  const cellH = circleDiameter + curGapY;
 
   // Font Scaling Protection:
-  // Circle interior safe zone is ~68% of diameter
-  const maxSafeFontPt = (circleDiameter * 0.68) / 0.352778;
+  // Circle interior safe zone is ~72% of diameter
+  const maxSafeFontPt = (circleDiameter * 0.72) / 0.352778;
   const effectiveCellFontSize = Math.min(fontSizePt, maxSafeFontPt);
 
   return {
@@ -1307,8 +1322,11 @@ export function calculateType18Metrics(
     cellH,
     circleDiameter,
     circleRadius,
+    gridW,
     gridH,
-    baseGapBetweenCirclesY,
+    gapX: curGapX,
+    gapY: curGapY,
+    baseGapBetweenCirclesY: curGapY,
     effectiveCellFontSize,
     spacingMm,
     isZero
@@ -1431,8 +1449,8 @@ export function drawType18ContainerAndGrid(
 
   // 2. Draw circles & letters (Referencing WS 9 style)
   for (const cell of cells) {
-    const cx = startX + padX + (cell.col + 0.5) * cellW;
-    const cy = startY + padY + (cell.row + 0.5) * cellH;
+    const cx = startX + padX + circleRadius + cell.col * cellW;
+    const cy = startY + padY + circleRadius + cell.row * cellH;
 
     if (highlightTarget === 'answer_key') {
       // Teacher Answer Key Mode: Fill circle with respective target color
@@ -6004,7 +6022,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       }
 
       // 2. Metrics & Grid Generation
-      const topMargin = (showHeader && finalTitle) ? titleY + (isA5 ? 8 : 10) : margin + 4;
+      const topMargin = (showHeader && finalTitle) ? titleY + (isA5 ? 5 : 7) : margin + 4;
       const availWidth = printableWidth;
       const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
 
@@ -6028,14 +6046,14 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         page
       );
 
-      // Centered position on page
+      // Horizontal centering; startY placed naturally below title header responsive to user's spacing
       const startX = margin + (availWidth - metrics.cardWidth) / 2;
-      const startY = topMargin + (availHeight - metrics.cardHeight) / 2;
+      const startY = topMargin + (isA5 ? 2.0 : 3.0) + (effectiveSpacing * 0.352778);
 
       drawType18ContainerAndGrid(
         doc,
         startX,
-        Math.max(topMargin, startY),
+        startY,
         gridData.cells,
         metrics,
         {
