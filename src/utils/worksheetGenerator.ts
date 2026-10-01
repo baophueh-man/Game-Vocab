@@ -200,6 +200,7 @@ export interface WorksheetOptions {
   type18CircleStyle?: Type18CircleStyle; // for Type 18: circle border style, 'solid' (default) | 'dashed' | 'double'
   type18DistractorCasing?: Type18DistractorCasing; // for Type 18: 'upper' (default) | 'lower' | 'mixed'
   type18HighlightTarget?: Type18HighlightTarget; // for Type 18: 'none' (default for student) | 'answer_key'
+  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6: 'student' (default) or 'answer'
 }
 
 export interface CompositeWorksheetSection {
@@ -263,6 +264,7 @@ export interface CompositeWorksheetSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
+  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6: 'student' (default) or 'answer'
 }
 
 export interface CompositeWorksheetConfig {
@@ -625,9 +627,9 @@ export function calculateType1Metrics(
 ) {
   const spacingMm = spacingPt * 0.352778;
   const isZero = spacingPt === 0;
-  const gapImgToWords = (isZero ? 1.0 : 2.0) + spacingMm * 0.35;
-  const gapWordsToHint = (isZero ? 1.5 : 3.0) + spacingMm * 0.45;
-  const itemGap = (isZero ? 1.5 : 3.0) + spacingMm * 0.6;
+  const gapImgToWords = (isZero ? 1.5 : 2.0) + spacingMm * 0.35;
+  const gapWordsToHint = (isZero ? 2.0 : 3.0) + spacingMm * 0.45;
+  const itemGap = (isZero ? 2.0 : 3.0) + spacingMm * 0.6;
   const wordsH = fontSizePt * 0.352778 * 1.2;
   const effectiveHintFontSize = hintStyle === 'trace' ? (traceFontSizePt || 28) : fontSizePt;
   const hintH = effectiveHintFontSize * 0.352778 * 1.2;
@@ -644,6 +646,60 @@ export function calculateType1Metrics(
     effectiveHintFontSize,
     itemContentHeight,
     itemTotalHeight
+  };
+}
+
+/**
+ * Calculate geometry metrics for Type 2 exercise items (Look and write - 3x4 grid)
+ * based on fontSize, spacing, imageSize, and paper size.
+ * Guarantees zero overlap at 0 pt spacing regardless of font size or descenders.
+ */
+export function calculateType2Metrics(
+  fontSizePt: number = 12,
+  spacingPt: number = 0,
+  imgSize: number = 12.7,
+  isA5: boolean = true
+) {
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 6) * 0.352778;
+  const effectiveFontSize = fontSizePt || (isA5 ? 12 : 14);
+  const fontHeightMm = effectiveFontSize * 0.352778;
+  const lineOffset = Math.max(4.0, fontHeightMm * 0.95 + 1.5) + spacingMm * 0.2;
+  const rowGap = Math.max(2.0, fontHeightMm * 0.4) + spacingMm * 0.5;
+  const rowHeight = imgSize + lineOffset + rowGap;
+  return {
+    effectiveFontSize,
+    spacingMm,
+    fontHeightMm,
+    lineOffset,
+    rowGap,
+    rowHeight
+  };
+}
+
+/**
+ * Calculate geometry metrics for Type 4 Grid exercise items (Missing letters 3x4)
+ * based on fontSize, spacing, imageSize, and paper size.
+ * Guarantees zero overlap at 0 pt spacing regardless of font size or descenders.
+ */
+export function calculateType4GridMetrics(
+  fontSizePt: number = 12,
+  spacingPt: number = 0,
+  imgSize: number = 12.7,
+  isA5: boolean = true
+) {
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 6) * 0.352778;
+  const effectiveFontSize = fontSizePt || (isA5 ? 12 : 14);
+  const fontHeightMm = effectiveFontSize * 0.352778;
+  const textOffset = Math.max(3.5, fontHeightMm * 0.85 + 1.2) + spacingMm * 0.15;
+  const rowGap = Math.max(1.8, fontHeightMm * 0.35) + spacingMm * 0.45;
+  const rowHeight = imgSize + textOffset + 1.0 + rowGap;
+  return {
+    effectiveFontSize,
+    spacingMm,
+    fontHeightMm,
+    textOffset,
+    rowGap,
+    rowHeight
   };
 }
 
@@ -1934,7 +1990,8 @@ export function drawType4WordCell(
   baselineY: number,
   fontSize: number,
   regularFont: string = 'r0c0i Linotte',
-  traceFontSize: number = 28
+  traceFontSize: number = 28,
+  isAnswerMode: boolean = false
 ) {
   const trimmed = term.trim();
   if (!trimmed) return;
@@ -1972,16 +2029,26 @@ export function drawType4WordCell(
           doc.line(curX, lineY, curX + chW, lineY);
           curX += chW + 0.8;
         } else if (cellType.blankIndices.has(idx)) {
-          applyFont(doc, regularFont, 'normal');
-          doc.setFontSize(fontSize);
-          doc.setTextColor(0, 0, 0);
-          if (idx > 0) {
-            curX += cellType.blankIndices.has(idx - 1) ? spaceW * 0.55 : spaceW * 0.35;
-          }
-          doc.text(blankStr, curX, baselineY);
-          curX += blankW;
-          if (idx < trimmed.length - 1 && !cellType.blankIndices.has(idx + 1)) {
-            curX += spaceW * 0.35;
+          if (isAnswerMode) {
+            applyFont(doc, regularFont, 'bold');
+            doc.setFontSize(fontSize);
+            doc.setTextColor(220, 38, 38);
+            const chW = doc.getTextWidth(ch);
+            doc.text(ch, curX, baselineY);
+            doc.line(curX, lineY, curX + chW, lineY);
+            curX += chW + 0.6;
+          } else {
+            applyFont(doc, regularFont, 'normal');
+            doc.setFontSize(fontSize);
+            doc.setTextColor(0, 0, 0);
+            if (idx > 0) {
+              curX += cellType.blankIndices.has(idx - 1) ? spaceW * 0.55 : spaceW * 0.35;
+            }
+            doc.text(blankStr, curX, baselineY);
+            curX += blankW;
+            if (idx < trimmed.length - 1 && !cellType.blankIndices.has(idx + 1)) {
+              curX += spaceW * 0.35;
+            }
           }
         } else {
           applyFont(doc, regularFont, 'normal');
@@ -2017,18 +2084,34 @@ export function drawType4WordCell(
       doc.text(restAfterFirst, startX + charW + gap, baselineY);
     }
   } else if (cellType === 'initial_blank') {
-    // 2 underscore characters '__' for missing letter position
-    applyFont(doc, regularFont, 'normal');
-    doc.setFontSize(fontSize);
-    doc.setTextColor(0, 0, 0);
-    const blankStr = '__';
-    doc.text(blankStr, startX, baselineY);
-    const blankW = doc.getTextWidth(blankStr);
+    if (isAnswerMode) {
+      applyFont(doc, regularFont, 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(220, 38, 38);
+      const charW = doc.getTextWidth(firstChar);
+      doc.text(firstChar, startX, baselineY);
+      doc.line(startX, lineY, startX + charW, lineY);
 
-    // Space before remaining letters
-    const spaceW = doc.getTextWidth(' ');
-    if (restAfterFirst) {
-      doc.text(restAfterFirst, startX + blankW + spaceW, baselineY);
+      if (restAfterFirst) {
+        applyFont(doc, regularFont, 'normal');
+        doc.setFontSize(fontSize);
+        doc.setTextColor(0, 0, 0);
+        doc.text(restAfterFirst, startX + charW + 0.8, baselineY);
+      }
+    } else {
+      // 2 underscore characters '__' for missing letter position
+      applyFont(doc, regularFont, 'normal');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(0, 0, 0);
+      const blankStr = '__';
+      doc.text(blankStr, startX, baselineY);
+      const blankW = doc.getTextWidth(blankStr);
+
+      // Space before remaining letters
+      const spaceW = doc.getTextWidth(' ');
+      if (restAfterFirst) {
+        doc.text(restAfterFirst, startX + blankW + spaceW, baselineY);
+      }
     }
   } else if (cellType === 'final_trace') {
     // 1. Rest before last in regular font at fontSize
@@ -2063,13 +2146,23 @@ export function drawType4WordCell(
       doc.text(restBeforeLast, startX, baselineY);
     }
 
-    // Space before '__'
-    const spaceW = restBeforeLast ? doc.getTextWidth(' ') : 0;
-    const blankX = startX + restW + spaceW;
+    if (isAnswerMode) {
+      const charX = startX + (restBeforeLast ? restW + 0.8 : 0);
+      applyFont(doc, regularFont, 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(220, 38, 38);
+      const charW = doc.getTextWidth(lastChar);
+      doc.text(lastChar, charX, baselineY);
+      doc.line(charX, lineY, charX + charW, lineY);
+    } else {
+      // Space before '__'
+      const spaceW = restBeforeLast ? doc.getTextWidth(' ') : 0;
+      const blankX = startX + restW + spaceW;
 
-    // 2 underscore characters '__'
-    const blankStr = '__';
-    doc.text(blankStr, blankX, baselineY);
+      // 2 underscore characters '__'
+      const blankStr = '__';
+      doc.text(blankStr, blankX, baselineY);
+    }
   }
 }
 
@@ -3355,7 +3448,20 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const wordsBottom = wordsY + (wordsLineCount - 1) * wordsLineHeight + (effectiveFontSize * 0.352778 * 0.35);
         let actualHintBottom = wordsBottom;
 
-        if (hintStyle === 'trace') {
+        if (options.answerMode === 'answer') {
+          applyFont(doc, activeFont, 'bold');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(220, 38, 38);
+          const ansLines = doc.splitTextToSize(targetSentence, printableWidth - 4);
+          const ansLineCount = Math.max(1, Array.isArray(ansLines) ? ansLines.length : 1);
+          const ansLineHeight = effectiveFontSize * 0.352778 * 1.2;
+          const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
+          doc.text(targetSentence, pageWidth / 2, hintY, {
+            align: 'center',
+            maxWidth: printableWidth - 4
+          });
+          actualHintBottom = hintY + (ansLineCount - 1) * ansLineHeight + (effectiveFontSize * 0.352778 * 0.35);
+        } else if (hintStyle === 'trace') {
           doc.setFont('KGPrimaryDots', 'normal');
           let actualTraceFontSize = traceFontSize;
           doc.setFontSize(actualTraceFontSize);
@@ -3476,7 +3582,22 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // Word text
         doc.setFont('fontHP001_b4h', 'normal');
-        doc.text(word.term, gridX, gridY);
+        if (options.answerMode === 'answer') {
+          doc.setTextColor(220, 38, 38);
+          const wordWidth = doc.getTextWidth(word.term);
+          const repeatCount = isA5 ? 3 : 4;
+          const stepX = Math.max(wordWidth + 8, (printableWidth - (gridX - margin)) / repeatCount);
+          for (let rep = 0; rep < repeatCount; rep++) {
+            const rx = gridX + rep * stepX;
+            if (rx + wordWidth <= pageWidth - margin) {
+              doc.text(word.term, rx, gridY);
+            }
+          }
+          doc.setTextColor(0, 0, 0);
+        } else {
+          doc.setTextColor(0, 0, 0);
+          doc.text(word.term, gridX, gridY);
+        }
 
         // Vertical lines for ô ly
         const colCount = isA5 ? 55 : 88;
