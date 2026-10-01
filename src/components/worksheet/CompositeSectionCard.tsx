@@ -66,6 +66,7 @@ export interface UICompositeSection {
   type4LayoutMode?: Type4LayoutMode;
   type4ColumnMode?: Type4ColumnMode;
   type4TraceFontSize?: number;
+  type4AlphabetTargetLetter?: string;
   pageBreakBefore?: boolean;
   fontSize?: number;
   fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';

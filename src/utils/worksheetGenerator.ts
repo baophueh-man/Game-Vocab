@@ -144,7 +144,7 @@ export interface WorksheetOptions {
   blankMode?: BlankMode; // default: 'vowels'
   spacing?: number; // Spacing in pt between parts like Microsoft Word (default: 0 pt)
   background?: string; // 'bg4' ... 'bg12' or ''
-  words: WorksheetWord[];
+  words?: WorksheetWord[];
   sourceUrl?: string;
   showHeader?: boolean;
   showFooter?: boolean;
@@ -4339,7 +4339,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // 2 or 3 options (1 correct, 1 or 2 distractors)
         const otherTerms = allTerms.filter((t) => t.toLowerCase() !== currentWord.toLowerCase());
-        let distractors = shuffleArray(otherTerms).slice(0, numDistractors);
+        let distractors: string[] = shuffleArray(otherTerms).slice(0, numDistractors);
         if (distractors.length < numDistractors) {
           const fallbacks = ['apple', 'banana', 'cat', 'dog', 'sun', 'star', 'tree', 'book', 'ball', 'fish'];
           const extra = fallbacks.filter(
@@ -5984,7 +5984,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     if (options.type18TargetLetter && options.type18TargetLetter.trim()) {
       targetLetters = [options.type18TargetLetter.trim().charAt(0).toUpperCase()];
     } else if (validWords.length > 0) {
-      const uniqueLetters = Array.from(new Set(validWords.map(w => w.term.trim().charAt(0).toUpperCase()).filter(Boolean)));
+      const uniqueLetters = Array.from(new Set(validWords.map(w => w.term.trim().charAt(0).toUpperCase()).filter(Boolean))) as string[];
       targetLetters = uniqueLetters.length > 0 ? uniqueLetters : ['E'];
     } else {
       targetLetters = ['E'];
