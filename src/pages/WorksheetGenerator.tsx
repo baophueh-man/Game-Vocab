@@ -94,17 +94,103 @@ import {
   TYPE18_COLOR_MAP
 } from '../utils/worksheetGenerator';
 
+// Sensible default sections generator for Composite mode
+export const createDefaultCompositeSections = (vocabWords: WorksheetWord[]): UICompositeSection[] => {
+  const total = vocabWords ? vocabWords.length : 0;
+  if (total === 0) {
+    return [
+      {
+        id: generateId(),
+        type: 4,
+        title: 'Missing letters',
+        targetWordCount: 4,
+        selectedWordIndices: [],
+        blankMode: 'vowels',
+        pageBreakBefore: false,
+        fontFamily: 'r0c0i Linotte',
+        fontSize: 12,
+        spacing: 0,
+        imageSize: 12.7
+      },
+      {
+        id: generateId(),
+        type: 6,
+        title: 'Multiple choice',
+        targetWordCount: 4,
+        selectedWordIndices: [],
+        blankMode: 'vowels',
+        pageBreakBefore: false,
+        fontFamily: 'r0c0i Linotte',
+        fontSize: 12,
+        spacing: 0,
+        imageSize: 12.7,
+        choiceCount: 3,
+        choiceLayout: 'vertical'
+      }
+    ];
+  }
+
+  const part1Count = total >= 8 ? 4 : Math.ceil(total / 2);
+  const part1Indices = Array.from({ length: part1Count }, (_, i) => i);
+  const part2Indices = total >= 8
+    ? Array.from({ length: Math.min(total - 4, 4) }, (_, i) => i + 4)
+    : (total > part1Count
+        ? Array.from({ length: total - part1Count }, (_, i) => i + part1Count)
+        : part1Indices);
+
+  return [
+    {
+      id: generateId(),
+      type: 4,
+      title: 'Missing letters',
+      targetWordCount: part1Indices.length || 4,
+      selectedWordIndices: part1Indices,
+      blankMode: 'vowels',
+      pageBreakBefore: false,
+      fontFamily: 'r0c0i Linotte',
+      fontSize: 12,
+      spacing: 0,
+      imageSize: 12.7
+    },
+    {
+      id: generateId(),
+      type: 6,
+      title: 'Multiple choice',
+      targetWordCount: part2Indices.length || 4,
+      selectedWordIndices: part2Indices,
+      blankMode: 'vowels',
+      pageBreakBefore: false,
+      fontFamily: 'r0c0i Linotte',
+      fontSize: 12,
+      spacing: 0,
+      imageSize: 12.7,
+      choiceCount: 3,
+      choiceLayout: 'vertical'
+    }
+  ];
+};
+
 export default function WorksheetGenerator() {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const initialUrl = searchParams.get('url') || searchParams.get('vocab');
+  const paramMode = searchParams.get('mode');
+  const paramSource = searchParams.get('source');
+
   // Mode: 'link' (YourHomework link), 'library' (Existing WordSet), or 'multi' (Multiple sets from library)
-  const [sourceMode, setSourceMode] = useState<'link' | 'library' | 'multi'>('link');
+  // Mặc định: 'multi' (Nhiều bộ thẻ) khi vào app chọn Worksheet, trừ khi có id/url/source query param cụ thể
+  const [sourceMode, setSourceMode] = useState<'link' | 'library' | 'multi'>(() => {
+    if (paramSource === 'link' || initialUrl) return 'link';
+    if (paramSource === 'library' || id) return 'library';
+    if (paramSource === 'multi') return 'multi';
+    return 'multi';
+  });
   const [lastLoadedMultiCount, setLastLoadedMultiCount] = useState<number | null>(null);
   const [quickAddSectionIndex, setQuickAddSectionIndex] = useState<number | null>(null);
   const [linkInput, setLinkInput] = useState<string>(
-    searchParams.get('url') || searchParams.get('vocab') || 'https://yourhomework.net/vocab/589984573'
+    initialUrl || 'https://yourhomework.net/vocab/589984573'
   );
 
   // Library sets
@@ -112,8 +198,11 @@ export default function WorksheetGenerator() {
   const [selectedSetId, setSelectedSetId] = useState<string>(id || '');
 
   // Worksheet Mode: 'single' (Traditional single type) | 'composite' (Multi-section document)
-  const [worksheetMode, setWorksheetMode] = useState<'single' | 'composite'>('single');
-  const [compositeSections, setCompositeSections] = useState<UICompositeSection[]>([]);
+  // Mặc định: 'composite' (Worksheet tổng hợp) khi vào app chọn Worksheet, trừ khi có mode param cụ thể
+  const [worksheetMode, setWorksheetMode] = useState<'single' | 'composite'>(
+    paramMode === 'single' ? 'single' : 'composite'
+  );
+  const [compositeSections, setCompositeSections] = useState<UICompositeSection[]>(() => createDefaultCompositeSections([]));
   const [compositeViewMode, setCompositeViewMode] = useState<'tabs' | 'accordion'>('tabs');
   const [activeSectionTab, setActiveSectionTab] = useState<number>(0);
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<Set<string>>(new Set());
@@ -215,73 +304,6 @@ export default function WorksheetGenerator() {
     };
   }, [pdfBlobUrl]);
 
-  // Sensible default sections generator for Composite mode
-  const createDefaultCompositeSections = (vocabWords: WorksheetWord[]): UICompositeSection[] => {
-    const total = vocabWords.length;
-    if (total === 0) {
-      return [
-        {
-          id: generateId(),
-          type: 4,
-          title: 'Missing letters',
-          targetWordCount: 4,
-          selectedWordIndices: [],
-          blankMode: 'vowels',
-          pageBreakBefore: false
-        },
-        {
-          id: generateId(),
-          type: 6,
-          title: 'Multiple choice',
-          targetWordCount: 4,
-          selectedWordIndices: [],
-          blankMode: 'vowels',
-          pageBreakBefore: false,
-          choiceCount: 3,
-          choiceLayout: 'vertical'
-        }
-      ];
-    }
-
-    const part1Count = total >= 8 ? 4 : Math.ceil(total / 2);
-    const part1Indices = Array.from({ length: part1Count }, (_, i) => i);
-    const part2Indices = total >= 8
-      ? Array.from({ length: Math.min(total - 4, 4) }, (_, i) => i + 4)
-      : (total > part1Count
-          ? Array.from({ length: total - part1Count }, (_, i) => i + part1Count)
-          : part1Indices);
-
-    return [
-      {
-        id: generateId(),
-        type: 4,
-        title: 'Missing letters',
-        targetWordCount: part1Indices.length || 4,
-        selectedWordIndices: part1Indices,
-        blankMode: 'vowels',
-        pageBreakBefore: false,
-        fontFamily: 'r0c0i Linotte',
-        fontSize: 12,
-        spacing: 0,
-        imageSize: 12.7
-      },
-      {
-        id: generateId(),
-        type: 6,
-        title: 'Multiple choice',
-        targetWordCount: part2Indices.length || 4,
-        selectedWordIndices: part2Indices,
-        blankMode: 'vowels',
-        pageBreakBefore: false,
-        fontFamily: 'r0c0i Linotte',
-        fontSize: 12,
-        spacing: 0,
-        imageSize: 12.7,
-        choiceCount: 3,
-        choiceLayout: 'vertical'
-      }
-    ];
-  };
 
   // Section Management Handlers
   const handleAddSection = () => {
@@ -732,10 +754,10 @@ export default function WorksheetGenerator() {
     });
   }, [id]);
 
-  // If initial link has vocab param or default, auto load
+  // If initial link has explicit url/vocab param in URL, auto load
   useEffect(() => {
-    if (!id && linkInput && sourceMode === 'link') {
-      fetchVocabFromLink(linkInput);
+    if (!id && initialUrl && sourceMode === 'link') {
+      fetchVocabFromLink(initialUrl);
     }
   }, []);
 

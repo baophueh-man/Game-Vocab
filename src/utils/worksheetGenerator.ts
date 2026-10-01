@@ -3801,9 +3801,16 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         if (options.answerMode === 'answer') {
           setDocLineDash(doc, []);
           applyFont(doc, activeFont, 'bold');
-          doc.setFontSize(effectiveFontSize);
+          let textFontSize = effectiveFontSize;
+          doc.setFontSize(textFontSize);
+          const maxTextW = colWidth - 4;
+          const textW = doc.getTextWidth(validWords[i].term);
+          if (textW > maxTextW) {
+            textFontSize = Math.max(8.5, Math.floor(effectiveFontSize * (maxTextW / textW)));
+            doc.setFontSize(textFontSize);
+          }
           doc.setTextColor(220, 38, 38);
-          doc.text(validWords[i].term, colCenter, lineY - 0.8, { align: 'center' });
+          doc.text(validWords[i].term, colCenter, lineY - 0.8, { align: 'center', maxWidth: maxTextW });
           doc.setTextColor(0, 0, 0);
           doc.setDrawColor(80, 80, 80);
           doc.setLineWidth(0.15);
@@ -4559,16 +4566,28 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           // In Answer mode: render completed word in bold red. In Student mode: punch blanks
           const textY = imgY + imgSize + textOffset;
+          const maxTextW = colWidth - 4;
+          let drawFontSize = effectiveFontSize;
+          const textToMeasure = options.answerMode === 'answer' ? validWords[i].term : punchBlanks(validWords[i].term, blankMode);
+          doc.setFontSize(drawFontSize);
+          const measuredW = doc.getTextWidth(textToMeasure);
+          if (measuredW > maxTextW) {
+            drawFontSize = Math.max(8.5, Math.floor(effectiveFontSize * (maxTextW / measuredW)));
+          }
+
           if (options.answerMode === 'answer') {
             applyFont(doc, activeFont, 'bold');
-            doc.setFontSize(effectiveFontSize);
+            doc.setFontSize(drawFontSize);
             doc.setTextColor(220, 38, 38);
-            doc.text(validWords[i].term, colCenter, textY, { align: 'center' });
+            doc.text(validWords[i].term, colCenter, textY, { align: 'center', maxWidth: maxTextW });
             applyFont(doc, activeFont, 'normal');
             doc.setTextColor(0, 0, 0);
           } else {
+            applyFont(doc, activeFont, 'normal');
+            doc.setFontSize(drawFontSize);
+            doc.setTextColor(0, 0, 0);
             const missingTerm = punchBlanks(validWords[i].term, blankMode);
-            doc.text(missingTerm, colCenter, textY, { align: 'center' });
+            doc.text(missingTerm, colCenter, textY, { align: 'center', maxWidth: maxTextW });
           }
         }
 
@@ -7354,19 +7373,28 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             }
 
             const textY = imgY + imgSize + secGridMetrics.textOffset;
+            const maxTextW = colWidth - 4;
+            let drawFontSize = secFontSize;
+            const textToMeasure = section.answerMode === 'answer' ? word.term : punchBlanks(word.term, section.blankMode || 'vowels');
+            doc.setFontSize(drawFontSize);
+            const measuredW = doc.getTextWidth(textToMeasure);
+            if (measuredW > maxTextW) {
+              drawFontSize = Math.max(8.5, Math.floor(secFontSize * (maxTextW / measuredW)));
+            }
+
             if (section.answerMode === 'answer') {
               applyFont(doc, secFont, 'bold');
-              doc.setFontSize(secFontSize);
+              doc.setFontSize(drawFontSize);
               doc.setTextColor(220, 38, 38);
-              doc.text(word.term, colCenter, textY, { align: 'center' });
+              doc.text(word.term, colCenter, textY, { align: 'center', maxWidth: maxTextW });
               applyFont(doc, secFont, 'normal');
               doc.setTextColor(0, 0, 0);
             } else {
-              doc.setFontSize(secFontSize);
+              doc.setFontSize(drawFontSize);
               applyFont(doc, secFont, 'normal');
               doc.setTextColor(0, 0, 0);
               const missingTerm = punchBlanks(word.term, section.blankMode || 'vowels');
-              doc.text(missingTerm, colCenter, textY, { align: 'center' });
+              doc.text(missingTerm, colCenter, textY, { align: 'center', maxWidth: maxTextW });
             }
           }
 
