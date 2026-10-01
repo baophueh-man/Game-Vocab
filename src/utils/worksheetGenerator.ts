@@ -200,7 +200,7 @@ export interface WorksheetOptions {
   type18CircleStyle?: Type18CircleStyle; // for Type 18: circle border style, 'solid' (default) | 'dashed' | 'double'
   type18DistractorCasing?: Type18DistractorCasing; // for Type 18: 'upper' (default) | 'lower' | 'mixed'
   type18HighlightTarget?: Type18HighlightTarget; // for Type 18: 'none' (default for student) | 'answer_key'
-  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6: 'student' (default) or 'answer'
+  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6, 7, 8, 9, 10: 'student' (default) or 'answer'
 }
 
 export interface CompositeWorksheetSection {
@@ -264,7 +264,7 @@ export interface CompositeWorksheetSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
-  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6: 'student' (default) or 'answer'
+  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6, 7, 8, 9, 10: 'student' (default) or 'answer'
 }
 
 export interface CompositeWorksheetConfig {
@@ -757,6 +757,76 @@ export function calculateType9Metrics(
     baseRowHeight
   };
 }
+
+/**
+ * Calculate geometry metrics for Type 7 exercise items (Unscramble letters - 3 columns)
+ * based on fontSize, spacing, imageSize, and paper size.
+ * Guarantees zero overlap at 0 pt spacing regardless of font size or descenders.
+ */
+export function calculateType7Metrics(
+  fontSizePt: number = 12,
+  spacingPt: number = 0,
+  imgSize: number = 12.7,
+  isA5: boolean = true
+) {
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 6) * 0.352778;
+  const effectiveFontSize = fontSizePt || (isA5 ? 12 : 14);
+  const fontHeightMm = effectiveFontSize * 0.352778;
+  // Offset from image bottom to baseline of scrambled text
+  const textOffset1 = Math.max(3.5, fontHeightMm * 0.85 + 1.2) + spacingMm * 0.15;
+  // Distance between scrambled text baseline and blanks/answer baseline
+  const textOffset2 = Math.max(3.8, fontHeightMm * 1.15 + 1.0) + spacingMm * 0.2;
+  // Row gap between rows ensuring clearance even at 0 pt spacing
+  const rowGap = Math.max(1.8, fontHeightMm * 0.35) + spacingMm * 0.45;
+  const contentHeight = imgSize + textOffset1 + textOffset2 + 1.0;
+  const rowHeight = contentHeight + rowGap;
+  return {
+    effectiveFontSize,
+    spacingMm,
+    fontHeightMm,
+    textOffset1,
+    textOffset2,
+    rowGap,
+    contentHeight,
+    rowHeight
+  };
+}
+
+/**
+ * Calculate geometry metrics for Type 10 exercise items (Look and color - 2 pictures side by side)
+ * based on paperSize (A4 vs A5), imageSize, spacingPt, and fontSizePt.
+ * Guarantees zero overlap at 0 pt spacing regardless of font size.
+ */
+export function calculateType10Metrics(
+  isA5: boolean,
+  imgSize: number = 12.7,
+  spacingPt: number = 0,
+  fontSizePt?: number,
+  cardWidth: number = 38
+) {
+  const effectiveFontSize = fontSizePt || (isA5 ? 12 : 14);
+  const fontHeightMm = effectiveFontSize * 0.352778;
+  const subW = cardWidth / 2;
+  const imgBoxHeight = Math.max(imgSize + 2.0, isA5 ? 14.0 : 16.0);
+  const maxImgDim = Math.min(imgSize, subW - 2, imgBoxHeight - 2);
+  const wordBoxHeight = Math.max(isA5 ? 7.5 : 9.5, fontHeightMm * 1.35 + 2.0);
+  const cardHeight = imgBoxHeight + wordBoxHeight;
+  const spacingMm = (spacingPt !== undefined ? spacingPt : 0) * 0.352778;
+  const rowGap = (spacingPt === 0 ? 1.5 : 2.5) + spacingMm * 0.35;
+  const rowHeight = cardHeight + rowGap;
+  return {
+    effectiveFontSize,
+    fontHeightMm,
+    subW,
+    imgBoxHeight,
+    maxImgDim,
+    wordBoxHeight,
+    cardHeight,
+    rowGap,
+    rowHeight
+  };
+}
+
 
 
 /**
@@ -2731,10 +2801,24 @@ export function drawWordsearchGrid(
   cellSize: number,
   activeFont: string,
   gridBorder: WordsearchGridBorder = 'none',
-  fontSize: number = 12
+  fontSize: number = 12,
+  isAnswerMode: boolean = false,
+  placedWords?: PlacedWordInfo[]
 ) {
   const rows = grid.length;
   const cols = grid[0].length;
+
+  const placedCellKeys = new Set<string>();
+  if (isAnswerMode && placedWords && placedWords.length > 0) {
+    for (const pw of placedWords) {
+      const { dr, dc } = WORDSEARCH_DIRECTION_MAP[pw.direction];
+      for (let step = 0; step < pw.cleanTerm.length; step++) {
+        const r = pw.startR + step * dr;
+        const c = pw.startC + step * dc;
+        placedCellKeys.add(`${r},${c}`);
+      }
+    }
+  }
 
   if (gridBorder === 'full') {
     // Both outer border and inner cell borders drawn with small dotted lines
@@ -2773,15 +2857,28 @@ export function drawWordsearchGrid(
   // gridBorder === 'none': only the matrix of letters, no grid lines
 
   // Draw centered letters in each cell: strictly respect user-selected fontSize
-  applyFont(doc, activeFont, 'bold');
-  doc.setFontSize(fontSize);
-  doc.setTextColor(30, 41, 59);
-
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = startX + c * cellSize;
       const y = startY + r * cellSize;
       const letter = grid[r][c];
+      const isPlacedCell = isAnswerMode && placedCellKeys.has(`${r},${c}`);
+
+      if (isPlacedCell) {
+        doc.setFillColor(254, 226, 226); // soft red-100
+        doc.setDrawColor(239, 68, 68); // red-500
+        doc.setLineWidth(0.2);
+        setDocLineDash(doc, []);
+        doc.roundedRect(x + 0.3, y + 0.3, cellSize - 0.6, cellSize - 0.6, 1.0, 1.0, 'FD');
+
+        applyFont(doc, activeFont, 'bold');
+        doc.setFontSize(fontSize);
+        doc.setTextColor(220, 38, 38);
+      } else {
+        applyFont(doc, activeFont, 'bold');
+        doc.setFontSize(fontSize);
+        doc.setTextColor(30, 41, 59);
+      }
       // True 2D Centering: horizontal center (align: center) and vertical center (baseline: middle)
       doc.text(letter, x + cellSize / 2, y + cellSize / 2, { align: 'center', baseline: 'middle' });
     }
@@ -2921,6 +3018,7 @@ export async function drawWordsearchHints(
     gapX?: number;
     wordsearchCase?: WordsearchCase;
     imageSize?: number;
+    isAnswerMode?: boolean;
   }
 ): Promise<number> {
   const activeFontSize = options?.fontSize ?? (isA5 ? 11 : 12);
@@ -3014,7 +3112,11 @@ export async function drawWordsearchHints(
         // Symmetrical alignment: Left column aligns right (towards grid); Right column aligns left (towards grid)
         applyFont(doc, activeFont, 'bold');
         doc.setFontSize(activeFontSize);
-        doc.setTextColor(30, 41, 59);
+        if (options?.isAnswerMode) {
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setTextColor(30, 41, 59);
+        }
         const wordText = wordsearchCase === 'upper' ? pw.cleanTerm.toUpperCase() : pw.cleanTerm.toLowerCase();
         const textMaxW = Math.max(8, colWidth - 2.0);
 
@@ -3118,7 +3220,11 @@ export async function drawWordsearchHints(
         // Under image: word label (NO numbering prefix) with strict font size and baseline: 'top'
         applyFont(doc, activeFont, 'bold');
         doc.setFontSize(activeFontSize);
-        doc.setTextColor(30, 41, 59);
+        if (options?.isAnswerMode) {
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setTextColor(30, 41, 59);
+        }
         const wordText = wordsearchCase === 'upper' ? pw.cleanTerm.toUpperCase() : pw.cleanTerm.toLowerCase();
         doc.text(
           wordText,
@@ -3641,10 +3747,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const topMargin = (showHeader && title) ? margin + 14 : margin + 4;
     const availHeight = printableHeight - (topMargin - margin) - 4;
 
-    // Spacing between rows (from dotted line of row N to image of row N+1)
-    const lineOffset = 3.5 + (spacing !== undefined ? spacing : 6) * 0.1;
-    const rowGap = 0.8 + (spacing !== undefined ? spacing : 6) * 0.45;
-    const rowHeight = imgSize + lineOffset + rowGap;
+    // Dynamic spacing & row geometry using calculateType2Metrics
+    const effectiveFontSize = fontSize || (isA5 ? 12 : 14);
+    const { lineOffset, rowGap, rowHeight } = calculateType2Metrics(effectiveFontSize, spacing !== undefined ? spacing : 6, imgSize, isA5);
 
     const maxRowsPerPage = Math.max(2, Math.floor(availHeight / rowHeight));
     const wordsPerPage = cols * maxRowsPerPage;
@@ -3692,6 +3797,18 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         // Underline for students to write word
         const lineY = imgY + imgSize + lineOffset;
         doc.line(colCenter - halfLineLen, lineY, colCenter + halfLineLen, lineY);
+
+        if (options.answerMode === 'answer') {
+          setDocLineDash(doc, []);
+          applyFont(doc, activeFont, 'bold');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(220, 38, 38);
+          doc.text(validWords[i].term, colCenter, lineY - 0.8, { align: 'center' });
+          doc.setTextColor(0, 0, 0);
+          doc.setDrawColor(80, 80, 80);
+          doc.setLineWidth(0.15);
+          setDocLineDash(doc, [0.4, 0.6]);
+        }
       }
 
       // Footer
@@ -3865,13 +3982,14 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           }
 
           // 2. Draw Image Connector Dot
-          const imgDotColor = rowItems[i].color;
+          const isAnsMode = options.answerMode === 'answer';
+          const imgDotColor = isAnsMode ? [220, 38, 38] : rowItems[i].color;
           doc.setFillColor(imgDotColor[0], imgDotColor[1], imgDotColor[2]);
           doc.circle(imgDotX, rowCenterY, dotRadius, 'F');
 
           // 3. Draw Column 2: Prefix
           const wordItem = shuffledWordRows[i];
-          const prefixColor = wordItem.color;
+          const prefixColor = isAnsMode ? [220, 38, 38] : wordItem.color;
 
           // Prefix left dot
           doc.setFillColor(prefixColor[0], prefixColor[1], prefixColor[2]);
@@ -3880,7 +3998,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           // Prefix text
           applyFont(doc, fontFamily, 'bold');
           doc.setFontSize(prefixFontSize);
-          doc.setTextColor(30, 41, 59);
+          doc.setTextColor(isAnsMode ? 220 : 30, isAnsMode ? 38 : 41, isAnsMode ? 38 : 59);
           doc.text(wordItem.prefix, prefixCenterX, rowCenterY + (isA5 ? 0.9 : 1.2), { align: 'center' });
 
           // Prefix right dot
@@ -3889,12 +4007,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           // 4. Draw Column 3: Suffix
           const sItem = suffixItems[i];
-          doc.setFillColor(sItem.color[0], sItem.color[1], sItem.color[2]);
+          const suffixColor = isAnsMode ? [220, 38, 38] : sItem.color;
+          doc.setFillColor(suffixColor[0], suffixColor[1], suffixColor[2]);
           doc.circle(suffixDotX, rowCenterY, dotRadius, 'F');
 
           applyFont(doc, fontFamily, 'bold');
           doc.setFontSize(prefixFontSize);
-          doc.setTextColor(30, 41, 59);
+          doc.setTextColor(isAnsMode ? 220 : 30, isAnsMode ? 38 : 41, isAnsMode ? 38 : 59);
           doc.text(sItem.suffix, suffixTextX, rowCenterY + (isA5 ? 0.9 : 1.2), { align: 'left' });
 
           // 5. Draw Column 4: Write / Trace Word
@@ -3907,15 +4026,19 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           let currentWriteFont = activeWriteFont;
           let currentWriteFontSize = traceFontSize;
 
-          if (writeMode === 'blank') {
+          if (isAnsMode) {
+            currentWriteFont = 'r0c0i Linotte';
+            currentWriteFontSize = prefixFontSize;
+            writeTextToDraw = writeWord;
+          } else if (writeMode === 'blank') {
             writeTextToDraw = formatLookMatchWriteBlank(writeWord);
             currentWriteFont = 'r0c0i Linotte';
             currentWriteFontSize = prefixFontSize;
           }
 
-          applyFont(doc, currentWriteFont, 'normal');
+          applyFont(doc, currentWriteFont, isAnsMode ? 'bold' : 'normal');
           doc.setFontSize(currentWriteFontSize);
-          doc.setTextColor(45, 55, 72);
+          doc.setTextColor(isAnsMode ? 220 : 45, isAnsMode ? 38 : 55, isAnsMode ? 38 : 72);
 
           const textBaselineY = rowCenterY + (isA5 ? 1.0 : 1.3);
           doc.text(writeTextToDraw, writeStartX, textBaselineY, { align: 'left' });
@@ -3924,7 +4047,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           if (showBaseline) {
             const textW = doc.getTextWidth(writeTextToDraw);
             const baselineW = Math.max(textW + (isA5 ? 4 : 6), isA5 ? 20 : 28);
-            const baselineOffset = writeMode === 'blank' ? (isA5 ? 2.8 : 3.4) : (isA5 ? 1.6 : 2.0);
+            const baselineOffset = (writeMode === 'blank' || isAnsMode) ? (isA5 ? 2.8 : 3.4) : (isA5 ? 1.6 : 2.0);
             const baselineY = textBaselineY + baselineOffset;
 
             doc.setDrawColor(40, 40, 40);
@@ -3932,6 +4055,25 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             setDocLineDash(doc, [0.8, 0.8]);
             doc.line(writeStartX, baselineY, writeStartX + baselineW, baselineY);
             setDocLineDash(doc, []); // reset line dash
+          }
+
+          // If Answer Mode: Draw connecting lines between matched items
+          if (isAnsMode) {
+            // Find prefix row matching item i
+            const pRowIdx = shuffledWordRows.findIndex((it) => it.originalIndex === i);
+            if (pRowIdx !== -1) {
+              const pCenterY = startY + pRowIdx * (rowContentHeight + effectiveRowGap) + rowContentHeight / 2;
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.45);
+              doc.line(imgDotX, rowCenterY, prefixLeftDotX, pCenterY);
+
+              // Find suffix row matching item i
+              const sRowIdx = suffixItems.findIndex((it) => it.word.term === rowItems[i].word.term);
+              if (sRowIdx !== -1) {
+                const sCenterY = startY + sRowIdx * (rowContentHeight + effectiveRowGap) + rowContentHeight / 2;
+                doc.line(prefixRightDotX, pCenterY, suffixDotX, sCenterY);
+              }
+            }
           }
         }
 
@@ -3954,8 +4096,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       const topStart = (showHeader && title) ? margin + 14 : margin + 4;
       const availHeight = printableHeight - (topStart - margin) - 8;
 
-      // Spacing between middle word/sentence rows (down to 0.8mm at 0pt)
-      const boxGap = (spacing === 0 ? 0.8 : 0.8 + (spacing !== undefined ? spacing : 6) * 0.352778);
+      // Spacing between middle word/sentence rows (down to 1.2mm at 0pt)
+      const boxGap = (spacing === 0 ? Math.max(1.2, fontHeightMm * 0.2) : 1.2 + (spacing !== undefined ? spacing : 6) * 0.352778);
       const maxCount = Math.floor(availHeight / (boxHeight + boxGap));
       const maxLimit = isSentence ? (isA5 ? 10 : 14) : (isA5 ? 14 : 20);
       const minLimit = isSentence ? (isA5 ? 4 : 6) : (isA5 ? 6 : 8);
@@ -3990,6 +4132,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         // Draw pictures on left and right sides (delicate small dots matching reference)
         const dotRadius = isA5 ? 0.6 : 0.75;
         const dotImgOffset = isA5 ? 2.8 : 3.5;
+        const isAnsMode = options.answerMode === 'answer';
 
         for (let i = 0; i < count; i++) {
           const isRight = i >= half;
@@ -4002,7 +4145,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           if (img) {
             try {
-              doc.addImage(img, 'JPEG', posX, posY, imgSize, imgSize);
+              const imgFmt = (img.startsWith('data:image/png') || img.startsWith('iVBORw0KGgo')) ? 'PNG' : 'JPEG';
+              doc.addImage(img, imgFmt, posX, posY, imgSize, imgSize);
             } catch {
               if (showImageBorder) doc.rect(posX, posY, imgSize, imgSize);
             }
@@ -4014,7 +4158,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           }
 
           // Draw picture connector dot
-          const dotColor = getType3DotColor(i, isRight, matchHint);
+          const dotColor = isAnsMode ? [220, 38, 38] : getType3DotColor(i, isRight, matchHint);
           const imgCenterY = posY + imgSize / 2;
           const imgDotX = isRight ? (posX - dotImgOffset) : (posX + imgSize + dotImgOffset);
           doc.setFillColor(dotColor[0], dotColor[1], dotColor[2]);
@@ -4036,7 +4180,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             originalIndex: idx,
             isRight,
             term: w.term,
-            color: getType3DotColor(idx, isRight, matchHint),
+            color: isAnsMode ? [220, 38, 38] : getType3DotColor(idx, isRight, matchHint),
             sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
           };
         });
@@ -4100,6 +4244,28 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             doc.setFillColor(item.color[0], item.color[1], item.color[2]);
             doc.circle(textDotX, textDotY, dotRadius, 'F');
           }
+
+          // If Answer Mode: draw connecting lines for sentences
+          if (isAnsMode) {
+            for (let i = 0; i < count; i++) {
+              const isRight = i >= half;
+              const rowInCol = isRight ? i - half : i;
+              const posX = isRight ? (pageWidth - margin - imgSize - 2) : (margin + 2);
+              const posY = topStart + (half > 1 ? rowInCol * imgPitch : 0);
+              const imgCenterY = posY + imgSize / 2;
+              const imgDotX = isRight ? (posX - dotImgOffset) : (posX + imgSize + dotImgOffset);
+
+              const targetShuffledIdx = shuffledItems.findIndex((it) => it.originalIndex === i);
+              if (targetShuffledIdx !== -1) {
+                const targetItem = shuffledItems[targetShuffledIdx];
+                const targetTextDotX = targetItem.isRight ? rightSentenceDotX : leftSentenceDotX;
+                const targetTextDotY = topStart + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.45);
+                doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
+              }
+            }
+          }
         } else {
           applyFont(doc, fontFamily, 'normal');
           doc.setFontSize(fontSize);
@@ -4132,6 +4298,28 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             const textDotY = centerBoxY + boxHeight / 2;
             doc.setFillColor(item.color[0], item.color[1], item.color[2]);
             doc.circle(textDotX, textDotY, dotRadius, 'F');
+          }
+
+          // If Answer Mode: draw connecting lines for words
+          if (isAnsMode) {
+            for (let i = 0; i < count; i++) {
+              const isRight = i >= half;
+              const rowInCol = isRight ? i - half : i;
+              const posX = isRight ? (pageWidth - margin - imgSize - 2) : (margin + 2);
+              const posY = topStart + (half > 1 ? rowInCol * imgPitch : 0);
+              const imgCenterY = posY + imgSize / 2;
+              const imgDotX = isRight ? (posX - dotImgOffset) : (posX + imgSize + dotImgOffset);
+
+              const targetShuffledIdx = shuffledItems.findIndex((it) => it.originalIndex === i);
+              if (targetShuffledIdx !== -1) {
+                const targetItem = shuffledItems[targetShuffledIdx];
+                const targetTextDotX = targetItem.isRight ? rightTextDotX : leftTextDotX;
+                const targetTextDotY = topStart + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.45);
+                doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
+              }
+            }
           }
         }
 
@@ -4276,6 +4464,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           const baselineY = rowCenterY + (cellTraceFontSize * 0.352778) * 0.28;
 
+          const isAnsMode = options.answerMode === 'answer';
           if (colMode === 'alphabet_order' || colMode === 'vowels_only') {
             const { traceIndices, blankIndices } = getType4TargetLetterIndices(
               term,
@@ -4286,13 +4475,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
             const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
 
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
           } else {
             for (let c = 0; c < cellTypes.length; c++) {
               const cellType = cellTypes[c];
               const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
-              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
             }
           }
         }
@@ -4312,20 +4501,20 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       // -------------------------------------------------------------
       // TYPE 4: Missing Letters Worksheet (Matches media_1790061642463.png)
       // Dynamic spacing between rows (gap between missing word and next image)
+      // Guarantees zero collision at 0 pt spacing regardless of font size
       // -------------------------------------------------------------
       const cols = 3;
       const colWidth = printableWidth / cols; // 40.86 mm on A5
       const topMargin = (showHeader && title) ? margin + 14 : margin + 4;
       const availHeight = printableHeight - (topMargin - margin) - 4;
 
-      // Spacing between rows (from bottom of missing word to top of next image)
-      const textOffset = 3.5 + (spacing !== undefined ? spacing : 6) * 0.1;
-      const rowGap = 0.8 + (spacing !== undefined ? spacing : 6) * 0.45;
-      const rowHeight = imgSize + textOffset + 1.2 + rowGap;
+      const effectiveFontSize = fontSize || (isA5 ? 12 : 14);
+      const effectiveSpacing = spacing !== undefined ? spacing : 6;
+      const gridMetrics = calculateType4GridMetrics(effectiveFontSize, effectiveSpacing, imgSize, isA5);
+      const { textOffset, rowHeight } = gridMetrics;
 
       const maxRowsPerPage = Math.max(2, Math.floor(availHeight / rowHeight));
       const wordsPerPage = cols * maxRowsPerPage;
-      const halfLineLen = isA5 ? 17 : 20;
 
       const totalPages = Math.ceil(validWords.length / wordsPerPage);
 
@@ -4342,8 +4531,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         doc.setDrawColor(80, 80, 80);
         doc.setLineWidth(0.15);
         setDocLineDash(doc, [0.4, 0.6]);
-        doc.setFontSize(fontSize);
-        doc.setFont('fff', 'normal');
+        doc.setFontSize(effectiveFontSize);
+        applyFont(doc, activeFont, 'normal');
 
         const startIdx = page * wordsPerPage;
         const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
@@ -4368,10 +4557,19 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             doc.rect(imgX, imgY, imgSize, imgSize);
           }
 
-          // Blank word according to blankMode (vowels, random1, random2, random3), without dotted baseline
-          const missingTerm = punchBlanks(validWords[i].term, blankMode);
+          // In Answer mode: render completed word in bold red. In Student mode: punch blanks
           const textY = imgY + imgSize + textOffset;
-          doc.text(missingTerm, colCenter, textY, { align: 'center' });
+          if (options.answerMode === 'answer') {
+            applyFont(doc, activeFont, 'bold');
+            doc.setFontSize(effectiveFontSize);
+            doc.setTextColor(220, 38, 38);
+            doc.text(validWords[i].term, colCenter, textY, { align: 'center' });
+            applyFont(doc, activeFont, 'normal');
+            doc.setTextColor(0, 0, 0);
+          } else {
+            const missingTerm = punchBlanks(validWords[i].term, blankMode);
+            doc.text(missingTerm, colCenter, textY, { align: 'center' });
+          }
         }
 
         // Footer
@@ -4415,7 +4613,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       contentHeight = Math.max(imgSize, fontHeightMm);
       rowGap = (effectiveSpacing === 0 ? 1.2 : 2.5) + effectiveSpacing * ptToMm * 0.75;
     } else {
-      spacingFactor = numChoices === 2 ? 1.35 : 1.18;
+      spacingFactor = numChoices === 2 ? 1.40 : 1.36;
       optPitch = fontHeightMm * spacingFactor + (effectiveSpacing * ptToMm * 0.45);
       optionsBlockHeight = (numChoices - 1) * optPitch + fontHeightMm;
       contentHeight = Math.max(imgSize, optionsBlockHeight);
@@ -4460,15 +4658,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // 2 or 3 options (1 correct, 1 or 2 distractors)
         const otherTerms = allTerms.filter((t) => t.toLowerCase() !== currentWord.toLowerCase());
-        let distractors: string[] = shuffleArray(otherTerms).slice(0, numDistractors);
+        let distractors: string[] = (shuffleArray(otherTerms) as string[]).slice(0, numDistractors);
         if (distractors.length < numDistractors) {
           const fallbacks = ['apple', 'banana', 'cat', 'dog', 'sun', 'star', 'tree', 'book', 'ball', 'fish'];
           const extra = fallbacks.filter(
             (t) => t.toLowerCase() !== currentWord.toLowerCase() && !distractors.some((d) => d.toLowerCase() === t.toLowerCase())
           );
-          distractors = [...distractors, ...shuffleArray(extra)].slice(0, numDistractors);
+          distractors = [...distractors, ...(shuffleArray(extra) as string[])].slice(0, numDistractors);
         }
-        const optionsList = shuffleArray([currentWord, ...distractors]);
+        const optionsList: string[] = shuffleArray([currentWord, ...distractors]) as string[];
 
         // Draw picture on left (vertically centered relative to content)
         const imgX = startX + 1.5;
@@ -4515,8 +4713,27 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           const baselineY = rowCenterY + (itemFontHeightMm * 0.35);
 
           for (let opt = 0; opt < 2; opt++) {
+            const optText = optionsList[opt] || '';
             const optX = optStartX + opt * slotWidth;
-            doc.text(optionsList[opt] || '', optX, baselineY);
+            const isCorrect = optText.trim().toLowerCase() === currentWord.trim().toLowerCase();
+            if (options.answerMode === 'answer' && isCorrect) {
+              const textW = doc.getTextWidth(optText);
+              const pillPadX = 1.8;
+              const pillPadY = Math.min(0.7, itemFontHeightMm * 0.12);
+              const pillH = itemFontHeightMm * 0.95 + pillPadY * 2;
+              const pillY = baselineY - itemFontHeightMm * 0.78 - pillPadY;
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.45);
+              doc.roundedRect(optX - pillPadX, pillY, textW + pillPadX * 2, pillH, pillH / 2, pillH / 2, 'S');
+              applyFont(doc, fontFamily, 'bold');
+              doc.setTextColor(220, 38, 38);
+              doc.text(optText, optX, baselineY);
+              applyFont(doc, fontFamily, 'normal');
+              doc.setTextColor(30, 41, 59);
+            } else {
+              doc.setTextColor(30, 41, 59);
+              doc.text(optText, optX, baselineY);
+            }
           }
         } else {
           // Choices vertically stacked on right of picture
@@ -4549,9 +4766,27 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           const firstBaseline = optBlockTop + fontAscent;
 
           for (let opt = 0; opt < numChoices; opt++) {
+            const optText = optionsList[opt] || '';
             const optY = firstBaseline + opt * itemOptPitch;
-            // Option text directly without small radio circle (students circle text directly)
-            doc.text(optionsList[opt] || '', optStartX, optY);
+            const isCorrect = optText.trim().toLowerCase() === currentWord.trim().toLowerCase();
+            if (options.answerMode === 'answer' && isCorrect) {
+              const textW = doc.getTextWidth(optText);
+              const pillPadX = 1.8;
+              const pillPadY = Math.min(0.7, itemFontHeightMm * 0.12);
+              const pillH = itemFontHeightMm * 0.95 + pillPadY * 2;
+              const pillY = optY - itemFontHeightMm * 0.78 - pillPadY;
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.45);
+              doc.roundedRect(optStartX - pillPadX, pillY, textW + pillPadX * 2, pillH, pillH / 2, pillH / 2, 'S');
+              applyFont(doc, fontFamily, 'bold');
+              doc.setTextColor(220, 38, 38);
+              doc.text(optText, optStartX, optY);
+              applyFont(doc, fontFamily, 'normal');
+              doc.setTextColor(30, 41, 59);
+            } else {
+              doc.setTextColor(30, 41, 59);
+              doc.text(optText, optStartX, optY);
+            }
           }
         }
       }
@@ -4576,13 +4811,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const topMargin = (showHeader && title) ? margin + 14 : margin + 4;
     const availHeight = printableHeight - (topMargin - margin) - 4;
 
-    // Spacing within item (image to scrambled text, to blanks)
-    const textOffset1 = 3.5 + (spacing !== undefined ? spacing : 6) * 0.1;
-    const textOffset2 = 3.5 + (spacing !== undefined ? spacing : 6) * 0.1;
-    const contentHeight = imgSize + textOffset1 + textOffset2 + 1.2;
-    // Spacing between rows (from blanks of row N to image of row N+1)
-    const rowGap = 0.8 + (spacing !== undefined ? spacing : 6) * 0.45;
-    const rowHeight = contentHeight + rowGap;
+    const metrics = calculateType7Metrics(fontSize, spacing, imgSize, isA5);
+    const { effectiveFontSize, textOffset1, textOffset2, rowHeight } = metrics;
 
     const maxRowsPerPage = Math.max(2, Math.floor(availHeight / rowHeight));
     const wordsPerPage = cols * maxRowsPerPage;
@@ -4593,13 +4823,10 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       await insertBackground(doc, background, isA5);
 
       if (showHeader && title) {
-        doc.setFont('fff', 'bold');
-        doc.setFontSize(isA5 ? 16 : 25);
+        applyFont(doc, fontFamily, 'bold');
+        doc.setFontSize(isA5 ? 16 : 22);
         doc.text(title, pageWidth / 2, margin + 5, { maxWidth: printableWidth, align: 'center' });
       }
-
-      doc.setFontSize(fontSize);
-      doc.setFont('fff', 'normal');
 
       const startIdx = page * wordsPerPage;
       const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
@@ -4627,17 +4854,27 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // Scramble letters with original casing preserved from flashcard
         const scrambled = scrambleString(validWords[i].term);
-        const blanks = validWords[i].term
-          .split(' ')
-          .map((part) => '__ '.repeat(part.length).trim())
-          .join('   ');
-
-        // Spacing between parts
         const textY1 = imgY + imgSize + textOffset1;
         const textY2 = textY1 + textOffset2;
 
+        doc.setFontSize(effectiveFontSize);
+        applyFont(doc, fontFamily, 'normal');
+        doc.setTextColor(30, 41, 59);
         doc.text(scrambled, colCenter, textY1, { align: 'center' });
-        doc.text(blanks, colCenter, textY2, { align: 'center' });
+
+        if (options.answerMode === 'answer') {
+          applyFont(doc, fontFamily, 'bold');
+          doc.setTextColor(220, 38, 38);
+          doc.text(validWords[i].term, colCenter, textY2, { align: 'center' });
+          applyFont(doc, fontFamily, 'normal');
+          doc.setTextColor(30, 41, 59);
+        } else {
+          const blanks = validWords[i].term
+            .split(' ')
+            .map((part) => '__ '.repeat(part.length).trim())
+            .join('   ');
+          doc.text(blanks, colCenter, textY2, { align: 'center' });
+        }
       }
 
       // Footer
@@ -4672,15 +4909,18 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const tableTopY = topMargin;
     const availHeight = pageHeight - margin - tableTopY - (showFooter ? 8 : 4);
 
+    const isAnsMode = options.answerMode === 'answer';
+    const traceFont = isAnsMode ? (fontFamily && fontFamily !== 'KG Primary Dots' ? fontFamily : 'r0c0i Linotte') : 'KG Primary Dots';
+
     // Pre-calculate layouts and needed row heights for each word
     const wordLayouts = validWords.map((w) => {
-      return layoutTraceText(doc, w.term, traceFontSize, colTraceWidth - 3);
+      return layoutTraceText(doc, w.term, traceFontSize, colTraceWidth - 3, traceFont);
     });
 
     const wordRowHeights = wordLayouts.map((l) => {
       const textBlockH = l.lines.length * (l.fontSize * 0.352778 * 1.15);
       const contentH = Math.max(imgSize, textBlockH);
-      const baseRowHeight = contentH + 2.0;
+      const baseRowHeight = contentH + Math.max(2.0, (traceFontSize * 0.352778) * 0.22);
       return baseRowHeight + rowGap;
     });
 
@@ -4769,10 +5009,16 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           doc.text(initial, col1CenterX, rowCenterY + (isA5 ? 1.4 : 1.7), { align: 'center' });
         }
 
-        // Columns 2, 3, 4: Trace text with font KG Primary Dots with word-wrapping ("xuống hàng")
-        doc.setFont('KGPrimaryDots', 'normal');
-        doc.setFontSize(layout.fontSize);
-        doc.setTextColor(30, 30, 30);
+        // Columns 2, 3, 4: Trace text with font KG Primary Dots (or solid red font in answer mode)
+        if (isAnsMode) {
+          applyFont(doc, traceFont, 'bold');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setFont('KGPrimaryDots', 'normal');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(30, 30, 30);
+        }
 
         const lineHeight = layout.fontSize * 0.352778 * 1.15;
         const totalBlockHeight = (layout.lines.length - 1) * lineHeight;
@@ -4940,17 +5186,48 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           const yesCenterX = cardCenterX - circleSpacing / 2;
           const noCenterX = cardCenterX + circleSpacing / 2;
 
-          doc.setDrawColor(70, 70, 70);
-          doc.setLineWidth(0.3);
-          doc.circle(yesCenterX, circleCenterY, circleRadius, 'S');
-          doc.circle(noCenterX, circleCenterY, circleRadius, 'S');
+          const isAnsMode = options.answerMode === 'answer';
 
-          applyFont(doc, options.fontFamily, 'normal');
-          doc.setFontSize(isA5 ? 8.5 : 10.5);
-          doc.setTextColor(30, 41, 59);
-          doc.text('Yes', yesCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
-          doc.text('No', noCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
-          doc.setTextColor(0, 0, 0);
+          if (isAnsMode) {
+            const correctCenterX = isYes ? yesCenterX : noCenterX;
+            const otherCenterX = isYes ? noCenterX : yesCenterX;
+            const correctText = isYes ? 'Yes' : 'No';
+            const otherText = isYes ? 'No' : 'Yes';
+
+            // Correct circle: filled in red with white bold text
+            doc.setFillColor(220, 38, 38);
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.4);
+            doc.circle(correctCenterX, circleCenterY, circleRadius, 'FD');
+
+            applyFont(doc, options.fontFamily, 'bold');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text(correctText, correctCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+
+            // Other circle: hollow with normal text
+            doc.setDrawColor(70, 70, 70);
+            doc.setLineWidth(0.3);
+            doc.circle(otherCenterX, circleCenterY, circleRadius, 'S');
+
+            applyFont(doc, options.fontFamily, 'normal');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text(otherText, otherCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.setTextColor(0, 0, 0);
+          } else {
+            doc.setDrawColor(70, 70, 70);
+            doc.setLineWidth(0.3);
+            doc.circle(yesCenterX, circleCenterY, circleRadius, 'S');
+            doc.circle(noCenterX, circleCenterY, circleRadius, 'S');
+
+            applyFont(doc, options.fontFamily, 'normal');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text('Yes', yesCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.text('No', noCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.setTextColor(0, 0, 0);
+          }
         }
 
         curY += rowHeight;
@@ -4977,13 +5254,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const topMargin = (showHeader && title) ? margin + 12 : margin + 4;
     const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
 
-    const imgBoxHeight = Math.max(imgSize + 2.0, isA5 ? 14.0 : 16.0);
-    const wordBoxHeight = isA5 ? 7.5 : 9.5;
-    const cardHeight = imgBoxHeight + wordBoxHeight;
-    const rowGap = (spacing === 0 ? 1.0 : 2.5) + (spacing !== undefined ? spacing : 0) * 0.25;
-    const rowHeight = cardHeight + rowGap;
-    const subW = cardWidth / 2;
-    const maxImgDim = Math.min(imgSize, subW - 2, imgBoxHeight - 2);
+    const metrics = calculateType10Metrics(isA5, imgSize, spacing, fontSize, cardWidth);
+    const { effectiveFontSize, subW, imgBoxHeight, maxImgDim, wordBoxHeight, rowHeight } = metrics;
 
     const maxRowsPerPage = Math.max(2, Math.floor(availHeight / rowHeight));
     const wordsPerPage = cols * maxRowsPerPage;
@@ -4998,7 +5270,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       await insertBackground(doc, background, isA5);
 
       if (showHeader && title) {
-        doc.setFont('fff', 'bold');
+        applyFont(doc, fontFamily, 'bold');
         doc.setFontSize(isA5 ? 16 : 22);
         doc.setTextColor(30, 41, 59);
         doc.text(title, margin, margin + 4);
@@ -5035,45 +5307,77 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // Strictly NO outer card box / frame (doc.rect is NOT called)
 
+        const lx = cardX + (subW - maxImgDim) / 2;
+        const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
+        const rx = cardX + subW + (subW - maxImgDim) / 2;
+        const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
+
         // Left Image (Centered in left half)
         if (leftImg) {
-          const lx = cardX + (subW - maxImgDim) / 2;
-          const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
           try {
             doc.addImage(leftImg, 'JPEG', lx, ly, maxImgDim, maxImgDim);
           } catch {
             if (showImageBorder) doc.rect(lx, ly, maxImgDim, maxImgDim);
           }
         } else if (showImageBorder) {
-          const lx = cardX + (subW - maxImgDim) / 2;
-          const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
           doc.rect(lx, ly, maxImgDim, maxImgDim);
         }
 
         // Right Image (Centered in right half)
         if (rightImg) {
-          const rx = cardX + subW + (subW - maxImgDim) / 2;
-          const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
           try {
             doc.addImage(rightImg, 'JPEG', rx, ry, maxImgDim, maxImgDim);
           } catch {
             if (showImageBorder) doc.rect(rx, ry, maxImgDim, maxImgDim);
           }
         } else if (showImageBorder) {
-          const rx = cardX + subW + (subW - maxImgDim) / 2;
-          const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
           doc.rect(rx, ry, maxImgDim, maxImgDim);
         }
 
+        const isAnsMode = options.answerMode === 'answer';
+
+        // Highlight correct image in Answer Mode
+        if (isAnsMode) {
+          const ansX = isCorrectOnLeft ? lx : rx;
+          const ansY = isCorrectOnLeft ? ly : ry;
+
+          doc.setDrawColor(220, 38, 38);
+          doc.setLineWidth(0.5);
+          doc.roundedRect(ansX - 0.8, ansY - 0.8, maxImgDim + 1.6, maxImgDim + 1.6, 1.2, 1.2, 'S');
+
+          const badgeR = 2.0;
+          const badgeX = ansX + maxImgDim - 0.8;
+          const badgeY = ansY + 0.8;
+          doc.setFillColor(220, 38, 38);
+          doc.circle(badgeX, badgeY, badgeR, 'F');
+          applyFont(doc, 'r0c0i Linotte', 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(255, 255, 255);
+          doc.text('✓', badgeX, badgeY + 0.65, { align: 'center' });
+        }
+
         // Word text (Centered under both images)
-        doc.setFont('fff', 'normal');
-        doc.setFontSize(fontSize || (isA5 ? 12 : 14));
-        doc.setTextColor(0, 0, 0);
-        const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.2 : 1.5);
-        doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-          align: 'center',
-          maxWidth: cardWidth - 2
-        });
+        const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.0 : 1.3);
+        if (isAnsMode) {
+          applyFont(doc, fontFamily, 'bold');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(220, 38, 38);
+          doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
+            align: 'center',
+            maxWidth: cardWidth - 2
+          });
+          doc.setTextColor(0, 0, 0);
+          applyFont(doc, fontFamily, 'normal');
+        } else {
+          applyFont(doc, fontFamily, 'normal');
+          doc.setFontSize(effectiveFontSize);
+          doc.setTextColor(30, 41, 59);
+          doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
+            align: 'center',
+            maxWidth: cardWidth - 2
+          });
+          doc.setTextColor(0, 0, 0);
+        }
       }
 
       if (showFooter) {
@@ -5092,6 +5396,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     // Right: 3 picture choices (1 correct + 2 distractors) with short baseline under each picture
     // Strictly NO bounding box / frame around cards or images!
     // -------------------------------------------------------------
+    const isAnsMode = options.answerMode === 'answer';
     const tableX = margin;
     const tableWidth = printableWidth;
     const colWordWidth = isA5 ? 46.0 : 68.0;
@@ -5099,20 +5404,22 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const numChoices = 3; // Fixed to 3 pictures per row
     const slotWidth = colPicsWidth / 3;
 
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+    const isTrace = activeFont === 'KG Primary Dots' || activeFont === 'KGPrimaryDots';
+    const defaultFontSize = isTrace ? (isA5 ? 22 : 26) : (isA5 ? 13 : 15);
+    const wordFontSize = fontSize || defaultFontSize;
+
     const imgBoxHeight = Math.max(imgSize + 2.0, isA5 ? 14.0 : 16.0);
-    const rowGap = (spacing === 0 ? 1.0 : 1.5) + (spacing !== undefined ? spacing : 0) * 0.22;
-    const rowHeight = imgBoxHeight + 1.5 + rowGap;
+    const textH = wordFontSize * 0.352778 * 1.25;
+    const contentH = Math.max(imgBoxHeight, textH + 2.0);
+    const rowGap = (spacing === 0 ? 2.0 : 2.5) + (spacing !== undefined ? spacing : 0) * 0.25;
+    const rowHeight = contentH + rowGap;
     const topMargin = (showHeader && title) ? margin + 12 : margin + 4;
     const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
 
     const maxRowsPerPage = Math.max(2, Math.floor(availHeight / rowHeight));
     const wordsPerPage = maxRowsPerPage;
     const totalPages = Math.ceil(validWords.length / wordsPerPage);
-
-    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
-    const isTrace = activeFont === 'KG Primary Dots' || activeFont === 'KGPrimaryDots';
-    const defaultFontSize = isTrace ? (isA5 ? 22 : 26) : (isA5 ? 13 : 15);
-    const wordFontSize = fontSize || defaultFontSize;
 
     const wordsWithImages = validWords
       .map((w, idx) => ({ word: w, img: wordImages[idx] }))
@@ -5181,9 +5488,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const wordCenterX = (wordLeft + wordRight) / 2;
 
         const layout = layoutTraceText(doc, currentWord.term, wordFontSize, wordRight - wordLeft - 4.0, activeFont);
-        applyFont(doc, activeFont, 'normal');
-        doc.setFontSize(layout.fontSize);
-        doc.setTextColor(isTrace ? 30 : 15, isTrace ? 30 : 23, isTrace ? 30 : 42);
+        if (isAnsMode) {
+          applyFont(doc, activeFont, 'bold');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(220, 38, 38);
+        } else {
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(isTrace ? 30 : 15, isTrace ? 30 : 23, isTrace ? 30 : 42);
+        }
 
         if (layout.lines.length <= 1) {
           doc.text(layout.lines[0] || '', wordCenterX, rowCenterY + (layout.fontSize * 0.352778) * 0.35, { align: 'center' });
@@ -5222,6 +5535,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             doc.setLineWidth(0.2);
             doc.rect(picX, picY, maxImgDim, maxImgDim);
           }
+
+          if (isAnsMode && c === targetSlot) {
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.85);
+            setDocLineDash(doc, []);
+            doc.circle(slotCenterX, rowCenterY, maxImgDim * 0.58, 'S');
+          }
         }
       }
 
@@ -5240,27 +5560,28 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     // A4: 3 rows (6 items/page), A5: 2 rows (4 items/page)
     // Strictly NO bounding box / frame around cards or images!
     // -------------------------------------------------------------
+    const isAnsMode = options.answerMode === 'answer';
     const cols = 2;
     const colGap = isA5 ? 6.0 : 10.0;
     const cardWidth = (printableWidth - colGap) / 2;
     const topMargin = (showHeader && title) ? margin + 12 : margin + 4;
     const availHeight = printableHeight - (topMargin - margin) - (showFooter ? 8 : 4);
 
-    const maxRowsPerPage = isA5 ? 2 : 3;
-    const wordsPerPage = cols * maxRowsPerPage;
-    const totalPages = Math.ceil(validWords.length / wordsPerPage);
-
-    const imgBoxHeight = imgSize + (isA5 ? 3.0 : 4.0);
-    const sentenceBoxHeight = isA5 ? 12.0 : 15.0;
-    const cardHeight = imgBoxHeight + sentenceBoxHeight;
-    const spacingMm = (spacing !== undefined ? spacing : 0) * 0.352778;
-    const rowGap = (spacing === 0)
-      ? 1.0
-      : Math.min(Math.max(2.0 + spacingMm, (availHeight - maxRowsPerPage * cardHeight) / Math.max(1, maxRowsPerPage)), 14.0);
-    const rowHeight = cardHeight + rowGap;
-
     const sFontSize = fontSize || (isA5 ? 11.5 : 13.5);
     const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+    const imgBoxHeight = imgSize + (isA5 ? 3.0 : 4.0);
+    const sentenceBoxHeight = Math.max(isA5 ? 12.0 : 15.0, (sFontSize * 0.352778 * 1.35 * 2) + 2.0);
+    const cardHeight = imgBoxHeight + sentenceBoxHeight;
+    const spacingMm = (spacing !== undefined ? spacing : 0) * 0.352778;
+    const maxRowsPerPage = isA5 ? 2 : 3;
+    const rowGap = (spacing === 0)
+      ? (isA5 ? 2.0 : 2.5)
+      : Math.min(Math.max(3.0 + spacingMm, (availHeight - maxRowsPerPage * cardHeight) / Math.max(1, maxRowsPerPage)), 14.0);
+    const rowHeight = cardHeight + rowGap;
+
+    const wordsPerPage = cols * maxRowsPerPage;
+    const totalPages = Math.ceil(validWords.length / wordsPerPage);
 
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) doc.addPage();
@@ -5302,28 +5623,53 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         }
 
         // 2. Bottom: Sentence or Blanked Word
-        const sentenceData = getLookAndWriteSentence(currentWord);
-        if (sentenceData) {
-          drawLookAndWriteSentence(
-            doc,
-            sentenceData.fullSentence,
-            cardX,
-            cardY + imgBoxHeight,
-            cardWidth,
-            sentenceBoxHeight,
-            sFontSize,
-            activeFont
-          );
+        if (isAnsMode) {
+          if (currentWord.exampleSentence && currentWord.exampleSentence.trim().length > 0) {
+            const spans = parseHighlightedSentence(currentWord.exampleSentence, currentWord.term);
+            drawType15SentenceLine(
+              doc,
+              spans,
+              null,
+              cardX,
+              cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2,
+              cardWidth,
+              sFontSize,
+              activeFont
+            );
+          } else {
+            applyFont(doc, activeFont, 'bold');
+            doc.setFontSize(sFontSize);
+            doc.setTextColor(220, 38, 38);
+            doc.text(currentWord.term, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
+              align: 'center',
+              maxWidth: cardWidth - 4
+            });
+            doc.setTextColor(0, 0, 0);
+          }
         } else {
-          const blankedTerm = formatLookAndWriteTerm(currentWord.term);
-          applyFont(doc, activeFont, 'normal');
-          doc.setFontSize(sFontSize);
-          doc.setTextColor(30, 41, 59);
-          doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-            align: 'center',
-            maxWidth: cardWidth - 4
-          });
-          doc.setTextColor(0, 0, 0);
+          const sentenceData = getLookAndWriteSentence(currentWord);
+          if (sentenceData) {
+            drawLookAndWriteSentence(
+              doc,
+              sentenceData.fullSentence,
+              cardX,
+              cardY + imgBoxHeight,
+              cardWidth,
+              sentenceBoxHeight,
+              sFontSize,
+              activeFont
+            );
+          } else {
+            const blankedTerm = formatLookAndWriteTerm(currentWord.term);
+            applyFont(doc, activeFont, 'normal');
+            doc.setFontSize(sFontSize);
+            doc.setTextColor(30, 41, 59);
+            doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
+              align: 'center',
+              maxWidth: cardWidth - 4
+            });
+            doc.setTextColor(0, 0, 0);
+          }
         }
       }
 
@@ -5421,8 +5767,10 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       const gridStartY = currentY + (blockTotalH - totalGridH) / 2;
       const hintsStartY = currentY + (blockTotalH - hintsTotalH) / 2;
 
+      const isAnsMode = options.answerMode === 'answer';
+
       // 3. Draw Puzzle Grid
-      drawWordsearchGrid(doc, grid, gridStartX, gridStartY, cellSize, activeFont, gridBorder, activeFontSize);
+      drawWordsearchGrid(doc, grid, gridStartX, gridStartY, cellSize, activeFont, gridBorder, activeFontSize, isAnsMode, placedWords);
 
       // 4. Draw Flanking Hints
       await drawWordsearchHints(
@@ -5443,7 +5791,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           showImageBorder,
           gapX,
           wordsearchCase,
-          imageSize: imgSize
+          imageSize: imgSize,
+          isAnswerMode: isAnsMode
         }
       );
 
@@ -5479,6 +5828,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
     const topMargin = (showHeader && title) ? margin + (isA5 ? 12 : 15) : margin + 4;
 
+    const isAnsMode = options.answerMode === 'answer';
+    const targetLetter = (options.targetLetter || 'a').toLowerCase();
+
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) doc.addPage();
       await insertBackground(doc, background, isA5);
@@ -5509,6 +5861,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         const currentWord = validWords[i];
         const targetImg = wordImages[i];
+        const hasTargetLetter = currentWord.term.toLowerCase().includes(targetLetter);
 
         // Centered image (0.5 x 0.5 in = 12.7 x 12.7 mm)
         const imgX = cardX + (cardWidth - imgSize) / 2;
@@ -5524,11 +5877,25 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           doc.rect(imgX, imgY, imgSize, imgSize);
         }
 
+        // Highlight correct image in Answer Mode
+        if (isAnsMode && hasTargetLetter) {
+          doc.setDrawColor(220, 38, 38);
+          doc.setLineWidth(0.85);
+          setDocLineDash(doc, []);
+          doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, imgSize * 0.58, 'S');
+        }
+
         // Lowercase Word label below image
         if (showLabels) {
-          applyFont(doc, activeFont, 'normal');
-          doc.setFontSize(effectiveFontSize);
-          doc.setTextColor(30, 41, 59);
+          if (isAnsMode && hasTargetLetter) {
+            applyFont(doc, activeFont, 'bold');
+            doc.setFontSize(effectiveFontSize);
+            doc.setTextColor(220, 38, 38);
+          } else {
+            applyFont(doc, activeFont, 'normal');
+            doc.setFontSize(effectiveFontSize);
+            doc.setTextColor(30, 41, 59);
+          }
           const textY = imgY + imgSize + (effectiveFontSize * 0.352778 * 0.9) + 2.0;
           doc.text(currentWord.term.trim().toLowerCase(), cardX + cardWidth / 2, textY, {
             align: 'center',
@@ -5674,17 +6041,38 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           setDocLineDash(doc, []); // reset
         }
 
+        const isAnsMode = options.answerMode === 'answer';
+
         // Choice controls
         if (choiceMode === 'ab') {
           const letterBandY = boxY + imgBoxHeight;
           const letterFontSize = Math.min(effectiveFontSize * 1.1, isA5 ? 13 : 15);
-          applyFont(doc, activeFont, 'bold');
-          doc.setFontSize(letterFontSize);
-          doc.setTextColor(30, 41, 59);
           const letterTextY = letterBandY + bottomAreaH / 2 + (isA5 ? 1.1 : 1.4);
-          doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
-          doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
-          doc.setTextColor(0, 0, 0);
+
+          if (isAnsMode) {
+            const correctCenterX = isTargetOnA ? (cardX + subW / 2) : (cardX + subW + subW / 2);
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.65);
+            setDocLineDash(doc, []);
+            doc.circle(correctCenterX, letterTextY - (isA5 ? 1.1 : 1.3), letterFontSize * 0.45, 'S');
+
+            applyFont(doc, activeFont, isTargetOnA ? 'bold' : 'normal');
+            doc.setFontSize(letterFontSize);
+            doc.setTextColor(isTargetOnA ? 220 : 30, isTargetOnA ? 38 : 41, isTargetOnA ? 38 : 59);
+            doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
+
+            applyFont(doc, activeFont, !isTargetOnA ? 'bold' : 'normal');
+            doc.setTextColor(!isTargetOnA ? 220 : 30, !isTargetOnA ? 38 : 41, !isTargetOnA ? 38 : 59);
+            doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+          } else {
+            applyFont(doc, activeFont, 'bold');
+            doc.setFontSize(letterFontSize);
+            doc.setTextColor(30, 41, 59);
+            doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
+            doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+          }
         } else if (choiceMode === 'checkbox') {
           const checkBandY = boxY + imgBoxHeight;
           const boxDim = isA5 ? 4.5 : 5.2;
@@ -5695,6 +6083,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           doc.setLineWidth(0.35);
           doc.roundedRect(leftBoxX, cBoxY, boxDim, boxDim, 0.8, 0.8, 'S');
           doc.roundedRect(rightBoxX, cBoxY, boxDim, boxDim, 0.8, 0.8, 'S');
+
+          if (isAnsMode) {
+            const chkX = isTargetOnA ? leftBoxX : rightBoxX;
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.65);
+            setDocLineDash(doc, []);
+            doc.line(chkX + boxDim * 0.2, cBoxY + boxDim * 0.5, chkX + boxDim * 0.42, cBoxY + boxDim * 0.78);
+            doc.line(chkX + boxDim * 0.42, cBoxY + boxDim * 0.78, chkX + boxDim * 0.82, cBoxY + boxDim * 0.22);
+          }
         }
 
         // 3. Draw Images
@@ -5724,6 +6121,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           }
         } else if (showImageBorder) {
           doc.rect(rx, ry, maxImgDim, maxImgDim);
+        }
+
+        if (choiceMode === 'none' && isAnsMode) {
+          const picCenterX = isTargetOnA ? (cardX + subW / 2) : (cardX + subW + subW / 2);
+          const picCenterY = boxY + imgBoxHeight / 2;
+          doc.setDrawColor(220, 38, 38);
+          doc.setLineWidth(0.85);
+          setDocLineDash(doc, []);
+          doc.circle(picCenterX, picCenterY, maxImgDim * 0.58, 'S');
         }
       }
 
@@ -5810,8 +6216,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const currentWord = validWords[i];
         const targetImg = wordImages[i];
 
-        // Generate choices for current word
-        const { choices } = generateType16Choices(
+        const isAnsMode = options.answerMode === 'answer';
+        const { choices, targetIndex } = generateType16Choices(
           currentWord.term,
           soundMode,
           choiceCount,
@@ -5859,10 +6265,6 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           }
 
           // Draw horizontal choices neatly grouped under image
-          applyFont(doc, activeFont, 'normal');
-          doc.setFontSize(effectiveFontSize);
-          doc.setTextColor(30, 41, 59);
-
           const choiceY = imgY + effectiveImgSize + gapImgToChoices + fontHeightMm * 0.75;
           const choicesRowWidth = Math.min(cardWidth - 4, Math.max(effectiveImgSize + 4, choiceCount * (fontHeightMm * 1.5 + 4)));
           const choiceStep = choicesRowWidth / (choiceCount + 1);
@@ -5870,7 +6272,22 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           for (let j = 0; j < choiceCount; j++) {
             const choiceX = startChoiceX + (j + 1) * choiceStep;
-            doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+            if (isAnsMode && j === targetIndex) {
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.65);
+              setDocLineDash(doc, []);
+              doc.circle(choiceX, choiceY - fontHeightMm * 0.28, Math.max(fontHeightMm * 0.65, 3.2), 'S');
+
+              applyFont(doc, activeFont, 'bold');
+              doc.setFontSize(effectiveFontSize);
+              doc.setTextColor(220, 38, 38);
+              doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+            } else {
+              applyFont(doc, activeFont, 'normal');
+              doc.setFontSize(effectiveFontSize);
+              doc.setTextColor(30, 41, 59);
+              doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+            }
           }
           doc.setTextColor(0, 0, 0);
 
@@ -5937,14 +6354,25 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           }
 
           // Draw Vertical Choices
-          applyFont(doc, activeFont, 'normal');
-          doc.setFontSize(effectiveFontSize);
-          doc.setTextColor(30, 41, 59);
-
           const choicesStartY = cardY + padY + (contentHeight - choicesBlockH) / 2 + fontHeightMm * 0.75;
           for (let j = 0; j < choiceCount; j++) {
             const choiceY = choicesStartY + j * optPitch;
-            doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+            if (isAnsMode && j === targetIndex) {
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.65);
+              setDocLineDash(doc, []);
+              doc.circle(choicesCenterX, choiceY - fontHeightMm * 0.28, Math.max(fontHeightMm * 0.65, 3.2), 'S');
+
+              applyFont(doc, activeFont, 'bold');
+              doc.setFontSize(effectiveFontSize);
+              doc.setTextColor(220, 38, 38);
+              doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+            } else {
+              applyFont(doc, activeFont, 'normal');
+              doc.setFontSize(effectiveFontSize);
+              doc.setTextColor(30, 41, 59);
+              doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+            }
           }
           doc.setTextColor(0, 0, 0);
         }
@@ -5970,7 +6398,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const cardBorderStyle: Type17CardBorder = options.type17CardBorder || 'none';
     const letterCase: Type17LetterCase = options.type17LetterCase || 'lower';
     const stripLengthOpt: Type17StripLength = options.type17StripLength || 'auto';
-    const highlightTarget: Type17HighlightTarget = options.type17HighlightTarget || 'none';
+    const isAnsMode = options.answerMode === 'answer' || options.type17HighlightTarget === 'red';
+    const highlightTarget: Type17HighlightTarget = isAnsMode ? 'red' : (options.type17HighlightTarget || 'none');
     const showExample = options.type17ShowExample !== false;
 
     const effectiveFontSize = fontSize || (isA5 ? 13 : 15);
@@ -6343,8 +6772,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       rowHeight = metrics.itemTotalHeight;
       minUnitH = rowHeight;
     } else if (section.type === 2) {
-      const rowGap = 0.8 + secSpacing * 0.45;
-      rowHeight = imgSize + lineOffset + rowGap;
+      const type2Metrics = calculateType2Metrics(secFontSize, secSpacing, imgSize, isA5);
+      rowHeight = type2Metrics.rowHeight;
       minUnitH = rowHeight;
     } else if (section.type === 4) {
       if (section.type4LayoutMode === 'table') {
@@ -6358,8 +6787,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         rowHeight = contentH + spacingMm + baseRowGap;
         minUnitH = rowHeight;
       } else {
-        const rowGap = 0.8 + secSpacing * 0.45;
-        rowHeight = imgSize + textOffset + 1.2 + rowGap;
+        const gridMetrics = calculateType4GridMetrics(secFontSize, secSpacing, imgSize, isA5);
+        rowHeight = gridMetrics.rowHeight;
         minUnitH = rowHeight;
       }
     } else if (section.type === 6) {
@@ -6374,7 +6803,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         contentHeight = Math.max(imgSize, fontHeightMm);
         rowGap = (secSpacing === 0 ? 1.2 : 2.5) + secSpacing * ptToMm * 0.75;
       } else {
-        const spacingFactor = numChoices === 2 ? 1.35 : 1.18;
+        const spacingFactor = numChoices === 2 ? 1.40 : 1.36;
         const optPitch = fontHeightMm * spacingFactor + (secSpacing * ptToMm * 0.45);
         const optionsBlockHeight = (numChoices - 1) * optPitch + fontHeightMm;
         contentHeight = Math.max(imgSize, optionsBlockHeight);
@@ -6383,16 +6812,18 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       rowHeight = contentHeight + rowGap;
       minUnitH = rowHeight;
     } else if (section.type === 7) {
-      const contentHeight = imgSize + textOffset1 + textOffset2 + 1.2;
-      const rowGap = 0.8 + secSpacing * 0.45;
-      rowHeight = contentHeight + rowGap;
+      const type7Metrics = calculateType7Metrics(secFontSize, secSpacing, imgSize, isA5);
+      rowHeight = type7Metrics.rowHeight;
       minUnitH = rowHeight;
     } else if (section.type === 8) {
       const traceFontSize = secFontSize || (isA5 ? 22 : 26);
-      const textBlockH = traceFontSize * 0.352778 * 1.15;
+      const isAnsMode = section.answerMode === 'answer';
+      const traceFont = isAnsMode ? (secFont && secFont !== 'KG Primary Dots' ? secFont : 'r0c0i Linotte') : 'KG Primary Dots';
+      const layout0 = layoutTraceText(doc, secWords[0]?.term || 'word', traceFontSize, (printableWidth - (isA5 ? 24 : 32)) / 3 - 3, traceFont);
+      const textBlockH = layout0.lines.length * (layout0.fontSize * 0.352778 * 1.15);
       const contentH = Math.max(imgSize, textBlockH);
       const rowGap = (secSpacing !== undefined ? secSpacing : 0) * 0.352778;
-      rowHeight = contentH + 2.0 + rowGap;
+      rowHeight = contentH + Math.max(2.0, (traceFontSize * 0.352778) * 0.22) + rowGap;
       minUnitH = rowHeight;
     } else if (section.type === 9) {
       const cols = 3;
@@ -6402,11 +6833,11 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       rowHeight = secMetrics.baseRowHeight;
       minUnitH = rowHeight;
     } else if (section.type === 10) {
-      const imgBoxHeight = Math.max(imgSize + 2.0, isA5 ? 14.0 : 16.0);
-      const wordBoxHeight = isA5 ? 7.5 : 9.5;
-      const cardHeight = imgBoxHeight + wordBoxHeight;
-      const rowGap = (secSpacing === 0 ? 1.0 : 2.5) + (secSpacing !== undefined ? secSpacing : 0) * 0.25;
-      rowHeight = cardHeight + rowGap;
+      const cols = 3;
+      const colGap = isA5 ? 3.0 : 4.5;
+      const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
+      const secMetrics = calculateType10Metrics(isA5, imgSize, secSpacing, secFontSize, cardWidth);
+      rowHeight = secMetrics.rowHeight;
       minUnitH = rowHeight;
     } else if (section.type === 11) {
       const contentH = Math.max(imgSize + 2.5, isA5 ? 14.0 : 16.0);
@@ -6651,7 +7082,20 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         const wordsBottom = wordsY + (wordsLineCount - 1) * wordsLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         let actualHintBottom = wordsBottom;
 
-        if (hintStyle === 'trace') {
+        if (section.answerMode === 'answer') {
+          applyFont(doc, secFont, 'bold');
+          doc.setFontSize(effectiveSecFontSize);
+          doc.setTextColor(220, 38, 38);
+          const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
+          doc.text(targetSentence, pageWidth / 2, hintY, {
+            align: 'center',
+            maxWidth: printableWidth - 4
+          });
+          const ansLines = doc.splitTextToSize(targetSentence, printableWidth - 4);
+          const ansLineCount = Math.max(1, Array.isArray(ansLines) ? ansLines.length : 1);
+          const ansLineHeight = effectiveSecFontSize * 0.352778 * 1.25;
+          actualHintBottom = hintY + (ansLineCount - 1) * ansLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
+        } else if (hintStyle === 'trace') {
           doc.setFont('KGPrimaryDots', 'normal');
           let actualTraceFontSize = traceFontSize;
           doc.setFontSize(actualTraceFontSize);
@@ -6712,6 +7156,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const colWidth = printableWidth / cols;
       const halfLineLen = isA5 ? 16 : 20;
       const totalRows = Math.ceil(secWords.length / cols);
+      const secMetrics = calculateType2Metrics(secFontSize, secSpacing, imgSize, isA5);
 
       for (let r = 0; r < totalRows; r++) {
         if (currentY + rowHeight > maxContentY && !isAtTopOfPage) {
@@ -6742,9 +7187,20 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           doc.setDrawColor(80, 80, 80);
           doc.setLineWidth(0.15);
           setDocLineDash(doc, [0.4, 0.6]);
-          const lineY = imgY + imgSize + lineOffset;
+          const lineY = imgY + imgSize + secMetrics.lineOffset;
           doc.line(colCenter - halfLineLen, lineY, colCenter + halfLineLen, lineY);
           setDocLineDash(doc, []);
+
+          // If Answer Mode: render word in bold red above dotted baseline
+          if (section.answerMode === 'answer') {
+            applyFont(doc, secFont, 'bold');
+            doc.setFontSize(secMetrics.effectiveFontSize);
+            doc.setTextColor(220, 38, 38);
+            const wordY = lineY - 1.2;
+            doc.text(word.term, colCenter, wordY, { align: 'center', maxWidth: colWidth - 4 });
+            applyFont(doc, secFont, 'normal');
+            doc.setTextColor(0, 0, 0);
+          }
         }
 
         currentY += rowHeight;
@@ -6848,13 +7304,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             const col1X = tableX + col1Width + (isA5 ? 2.0 : 3.5);
             const col2X = tableX + col1Width + colTextWidth + (isA5 ? 2.0 : 3.5);
 
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
-            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+            const isAnsMode = section.answerMode === 'answer';
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices, blankIndices: new Set<number>() } as Type4CellConfig, col1X, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
+            drawType4WordCell(doc, term, { mode: 'custom', traceIndices: new Set<number>(), blankIndices } as Type4CellConfig, col2X, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
           } else {
+            const isAnsMode = section.answerMode === 'answer';
             for (let c = 0; c < cellTypes.length; c++) {
               const cellType = cellTypes[c];
               const cellX = tableX + col1Width + c * colTextWidth + (isA5 ? 2.0 : 3.5);
-              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize);
+              drawType4WordCell(doc, term, cellType, cellX, baselineY, wordFontSize, regularFont, cellTraceFontSize, isAnsMode);
             }
           }
 
@@ -6868,6 +7326,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         const cols = 3;
         const colWidth = printableWidth / cols;
         const totalRows = Math.ceil(secWords.length / cols);
+        const secGridMetrics = calculateType4GridMetrics(secFontSize, secSpacing, imgSize, isA5);
 
         for (let r = 0; r < totalRows; r++) {
           if (currentY + rowHeight > maxContentY && !isAtTopOfPage) {
@@ -6894,12 +7353,21 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               doc.rect(imgX, imgY, imgSize, imgSize);
             }
 
-            doc.setFontSize(secFontSize);
-            applyFont(doc, secFont, 'normal');
-            doc.setTextColor(0, 0, 0);
-            const missingTerm = punchBlanks(word.term, section.blankMode || 'vowels');
-            const textY = imgY + imgSize + textOffset;
-            doc.text(missingTerm, colCenter, textY, { align: 'center' });
+            const textY = imgY + imgSize + secGridMetrics.textOffset;
+            if (section.answerMode === 'answer') {
+              applyFont(doc, secFont, 'bold');
+              doc.setFontSize(secFontSize);
+              doc.setTextColor(220, 38, 38);
+              doc.text(word.term, colCenter, textY, { align: 'center' });
+              applyFont(doc, secFont, 'normal');
+              doc.setTextColor(0, 0, 0);
+            } else {
+              doc.setFontSize(secFontSize);
+              applyFont(doc, secFont, 'normal');
+              doc.setTextColor(0, 0, 0);
+              const missingTerm = punchBlanks(word.term, section.blankMode || 'vowels');
+              doc.text(missingTerm, colCenter, textY, { align: 'center' });
+            }
           }
 
           currentY += rowHeight;
@@ -6927,7 +7395,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       if (isHorizontal) {
         contentHeight = Math.max(imgSize, baseFontHeightMm);
       } else {
-        spacingFactor = numChoices === 2 ? 1.35 : 1.18;
+        spacingFactor = numChoices === 2 ? 1.40 : 1.36;
         baseOptPitch = baseFontHeightMm * spacingFactor + (secSpacing * ptToMm * 0.45);
         baseOptionsBlockHeight = (numChoices - 1) * baseOptPitch + baseFontHeightMm;
         contentHeight = Math.max(imgSize, baseOptionsBlockHeight);
@@ -7013,8 +7481,27 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             const baselineY = rowCenterY + (itemFontHeightMm * 0.35);
 
             for (let opt = 0; opt < 2; opt++) {
+              const optText = optionsList[opt] || '';
               const optX = optStartX + opt * slotWidth;
-              doc.text(optionsList[opt] || '', optX, baselineY);
+              const isCorrect = optText.trim().toLowerCase() === currentWord.trim().toLowerCase();
+              if (section.answerMode === 'answer' && isCorrect) {
+                const textW = doc.getTextWidth(optText);
+                const pillPadX = 1.8;
+                const pillPadY = Math.min(0.7, itemFontHeightMm * 0.12);
+                const pillH = itemFontHeightMm * 0.95 + pillPadY * 2;
+                const pillY = baselineY - itemFontHeightMm * 0.78 - pillPadY;
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.45);
+                doc.roundedRect(optX - pillPadX, pillY, textW + pillPadX * 2, pillH, pillH / 2, pillH / 2, 'S');
+                applyFont(doc, secFont, 'bold');
+                doc.setTextColor(220, 38, 38);
+                doc.text(optText, optX, baselineY);
+                applyFont(doc, secFont, 'normal');
+                doc.setTextColor(30, 41, 59);
+              } else {
+                doc.setTextColor(30, 41, 59);
+                doc.text(optText, optX, baselineY);
+              }
             }
           } else {
             const optStartX = imgX + imgSize + 4;
@@ -7048,9 +7535,27 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             const firstBaseline = optBlockTop + fontAscent;
 
             for (let opt = 0; opt < numChoices; opt++) {
+              const optText = optionsList[opt] || '';
               const optY = firstBaseline + opt * itemOptPitch;
-              // Option text directly without small radio circle (students circle the words directly)
-              doc.text(optionsList[opt] || '', optStartX, optY);
+              const isCorrect = optText.trim().toLowerCase() === currentWord.trim().toLowerCase();
+              if (section.answerMode === 'answer' && isCorrect) {
+                const textW = doc.getTextWidth(optText);
+                const pillPadX = 1.8;
+                const pillPadY = Math.min(0.7, itemFontHeightMm * 0.12);
+                const pillH = itemFontHeightMm * 0.95 + pillPadY * 2;
+                const pillY = optY - itemFontHeightMm * 0.78 - pillPadY;
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.45);
+                doc.roundedRect(optStartX - pillPadX, pillY, textW + pillPadX * 2, pillH, pillH / 2, pillH / 2, 'S');
+                applyFont(doc, secFont, 'bold');
+                doc.setTextColor(220, 38, 38);
+                doc.text(optText, optStartX, optY);
+                applyFont(doc, secFont, 'normal');
+                doc.setTextColor(30, 41, 59);
+              } else {
+                doc.setTextColor(30, 41, 59);
+                doc.text(optText, optStartX, optY);
+              }
             }
           }
         }
@@ -7065,6 +7570,9 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const cols = 3;
       const colWidth = printableWidth / cols;
       const totalRows = Math.ceil(secWords.length / cols);
+      const metrics = calculateType7Metrics(secFontSize, secSpacing, imgSize, isA5);
+      const { effectiveFontSize, textOffset1, textOffset2, rowHeight: t7RowHeight } = metrics;
+      const rowHeight = t7RowHeight;
 
       for (let r = 0; r < totalRows; r++) {
         if (currentY + rowHeight > maxContentY && !isAtTopOfPage) {
@@ -7092,19 +7600,27 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           }
 
           const scrambled = scrambleString(word.term);
-          const blanks = word.term
-            .split(' ')
-            .map((part) => '__ '.repeat(part.length).trim())
-            .join('   ');
-
           const textY1 = imgY + imgSize + textOffset1;
           const textY2 = textY1 + textOffset2;
 
-          doc.setFontSize(secFontSize);
+          doc.setFontSize(effectiveFontSize);
           applyFont(doc, secFont, 'normal');
-          doc.setTextColor(0, 0, 0);
+          doc.setTextColor(30, 41, 59);
           doc.text(scrambled, colCenter, textY1, { align: 'center' });
-          doc.text(blanks, colCenter, textY2, { align: 'center' });
+
+          if (section.answerMode === 'answer') {
+            applyFont(doc, secFont, 'bold');
+            doc.setTextColor(220, 38, 38);
+            doc.text(word.term, colCenter, textY2, { align: 'center' });
+            applyFont(doc, secFont, 'normal');
+            doc.setTextColor(30, 41, 59);
+          } else {
+            const blanks = word.term
+              .split(' ')
+              .map((part) => '__ '.repeat(part.length).trim())
+              .join('   ');
+            doc.text(blanks, colCenter, textY2, { align: 'center' });
+          }
         }
 
         currentY += rowHeight;
@@ -7285,14 +7801,26 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             let currentWriteFontSize = traceFontSize;
 
             if (writeMode === 'blank') {
-              writeTextToDraw = formatLookMatchWriteBlank(writeWord);
-              currentWriteFont = 'r0c0i Linotte';
-              currentWriteFontSize = prefixFontSize;
+              if (section.answerMode === 'answer') {
+                writeTextToDraw = writeWord;
+                currentWriteFont = secFont || 'r0c0i Linotte';
+                currentWriteFontSize = prefixFontSize;
+                applyFont(doc, currentWriteFont, 'bold');
+                doc.setFontSize(currentWriteFontSize);
+                doc.setTextColor(220, 38, 38);
+              } else {
+                writeTextToDraw = formatLookMatchWriteBlank(writeWord);
+                currentWriteFont = 'r0c0i Linotte';
+                currentWriteFontSize = prefixFontSize;
+                applyFont(doc, currentWriteFont, 'normal');
+                doc.setFontSize(currentWriteFontSize);
+                doc.setTextColor(45, 55, 72);
+              }
+            } else {
+              applyFont(doc, currentWriteFont, 'normal');
+              doc.setFontSize(currentWriteFontSize);
+              doc.setTextColor(45, 55, 72);
             }
-
-            applyFont(doc, currentWriteFont, 'normal');
-            doc.setFontSize(currentWriteFontSize);
-            doc.setTextColor(45, 55, 72);
 
             const textBaselineY = rowCenterY + (isA5 ? 1.0 : 1.3);
             doc.text(writeTextToDraw, writeStartX, textBaselineY, { align: 'left' });
@@ -7309,6 +7837,26 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               setDocLineDash(doc, [0.8, 0.8]);
               doc.line(writeStartX, baselineY, writeStartX + baselineW, baselineY);
               setDocLineDash(doc, []);
+            }
+          }
+
+          // If Answer Mode: draw connecting lines for look_match_write
+          if (section.answerMode === 'answer') {
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.45);
+            for (let i = 0; i < count; i++) {
+              const picRowCenterY = currentY + i * (rowContentHeight + rowGap) + rowContentHeight / 2;
+              const targetPrefixRowIdx = shuffledWordRows.findIndex((item) => item.originalIndex === i);
+              if (targetPrefixRowIdx !== -1) {
+                const targetPrefixCenterY = currentY + targetPrefixRowIdx * (rowContentHeight + rowGap) + rowContentHeight / 2;
+                doc.line(imgDotX, picRowCenterY, prefixLeftDotX, targetPrefixCenterY);
+
+                const targetSuffixRowIdx = suffixItems.findIndex((s) => s.word.term === chunk[i].term);
+                if (targetSuffixRowIdx !== -1) {
+                  const targetSuffixCenterY = currentY + targetSuffixRowIdx * (rowContentHeight + rowGap) + rowContentHeight / 2;
+                  doc.line(prefixRightDotX, targetPrefixCenterY, suffixDotX, targetSuffixCenterY);
+                }
+              }
             }
           }
 
@@ -7360,7 +7908,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             const img = word.imageUrl ? await fetchImageAsBase64(word.imageUrl) : null;
             if (img) {
               try {
-                doc.addImage(img, 'JPEG', posX, posY, imgSize, imgSize);
+                const imgFmt = (img.startsWith('data:image/png') || img.startsWith('iVBORw0KGgo')) ? 'PNG' : 'JPEG';
+                doc.addImage(img, imgFmt, posX, posY, imgSize, imgSize);
               } catch {
                 if (showImageBorder) doc.rect(posX, posY, imgSize, imgSize);
               }
@@ -7458,6 +8007,28 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               doc.setFillColor(item.color[0], item.color[1], item.color[2]);
               doc.circle(textDotX, textDotY, dotRadius, 'F');
             }
+
+            // If Answer Mode: draw connecting lines for sentences
+            if (section.answerMode === 'answer') {
+              for (let i = 0; i < count; i++) {
+                const isRight = i >= half;
+                const rowInCol = isRight ? i - half : i;
+                const posX = isRight ? (pageWidth - margin - imgSize - 2) : (margin + 2);
+                const posY = currentY + (half > 1 ? rowInCol * imgPitch : 0);
+                const imgCenterY = posY + imgSize / 2;
+                const imgDotX = isRight ? (posX - dotImgOffset) : (posX + imgSize + dotImgOffset);
+
+                const targetShuffledIdx = shuffledItems.findIndex((it) => it.originalIndex === i);
+                if (targetShuffledIdx !== -1) {
+                  const targetItem = shuffledItems[targetShuffledIdx];
+                  const targetTextDotX = targetItem.isRight ? rightSentenceDotX : leftSentenceDotX;
+                  const targetTextDotY = currentY + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                  doc.setDrawColor(220, 38, 38);
+                  doc.setLineWidth(0.45);
+                  doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
+                }
+              }
+            }
           } else {
             applyFont(doc, secFont, 'normal');
             doc.setFontSize(secFontSize);
@@ -7491,6 +8062,28 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               doc.setFillColor(item.color[0], item.color[1], item.color[2]);
               doc.circle(textDotX, textDotY, dotRadius, 'F');
             }
+
+            // If Answer Mode: draw connecting lines for words
+            if (section.answerMode === 'answer') {
+              for (let i = 0; i < count; i++) {
+                const isRight = i >= half;
+                const rowInCol = isRight ? i - half : i;
+                const posX = isRight ? (pageWidth - margin - imgSize - 2) : (margin + 2);
+                const posY = currentY + (half > 1 ? rowInCol * imgPitch : 0);
+                const imgCenterY = posY + imgSize / 2;
+                const imgDotX = isRight ? (posX - dotImgOffset) : (posX + imgSize + dotImgOffset);
+
+                const targetShuffledIdx = shuffledItems.findIndex((it) => it.originalIndex === i);
+                if (targetShuffledIdx !== -1) {
+                  const targetItem = shuffledItems[targetShuffledIdx];
+                  const targetTextDotX = targetItem.isRight ? rightTextDotX : leftTextDotX;
+                  const targetTextDotY = currentY + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                  doc.setDrawColor(220, 38, 38);
+                  doc.setLineWidth(0.45);
+                  doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
+                }
+              }
+            }
           }
 
           currentY += chunkHeight;
@@ -7511,13 +8104,17 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
       const traceFontSize = secFontSize || (isA5 ? 22 : 26);
       const rowGap = (secSpacing !== undefined ? secSpacing : 6) * 0.352778;
+      const isAnsMode = section.answerMode === 'answer';
+      const traceFont = isAnsMode
+        ? (section.fontFamily && section.fontFamily !== 'KG Primary Dots' ? section.fontFamily : 'r0c0i Linotte')
+        : ((section.fontFamily && section.fontFamily !== 'r0c0i Linotte') ? section.fontFamily : 'KG Primary Dots');
 
       for (let i = 0; i < secWords.length; i++) {
         const word = secWords[i];
-        const layout = layoutTraceText(doc, word.term, traceFontSize, colTraceWidth - 3);
+        const layout = layoutTraceText(doc, word.term, traceFontSize, colTraceWidth - 3, traceFont);
         const textBlockH = layout.lines.length * (layout.fontSize * 0.352778 * 1.15);
         const contentH = Math.max(imgSize, textBlockH);
-        const baseRowHeight = contentH + 2.0;
+        const baseRowHeight = contentH + Math.max(2.0, (traceFontSize * 0.352778) * 0.22);
         const rowHeight = baseRowHeight + rowGap;
 
         if (currentY + rowHeight > maxContentY && !isAtTopOfPage) {
@@ -7557,11 +8154,16 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           doc.text(initial, col1CenterX, rowCenterY + (isA5 ? 1.4 : 1.7), { align: 'center' });
         }
 
-        // Columns 2, 3, 4: Trace text with font KG Primary Dots (or chosen font) with word-wrapping ("xuống hàng")
-        const traceFont = (section.fontFamily && section.fontFamily !== 'r0c0i Linotte') ? section.fontFamily : 'KG Primary Dots';
-        applyFont(doc, traceFont, 'normal');
-        doc.setFontSize(layout.fontSize);
-        doc.setTextColor(30, 30, 30);
+        // Columns 2, 3, 4: Trace text with font KG Primary Dots (or solid red font in answer mode)
+        if (isAnsMode) {
+          applyFont(doc, traceFont, 'bold');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(220, 38, 38);
+        } else {
+          applyFont(doc, traceFont, 'normal');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(30, 30, 30);
+        }
 
         const lineHeight = layout.fontSize * 0.352778 * 1.15;
         const totalBlockHeight = (layout.lines.length - 1) * lineHeight;
@@ -7697,17 +8299,48 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const yesCenterX = cardCenterX - circleSpacing / 2;
           const noCenterX = cardCenterX + circleSpacing / 2;
 
-          doc.setDrawColor(70, 70, 70);
-          doc.setLineWidth(0.3);
-          doc.circle(yesCenterX, circleCenterY, circleRadius, 'S');
-          doc.circle(noCenterX, circleCenterY, circleRadius, 'S');
+          const isAnsMode = section.answerMode === 'answer';
 
-          applyFont(doc, secFont, 'normal');
-          doc.setFontSize(isA5 ? 8.5 : 10.5);
-          doc.setTextColor(30, 41, 59);
-          doc.text('Yes', yesCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
-          doc.text('No', noCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
-          doc.setTextColor(0, 0, 0);
+          if (isAnsMode) {
+            const correctCenterX = isYes ? yesCenterX : noCenterX;
+            const otherCenterX = isYes ? noCenterX : yesCenterX;
+            const correctText = isYes ? 'Yes' : 'No';
+            const otherText = isYes ? 'No' : 'Yes';
+
+            // Correct circle: filled in red with white bold text
+            doc.setFillColor(220, 38, 38);
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.4);
+            doc.circle(correctCenterX, circleCenterY, circleRadius, 'FD');
+
+            applyFont(doc, secFont, 'bold');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text(correctText, correctCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+
+            // Other circle: hollow with normal text
+            doc.setDrawColor(70, 70, 70);
+            doc.setLineWidth(0.3);
+            doc.circle(otherCenterX, circleCenterY, circleRadius, 'S');
+
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text(otherText, otherCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.setTextColor(0, 0, 0);
+          } else {
+            doc.setDrawColor(70, 70, 70);
+            doc.setLineWidth(0.3);
+            doc.circle(yesCenterX, circleCenterY, circleRadius, 'S');
+            doc.circle(noCenterX, circleCenterY, circleRadius, 'S');
+
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(isA5 ? 8.5 : 10.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text('Yes', yesCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.text('No', noCenterX, circleCenterY, { align: 'center', baseline: 'middle' });
+            doc.setTextColor(0, 0, 0);
+          }
         }
 
         currentY += rowHeight;
@@ -7721,12 +8354,10 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const cols = 3;
       const colGap = isA5 ? 3.0 : 4.5;
       const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
-      const imgBoxHeight = Math.max(imgSize + 2.0, isA5 ? 14.0 : 16.0);
-      const wordBoxHeight = isA5 ? 7.5 : 9.5;
-      const cardHeight = imgBoxHeight + wordBoxHeight;
-      const subW = cardWidth / 2;
-      const maxImgDim = Math.min(imgSize, subW - 2, imgBoxHeight - 2);
+      const metrics = calculateType10Metrics(isA5, imgSize, secSpacing, secFontSize, cardWidth);
+      const { effectiveFontSize, subW, imgBoxHeight, maxImgDim, wordBoxHeight, rowHeight } = metrics;
       const totalRows = Math.ceil(secWords.length / cols);
+      const isAnsMode = section.answerMode === 'answer';
 
       const poolWithImages = masterWordPool.filter((w) => w.imageUrl && w.imageUrl.trim().length > 0);
 
@@ -7760,42 +8391,71 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
           // Strictly NO outer card box / frame
 
+          const lx = cardX + (subW - maxImgDim) / 2;
+          const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
+          const rx = cardX + subW + (subW - maxImgDim) / 2;
+          const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
+
           if (leftImg) {
-            const lx = cardX + (subW - maxImgDim) / 2;
-            const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
             try {
               doc.addImage(leftImg, 'JPEG', lx, ly, maxImgDim, maxImgDim);
             } catch {
               if (showImageBorder) doc.rect(lx, ly, maxImgDim, maxImgDim);
             }
           } else if (showImageBorder) {
-            const lx = cardX + (subW - maxImgDim) / 2;
-            const ly = cardY + (imgBoxHeight - maxImgDim) / 2;
             doc.rect(lx, ly, maxImgDim, maxImgDim);
           }
 
           if (rightImg) {
-            const rx = cardX + subW + (subW - maxImgDim) / 2;
-            const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
             try {
               doc.addImage(rightImg, 'JPEG', rx, ry, maxImgDim, maxImgDim);
             } catch {
               if (showImageBorder) doc.rect(rx, ry, maxImgDim, maxImgDim);
             }
           } else if (showImageBorder) {
-            const rx = cardX + subW + (subW - maxImgDim) / 2;
-            const ry = cardY + (imgBoxHeight - maxImgDim) / 2;
             doc.rect(rx, ry, maxImgDim, maxImgDim);
           }
 
-          doc.setFontSize(secFontSize || (isA5 ? 12 : 14));
-          applyFont(doc, secFont, 'normal');
-          doc.setTextColor(0, 0, 0);
-          const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.2 : 1.5);
-          doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-            align: 'center',
-            maxWidth: cardWidth - 2
-          });
+          if (isAnsMode) {
+            const ansX = isCorrectOnLeft ? lx : rx;
+            const ansY = isCorrectOnLeft ? ly : ry;
+
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.5);
+            doc.roundedRect(ansX - 0.8, ansY - 0.8, maxImgDim + 1.6, maxImgDim + 1.6, 1.2, 1.2, 'S');
+
+            const badgeR = 2.0;
+            const badgeX = ansX + maxImgDim - 0.8;
+            const badgeY = ansY + 0.8;
+            doc.setFillColor(220, 38, 38);
+            doc.circle(badgeX, badgeY, badgeR, 'F');
+            applyFont(doc, 'r0c0i Linotte', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text('✓', badgeX, badgeY + 0.65, { align: 'center' });
+          }
+
+          const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.0 : 1.3);
+          if (isAnsMode) {
+            applyFont(doc, secFont, 'bold');
+            doc.setFontSize(effectiveFontSize);
+            doc.setTextColor(220, 38, 38);
+            doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
+              align: 'center',
+              maxWidth: cardWidth - 2
+            });
+            doc.setTextColor(0, 0, 0);
+            applyFont(doc, secFont, 'normal');
+          } else {
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(effectiveFontSize);
+            doc.setTextColor(30, 41, 59);
+            doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
+              align: 'center',
+              maxWidth: cardWidth - 2
+            });
+            doc.setTextColor(0, 0, 0);
+          }
         }
 
         currentY += rowHeight;
@@ -7806,6 +8466,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       // TYPE 11: Write and circle the correct picture (Composite mode)
       // Strictly NO bounding box / frame around cards or images!
       // -------------------------------------------------------------
+      const isAnsMode = section.answerMode === 'answer';
       const tableX = margin;
       const tableWidth = printableWidth;
       const colWordWidth = isA5 ? 46.0 : 68.0;
@@ -7819,6 +8480,11 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const defaultFontSize = isTrace ? (isA5 ? 22 : 26) : (isA5 ? 13 : 15);
       const wordFontSize = secFontSize || defaultFontSize;
 
+      const textH = wordFontSize * 0.352778 * 1.25;
+      const contentH = Math.max(imgBoxHeight, textH + 2.0);
+      const rowGap = (secSpacing === 0 ? 2.0 : 2.5) + (secSpacing !== undefined ? secSpacing : 0) * 0.25;
+      const rowHeight = contentH + rowGap;
+
       const poolWithImages = masterWordPool.filter((w) => w.imageUrl && w.imageUrl.trim().length > 0);
 
       for (let i = 0; i < secWords.length; i++) {
@@ -7826,7 +8492,6 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           await addNewPage();
         }
 
-        const rowGap = (secSpacing === 0 ? 1.0 : 1.5) + (secSpacing !== undefined ? secSpacing : 0) * 0.22;
         const rowContentHeight = rowHeight - rowGap;
         const rowCenterY = currentY + rowContentHeight / 2;
         const currentWord = secWords[i];
@@ -7872,9 +8537,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         const wordCenterX = (wordLeft + wordRight) / 2;
 
         const layout = layoutTraceText(doc, currentWord.term, wordFontSize, wordRight - wordLeft - 4.0, activeFont);
-        applyFont(doc, activeFont, 'normal');
-        doc.setFontSize(layout.fontSize);
-        doc.setTextColor(isTrace ? 30 : 15, isTrace ? 30 : 23, isTrace ? 30 : 42);
+        if (isAnsMode) {
+          applyFont(doc, activeFont, 'bold');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(220, 38, 38);
+        } else {
+          applyFont(doc, activeFont, 'normal');
+          doc.setFontSize(layout.fontSize);
+          doc.setTextColor(isTrace ? 30 : 15, isTrace ? 30 : 23, isTrace ? 30 : 42);
+        }
 
         if (layout.lines.length <= 1) {
           doc.text(layout.lines[0] || '', wordCenterX, rowCenterY + (layout.fontSize * 0.352778) * 0.35, { align: 'center' });
@@ -7913,6 +8584,13 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             doc.setLineWidth(0.2);
             doc.rect(picX, picY, maxImgDim, maxImgDim);
           }
+
+          if (isAnsMode && c === targetSlot) {
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.85);
+            setDocLineDash(doc, []);
+            doc.circle(slotCenterX, rowCenterY, maxImgDim * 0.58, 'S');
+          }
         }
 
         currentY += rowHeight;
@@ -7920,15 +8598,17 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       }
     } else if (section.type === 12) {
       // -------------------------------------------------------------
-      // TYPE 12: Look and write (2 columns)
+      // TYPE 12: Look and write (2 columns in Composite Mode)
       // -------------------------------------------------------------
+      const isAnsMode = section.answerMode === 'answer';
       const cols = 2;
       const colGap = isA5 ? 6.0 : 10.0;
       const cardWidth = (printableWidth - colGap) / 2;
+      const sFontSize = secFontSize || (isA5 ? 11.5 : 13.5);
       const imgBoxHeight = imgSize + 2.0;
-      const sentenceBoxHeight = isA5 ? 10.0 : 12.0;
+      const sentenceBoxHeight = Math.max(isA5 ? 10.0 : 12.0, (sFontSize * 0.352778 * 1.35 * 2) + 2.0);
       const cardHeight = imgBoxHeight + sentenceBoxHeight;
-      const rowGap = (secSpacing === 0 ? 1.0 : 2.0) + (secSpacing !== undefined ? secSpacing : 0) * 0.35;
+      const rowGap = (secSpacing === 0 ? 2.0 : 2.5) + (secSpacing !== undefined ? secSpacing : 0) * 0.35;
       const rowHeight = cardHeight + rowGap;
 
       const totalRows = Math.ceil(secWords.length / cols);
@@ -7960,29 +8640,53 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             doc.rect(lx, ly, imgSize, imgSize);
           }
 
-          const sFontSize = secFontSize || (isA5 ? 11.5 : 13.5);
-          const sentenceData = getLookAndWriteSentence(word);
-          if (sentenceData) {
-            drawLookAndWriteSentence(
-              doc,
-              sentenceData.fullSentence,
-              cardX,
-              cardY + imgBoxHeight,
-              cardWidth,
-              sentenceBoxHeight,
-              sFontSize,
-              secFont
-            );
+          if (isAnsMode) {
+            if (word.exampleSentence && word.exampleSentence.trim().length > 0) {
+              const spans = parseHighlightedSentence(word.exampleSentence, word.term);
+              drawType15SentenceLine(
+                doc,
+                spans,
+                null,
+                cardX,
+                cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2,
+                cardWidth,
+                sFontSize,
+                secFont
+              );
+            } else {
+              applyFont(doc, secFont, 'bold');
+              doc.setFontSize(sFontSize);
+              doc.setTextColor(220, 38, 38);
+              doc.text(word.term, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
+                align: 'center',
+                maxWidth: cardWidth - 4
+              });
+              doc.setTextColor(0, 0, 0);
+            }
           } else {
-            const blankedTerm = formatLookAndWriteTerm(word.term);
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(sFontSize);
-            doc.setTextColor(30, 41, 59);
-            doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-              align: 'center',
-              maxWidth: cardWidth - 4
-            });
-            doc.setTextColor(0, 0, 0);
+            const sentenceData = getLookAndWriteSentence(word);
+            if (sentenceData) {
+              drawLookAndWriteSentence(
+                doc,
+                sentenceData.fullSentence,
+                cardX,
+                cardY + imgBoxHeight,
+                cardWidth,
+                sentenceBoxHeight,
+                sFontSize,
+                secFont
+              );
+            } else {
+              const blankedTerm = formatLookAndWriteTerm(word.term);
+              applyFont(doc, secFont, 'normal');
+              doc.setFontSize(sFontSize);
+              doc.setTextColor(30, 41, 59);
+              doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
+                align: 'center',
+                maxWidth: cardWidth - 4
+              });
+              doc.setTextColor(0, 0, 0);
+            }
           }
         }
 
@@ -8039,12 +8743,14 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         await addNewPage();
       }
 
+      const isAnsMode = section.answerMode === 'answer';
+
       // Draw puzzle grid centered
       const gridStartX = margin + (printableWidth - totalGridW) / 2;
       const gridStartY = currentY + (blockTotalH - totalGridH) / 2;
       const hintsStartY = currentY + (blockTotalH - hintsTotalH) / 2;
 
-      drawWordsearchGrid(doc, grid, gridStartX, gridStartY, cellSize, secFont, gridBorder, secFontSize);
+      drawWordsearchGrid(doc, grid, gridStartX, gridStartY, cellSize, secFont, gridBorder, secFontSize, isAnsMode, placedWords);
 
       // Draw flanking hints
       await drawWordsearchHints(
@@ -8065,7 +8771,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           showImageBorder,
           gapX,
           wordsearchCase,
-          imageSize: imgSize
+          imageSize: imgSize,
+          isAnswerMode: isAnsMode
         }
       );
 
@@ -8080,12 +8787,16 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const colGap = isA5 ? 3.0 : 4.5;
       const cardWidth = (printableWidth - (cols - 1) * colGap) / cols;
       const secFontSize = section.fontSize || globalFontSize || 12;
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
       const showLabels = section.showWordLabels !== false;
       const labelH = showLabels ? (secFontSize * 0.352778 + 3.5) : 0;
       const cardH = imgSize + labelH;
       const baseGap = (secSpacing === 0) ? 1.5 : (isA5 ? 4.0 : 5.0);
       const rowGap = baseGap + (secSpacing !== undefined ? secSpacing : 0) * 0.352778;
       const rowHeight = cardH + rowGap;
+
+      const isAnsMode = section.answerMode === 'answer';
+      const targetLetter = (section.targetLetter || 'a').toLowerCase();
 
       const totalRows = Math.ceil(secWords.length / cols);
       for (let r = 0; r < totalRows; r++) {
@@ -8101,6 +8812,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const cardX = margin + col * (cardWidth + colGap);
           const cardY = currentY;
           const word = secWords[i];
+          const hasTargetLetter = word.term.toLowerCase().includes(targetLetter);
 
           const imgX = cardX + (cardWidth - imgSize) / 2;
           const imgY = cardY;
@@ -8116,10 +8828,23 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             doc.rect(imgX, imgY, imgSize, imgSize);
           }
 
+          if (isAnsMode && hasTargetLetter) {
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.85);
+            setDocLineDash(doc, []);
+            doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, imgSize * 0.58, 'S');
+          }
+
           if (showLabels) {
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(secFontSize);
-            doc.setTextColor(30, 41, 59);
+            if (isAnsMode && hasTargetLetter) {
+              applyFont(doc, secFont, 'bold');
+              doc.setFontSize(secFontSize);
+              doc.setTextColor(220, 38, 38);
+            } else {
+              applyFont(doc, secFont, 'normal');
+              doc.setFontSize(secFontSize);
+              doc.setTextColor(30, 41, 59);
+            }
             const textY = imgY + imgSize + (secFontSize * 0.352778 * 0.9) + 1.5;
             doc.text(word.term.trim().toLowerCase(), cardX + cardWidth / 2, textY, {
               align: 'center',
@@ -8234,17 +8959,38 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             setDocLineDash(doc, []); // reset
           }
 
+          const isAnsMode = section.answerMode === 'answer';
+
           // Choice controls
           if (choiceMode === 'ab') {
             const letterBandY = boxY + secImgBoxH;
             const letterFontSize = Math.min(secFontSize * 1.1, isA5 ? 13 : 15);
-            applyFont(doc, secFont, 'bold');
-            doc.setFontSize(letterFontSize);
-            doc.setTextColor(30, 41, 59);
             const letterTextY = letterBandY + secBottomH / 2 + (isA5 ? 1.1 : 1.4);
-            doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
-            doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
-            doc.setTextColor(0, 0, 0);
+
+            if (isAnsMode) {
+              const correctCenterX = isTargetOnA ? (cardX + subW / 2) : (cardX + subW + subW / 2);
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.65);
+              setDocLineDash(doc, []);
+              doc.circle(correctCenterX, letterTextY - (isA5 ? 1.1 : 1.3), letterFontSize * 0.45, 'S');
+
+              applyFont(doc, secFont, isTargetOnA ? 'bold' : 'normal');
+              doc.setFontSize(letterFontSize);
+              doc.setTextColor(isTargetOnA ? 220 : 30, isTargetOnA ? 38 : 41, isTargetOnA ? 38 : 59);
+              doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
+
+              applyFont(doc, secFont, !isTargetOnA ? 'bold' : 'normal');
+              doc.setTextColor(!isTargetOnA ? 220 : 30, !isTargetOnA ? 38 : 41, !isTargetOnA ? 38 : 59);
+              doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
+              doc.setTextColor(0, 0, 0);
+            } else {
+              applyFont(doc, secFont, 'bold');
+              doc.setFontSize(letterFontSize);
+              doc.setTextColor(30, 41, 59);
+              doc.text('a', cardX + subW / 2, letterTextY, { align: 'center' });
+              doc.text('b', cardX + subW + subW / 2, letterTextY, { align: 'center' });
+              doc.setTextColor(0, 0, 0);
+            }
           } else if (choiceMode === 'checkbox') {
             const checkBandY = boxY + secImgBoxH;
             const boxDim = isA5 ? 4.5 : 5.2;
@@ -8255,6 +9001,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             doc.setLineWidth(0.35);
             doc.roundedRect(leftBoxX, cBoxY, boxDim, boxDim, 0.8, 0.8, 'S');
             doc.roundedRect(rightBoxX, cBoxY, boxDim, boxDim, 0.8, 0.8, 'S');
+
+            if (isAnsMode) {
+              const chkX = isTargetOnA ? leftBoxX : rightBoxX;
+              doc.setDrawColor(220, 38, 38);
+              doc.setLineWidth(0.65);
+              setDocLineDash(doc, []);
+              doc.line(chkX + boxDim * 0.2, cBoxY + boxDim * 0.5, chkX + boxDim * 0.42, cBoxY + boxDim * 0.78);
+              doc.line(chkX + boxDim * 0.42, cBoxY + boxDim * 0.78, chkX + boxDim * 0.82, cBoxY + boxDim * 0.22);
+            }
           }
 
           // 3. Draw Images
@@ -8283,6 +9038,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           } else if (showImageBorder) {
             doc.rect(rx, ry, maxImgDim, maxImgDim);
           }
+
+          if (choiceMode === 'none' && isAnsMode) {
+            const picCenterX = isTargetOnA ? (cardX + subW / 2) : (cardX + subW + subW / 2);
+            const picCenterY = boxY + secImgBoxH / 2;
+            doc.setDrawColor(220, 38, 38);
+            doc.setLineWidth(0.85);
+            setDocLineDash(doc, []);
+            doc.circle(picCenterX, picCenterY, maxImgDim * 0.58, 'S');
+          }
         }
 
         currentY += rowHeight;
@@ -8305,6 +9069,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const letterCase = section.type16LetterCase || 'lower';
       const borderStyle = section.type16Border || 'none';
 
+      const isAnsMode = section.answerMode === 'answer';
       const effectiveImgSize = imgSize || (isA5 ? 12.5 : 14.0);
       const metrics = calculateType16Metrics(
         secFontSize,
@@ -8338,7 +9103,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const currentWord = secWords[i];
           const targetImg = currentWord.imageUrl ? await fetchImageAsBase64(currentWord.imageUrl) : null;
 
-          const { choices } = generateType16Choices(
+          const { choices, targetIndex } = generateType16Choices(
             currentWord.term,
             soundMode,
             choiceCount,
@@ -8383,10 +9148,6 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               setDocLineDash(doc, []);
             }
 
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(secFontSize);
-            doc.setTextColor(30, 41, 59);
-
             const choiceY = imgY + effectiveImgSize + gapImgToChoices + fontHeightMm * 0.75;
             const choicesRowWidth = Math.min(cardWidth - 4, Math.max(effectiveImgSize + 4, choiceCount * (fontHeightMm * 1.5 + 4)));
             const choiceStep = choicesRowWidth / (choiceCount + 1);
@@ -8394,7 +9155,22 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
             for (let j = 0; j < choiceCount; j++) {
               const choiceX = startChoiceX + (j + 1) * choiceStep;
-              doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+              if (isAnsMode && j === targetIndex) {
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.65);
+                setDocLineDash(doc, []);
+                doc.circle(choiceX, choiceY - fontHeightMm * 0.28, Math.max(fontHeightMm * 0.65, 3.2), 'S');
+
+                applyFont(doc, secFont, 'bold');
+                doc.setFontSize(secFontSize);
+                doc.setTextColor(220, 38, 38);
+                doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+              } else {
+                applyFont(doc, secFont, 'normal');
+                doc.setFontSize(secFontSize);
+                doc.setTextColor(30, 41, 59);
+                doc.text(choices[j], choiceX, choiceY, { align: 'center' });
+              }
             }
             doc.setTextColor(0, 0, 0);
 
@@ -8458,14 +9234,25 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               doc.rect(imgX, imgY, effectiveImgSize, effectiveImgSize);
             }
 
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(secFontSize);
-            doc.setTextColor(30, 41, 59);
-
             const choicesStartY = cardY + padY + (contentHeight - choicesBlockH) / 2 + fontHeightMm * 0.75;
             for (let j = 0; j < choiceCount; j++) {
               const choiceY = choicesStartY + j * optPitch;
-              doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+              if (isAnsMode && j === targetIndex) {
+                doc.setDrawColor(220, 38, 38);
+                doc.setLineWidth(0.65);
+                setDocLineDash(doc, []);
+                doc.circle(choicesCenterX, choiceY - fontHeightMm * 0.28, Math.max(fontHeightMm * 0.65, 3.2), 'S');
+
+                applyFont(doc, secFont, 'bold');
+                doc.setFontSize(secFontSize);
+                doc.setTextColor(220, 38, 38);
+                doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+              } else {
+                applyFont(doc, secFont, 'normal');
+                doc.setFontSize(secFontSize);
+                doc.setTextColor(30, 41, 59);
+                doc.text(choices[j], choicesCenterX, choiceY, { align: 'center' });
+              }
             }
             doc.setTextColor(0, 0, 0);
           }
@@ -8491,7 +9278,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const cardBorderStyle: Type17CardBorder = section.type17CardBorder || 'none';
       const letterCase: Type17LetterCase = section.type17LetterCase || 'lower';
       const stripLengthOpt: Type17StripLength = section.type17StripLength || 'auto';
-      const highlightTarget: Type17HighlightTarget = section.type17HighlightTarget || 'none';
+      const isAnsMode = section.answerMode === 'answer' || section.type17HighlightTarget === 'red';
+      const highlightTarget: Type17HighlightTarget = isAnsMode ? 'red' : (section.type17HighlightTarget || 'none');
       const showExample = section.type17ShowExample !== false;
 
       const totalRows = Math.ceil(secWords.length / cols);

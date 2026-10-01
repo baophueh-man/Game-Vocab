@@ -107,6 +107,7 @@ export interface WorksheetTemplateSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
+  answerMode?: 'student' | 'answer';
 }
 
 export interface WorksheetTemplate {
@@ -123,6 +124,7 @@ export interface WorksheetTemplate {
   spacing?: number;
   imageSize?: number;
   showHeader?: boolean;
+  answerMode?: 'student' | 'answer';
   showFooter?: boolean;
   showImageBorder?: boolean;
   showTableGrid?: boolean;
@@ -880,7 +882,8 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type18Border ? { type18Border: item.type18Border } : {}),
       ...(item.type18CircleStyle ? { type18CircleStyle: item.type18CircleStyle } : {}),
       ...(item.type18DistractorCasing ? { type18DistractorCasing: item.type18DistractorCasing } : {}),
-      ...(item.type18HighlightTarget ? { type18HighlightTarget: item.type18HighlightTarget } : {})
+      ...(item.type18HighlightTarget ? { type18HighlightTarget: item.type18HighlightTarget } : {}),
+      ...(item.answerMode ? { answerMode: item.answerMode } : {})
     };
 
     sanitized.push(sec);

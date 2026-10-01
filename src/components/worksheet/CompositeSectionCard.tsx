@@ -117,6 +117,7 @@ export interface UICompositeSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
+  answerMode?: 'student' | 'answer';
 }
 
 interface CompositeSectionCardProps {
@@ -501,7 +502,7 @@ export default function CompositeSectionCard({
                     17: { title: 'Look and color the words' },
                     18: { title: 'Color E green and e red' }
                   };
-                  const meta = defaultTitles[t.type] || { title: t.title || t.name || 'Worksheet Section' };
+                  const meta = defaultTitles[t.type] || { title: (t as any).title || t.name || 'Worksheet Section' };
                   const isType8 = t.type === 8;
                   const isType11 = t.type === 11;
                   const isType18 = t.type === 18;
@@ -511,6 +512,7 @@ export default function CompositeSectionCard({
                   onUpdateSection(index, {
                     type: t.type,
                     title: isType18 ? title18 : meta.title,
+                    answerMode: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(t.type) ? (section.answerMode || 'student') : undefined,
                     blankMode: t.type === 4 ? (section.blankMode || 'vowels') : section.blankMode,
                     fontFamily: (isType8 || isType11) ? 'KG Primary Dots' : (section.fontFamily === 'KG Primary Dots' ? 'r0c0i Linotte' : section.fontFamily || 'r0c0i Linotte'),
                     fontSize: (isType8 || isType11) ? 22 : (section.fontSize === 22 ? 12 : section.fontSize || 12),
@@ -665,6 +667,48 @@ export default function CompositeSectionCard({
           </div>
         </div>
       </div>
+
+      {/* Answer Mode Toggle for Worksheet Types 1 to 17 */}
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(section.type) && (
+        <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div>
+            <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <span>🎯</span> Chế Độ Đáp Án (Answer Mode)
+            </span>
+            <p className="text-[11px] text-amber-700">
+              {(section.answerMode || 'student') === 'answer'
+                ? 'Đang bật hiển thị đáp án hoàn chỉnh bằng mực đỏ nổi bật cho giáo viên chấm bài.'
+                : 'Đang ở chế độ phiếu bài tập trống để học sinh tự làm bài.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-amber-200 shadow-2xs self-start sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => onUpdateSection(index, { answerMode: 'student' })}
+              data-testid={`section-answermode-student-${index}`}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                (section.answerMode || 'student') === 'student'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Học sinh
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateSection(index, { answerMode: 'answer' })}
+              data-testid={`section-answermode-answer-${index}`}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                section.answerMode === 'answer'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Đáp án
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* If Type 4: Layout Mode & Blank / Column Configurator */}
       {section.type === 4 && (
@@ -852,6 +896,229 @@ export default function CompositeSectionCard({
                 </button>
               );
             })}
+          </div>
+
+          {/* Answer Mode for Type 6 */}
+          <div className="pt-2 border-t border-indigo-100/60">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Chế Độ Đáp Án
+              </label>
+              <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                {section.answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'student', label: 'Học sinh' },
+                { value: 'answer', label: 'Đáp án' }
+              ].map((opt) => {
+                const isActive = (section.answerMode || 'student') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateSection(index, {
+                        answerMode: opt.value as 'student' | 'answer'
+                      })
+                    }
+                    data-testid={`section-type6-answermode-${opt.value}-${index}`}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* If Type 7: Unscramble Configurator */}
+      {section.type === 7 && (
+        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-indigo-900">
+              Tuỳ Chọn Sắp Xếp Chữ Cái (Loại 7 - Unscramble)
+            </label>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              {section.answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+            </span>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Đáp Án
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'student', label: 'Học sinh' },
+                { value: 'answer', label: 'Đáp án' }
+              ].map((opt) => {
+                const isActive = (section.answerMode || 'student') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateSection(index, {
+                        answerMode: opt.value as 'student' | 'answer'
+                      })
+                    }
+                    data-testid={`section-type7-answermode-${opt.value}-${index}`}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* If Type 8: Look and trace Configurator */}
+      {section.type === 8 && (
+        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-indigo-900">
+              Tuỳ Chọn Tập Tô Từ Vựng (Loại 8 - Look and trace)
+            </label>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              {section.answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+            </span>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Đáp Án
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'student', label: 'Học sinh' },
+                { value: 'answer', label: 'Đáp án' }
+              ].map((opt) => {
+                const isActive = (section.answerMode || 'student') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateSection(index, {
+                        answerMode: opt.value as 'student' | 'answer'
+                      })
+                    }
+                    data-testid={`section-type8-answermode-${opt.value}-${index}`}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* If Type 9: Look and color Yes/No Configurator */}
+      {section.type === 9 && (
+        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-indigo-900">
+              Tuỳ Chọn Nhìn Câu Tô Màu Yes/No (Loại 9)
+            </label>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              {section.answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+            </span>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Đáp Án
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'student', label: 'Học sinh' },
+                { value: 'answer', label: 'Đáp án' }
+              ].map((opt) => {
+                const isActive = (section.answerMode || 'student') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateSection(index, {
+                        answerMode: opt.value as 'student' | 'answer'
+                      })
+                    }
+                    data-testid={`section-type9-answermode-${opt.value}-${index}`}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* If Type 10: Look and color Configurator */}
+      {section.type === 10 && (
+        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-indigo-900">
+              Tuỳ Chọn Nhìn Từ Tô Màu Tranh (Loại 10)
+            </label>
+            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+              {section.answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+            </span>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế Độ Đáp Án
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'student', label: 'Học sinh' },
+                { value: 'answer', label: 'Đáp án' }
+              ].map((opt) => {
+                const isActive = (section.answerMode || 'student') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateSection(index, {
+                        answerMode: opt.value as 'student' | 'answer'
+                      })
+                    }
+                    data-testid={`section-type10-answermode-${opt.value}-${index}`}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

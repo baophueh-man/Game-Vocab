@@ -192,6 +192,7 @@ export default function WorksheetGenerator() {
   const [showFooter, setShowFooter] = useState<boolean>(false);
   const [showImageBorder, setShowImageBorder] = useState<boolean>(false);
   const [showTableGrid, setShowTableGrid] = useState<boolean>(false);
+  const [answerMode, setAnswerMode] = useState<'student' | 'answer'>('student');
 
   // Generation state
   const [isLoadingVocab, setIsLoadingVocab] = useState<boolean>(false);
@@ -1039,6 +1040,7 @@ export default function WorksheetGenerator() {
       type18CircleStyle?: Type18CircleStyle;
       type18DistractorCasing?: Type18DistractorCasing;
       type18HighlightTarget?: Type18HighlightTarget;
+      answerMode?: 'student' | 'answer';
     },
     sectionsToUse?: UICompositeSection[],
     modeOverride?: 'single' | 'composite'
@@ -1080,6 +1082,7 @@ export default function WorksheetGenerator() {
             id: sec.id,
             type: sec.type,
             title: sec.title,
+            answerMode: sec.answerMode || 'student',
             blankMode: sec.blankMode,
             type4LayoutMode: sec.type4LayoutMode,
             type4ColumnMode: sec.type4ColumnMode,
@@ -1231,7 +1234,8 @@ export default function WorksheetGenerator() {
         type18Border: customOptions?.type18Border !== undefined ? customOptions.type18Border : type18Border,
         type18CircleStyle: customOptions?.type18CircleStyle !== undefined ? customOptions.type18CircleStyle : type18CircleStyle,
         type18DistractorCasing: customOptions?.type18DistractorCasing !== undefined ? customOptions.type18DistractorCasing : type18DistractorCasing,
-        type18HighlightTarget: customOptions?.type18HighlightTarget !== undefined ? customOptions.type18HighlightTarget : type18HighlightTarget
+        type18HighlightTarget: customOptions?.type18HighlightTarget !== undefined ? customOptions.type18HighlightTarget : type18HighlightTarget,
+        answerMode: customOptions?.answerMode !== undefined ? customOptions.answerMode : answerMode
       });
 
       const blob = doc.output('blob');
@@ -1241,7 +1245,7 @@ export default function WorksheetGenerator() {
       const newUrl = URL.createObjectURL(blob);
       setPdfBlobUrl(newUrl);
     } catch (err: any) {
-      console.error('Generate PDF error:', err);
+      console.error('Generate PDF error:', err?.stack || err?.message || err);
       setErrorMessage(err.message || 'Lỗi khi tạo file PDF');
     } finally {
       setIsGeneratingPDF(false);
@@ -1335,6 +1339,7 @@ export default function WorksheetGenerator() {
             type18CircleStyle: sec.type18CircleStyle,
             type18DistractorCasing: sec.type18DistractorCasing,
             type18HighlightTarget: sec.type18HighlightTarget,
+            answerMode: sec.answerMode || 'student',
             words: sec.selectedWordIndices.map((i) => words[i]).filter(Boolean)
           }))
         };
@@ -1423,7 +1428,8 @@ export default function WorksheetGenerator() {
         type18Border,
         type18CircleStyle,
         type18DistractorCasing,
-        type18HighlightTarget
+        type18HighlightTarget,
+        answerMode
       });
       const cleanTitle = (title || 'Worksheet').replace(/[/\\?%*:|"<>]/g, '-');
       doc.save(`PDF ${worksheetType} - ${cleanTitle}.pdf`);
@@ -2323,6 +2329,7 @@ export default function WorksheetGenerator() {
                         <label className="block text-xs font-semibold text-slate-700 mb-1">Cỡ Chữ (Font Size)</label>
                         <select
                           value={fontSize}
+                          data-testid="single-fontsize-select"
                           onChange={(e) => {
                             const sz = Number(e.target.value);
                             setFontSize(sz);
@@ -2396,6 +2403,7 @@ export default function WorksheetGenerator() {
                       </div>
                       <select
                         value={spacing}
+                        data-testid="single-spacing-select"
                         onChange={(e) => {
                           const sp = Number(e.target.value);
                           setSpacing(sp);
@@ -2443,6 +2451,59 @@ export default function WorksheetGenerator() {
                         Kích thước chuẩn của hình ảnh minh hoạ từ vựng. Mặc định là 0.5 x 0.5 inch (12.7 mm).
                       </p>
                     </div>
+
+                    {/* Chế Độ Đáp Án (Answer Mode) for Worksheet Types 1 to 17 */}
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(worksheetType) && (
+                      <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                            <span>🎯</span> Chế Độ Đáp Án (Answer Mode)
+                          </label>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-100/70 text-amber-800">
+                            {answerMode === 'answer' ? 'Đáp án hoàn chỉnh' : 'Học sinh làm bài'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode('student');
+                              setType17HighlightTarget('none');
+                              handleGeneratePreview(undefined, undefined, undefined, { answerMode: 'student', type17HighlightTarget: 'none' });
+                            }}
+                            data-testid="answermode-student-btn"
+                            className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center ${
+                              answerMode === 'student'
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            Học sinh (Mặc định)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode('answer');
+                              setType17HighlightTarget('red');
+                              handleGeneratePreview(undefined, undefined, undefined, { answerMode: 'answer', type17HighlightTarget: 'red' });
+                            }}
+                            data-testid="answermode-answer-btn"
+                            className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center ${
+                              answerMode === 'answer'
+                                ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            Đáp án hoàn chỉnh
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-amber-700">
+                          {answerMode === 'answer'
+                            ? 'Đang bật hiển thị đáp án hoàn chỉnh bằng mực đỏ nổi bật cho giáo viên chấm bài.'
+                            : 'Đang ở chế độ phiếu bài tập trống để học sinh tự làm bài.'}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -2868,7 +2929,7 @@ export default function WorksheetGenerator() {
 
                 {/* Choice Count & Layout Option (Only for Type 6 in Single mode) */}
                 {worksheetMode === 'single' && worksheetType === 6 && (
-                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-1.5 transition-all">
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2.5 transition-all">
                     <div className="flex items-center justify-between">
                       <label className="block text-xs font-bold text-indigo-900">
                         Kiểu Lựa Chọn (Loại 6 - Multiple Choice)
@@ -2912,6 +2973,209 @@ export default function WorksheetGenerator() {
                           </button>
                         );
                       })}
+                    </div>
+
+                    {/* Chế Độ Đáp Án */}
+                    <div className="pt-2 border-t border-indigo-100/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 6, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type6-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 7 Options: Unscramble */}
+                {worksheetMode === 'single' && worksheetType === 7 && (
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2 transition-all">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-indigo-900">
+                        Tuỳ Chọn Sắp Xếp Chữ Cái (Loại 7 - Unscramble)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Đáp Án
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 7, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type7-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 8 Options: Look and trace */}
+                {worksheetMode === 'single' && worksheetType === 8 && (
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2 transition-all">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-indigo-900">
+                        Tuỳ Chọn Tập Tô Từ Vựng (Loại 8 - Look and trace)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Đáp Án
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 8, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type8-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 9 Options: Look and color Yes/No */}
+                {worksheetMode === 'single' && worksheetType === 9 && (
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2 transition-all">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-indigo-900">
+                        Tuỳ Chọn Nhìn Câu Tô Màu Yes/No (Loại 9)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Đáp Án
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 9, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type9-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 10 Options: Look and color */}
+                {worksheetMode === 'single' && worksheetType === 10 && (
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2 transition-all">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-indigo-900">
+                        Tuỳ Chọn Nhìn Từ Tô Màu Tranh (Loại 10)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Đáp Án
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 10, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type10-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3638,7 +3902,9 @@ export default function WorksheetGenerator() {
                               onClick={() => {
                                 const val = opt.value as Type17HighlightTarget;
                                 setType17HighlightTarget(val);
-                                handleGeneratePreview(undefined, undefined, 17, { type17HighlightTarget: val });
+                                const newAnsMode = val === 'red' ? 'answer' : 'student';
+                                setAnswerMode(newAnsMode);
+                                handleGeneratePreview(undefined, undefined, 17, { type17HighlightTarget: val, answerMode: newAnsMode });
                               }}
                               data-testid={`type17-highlight-${opt.value}`}
                               className={`py-2 px-2 rounded-lg border text-[11px] font-semibold transition-all text-center ${
