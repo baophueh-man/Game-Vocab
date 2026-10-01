@@ -812,7 +812,7 @@ export function calculateType10Metrics(
   const wordBoxHeight = Math.max(isA5 ? 7.5 : 9.5, fontHeightMm * 1.35 + 2.0);
   const cardHeight = imgBoxHeight + wordBoxHeight;
   const spacingMm = (spacingPt !== undefined ? spacingPt : 0) * 0.352778;
-  const rowGap = (spacingPt === 0 ? 1.5 : 2.5) + spacingMm * 0.35;
+  const rowGap = (spacingPt === 0 ? 1.5 : 1.5 + spacingMm);
   const rowHeight = cardHeight + rowGap;
   return {
     effectiveFontSize,
@@ -1997,6 +1997,126 @@ export function drawTargetLetterTitle(
     doc.text(title, x, y);
     doc.setTextColor(0, 0, 0);
   }
+}
+
+/**
+ * Determines whether a vocabulary word matches the target letter(s) for Type 14.
+ * Handles single letters (e.g. 'V'), letter pairs (e.g. 'V v', 'A a'), and digraphs (e.g. 'sh').
+ */
+export function isType14WordMatchingTarget(term: string, targetLetter?: string): boolean {
+  if (!term) return false;
+  const cleanTarget = (targetLetter || 'V').trim().toLowerCase();
+  if (!cleanTarget) return false;
+
+  const cleanTerm = term.trim().toLowerCase();
+
+  // If target is like 'v v' or 'v / v' or 'v, v', extract individual tokens
+  const tokens = cleanTarget
+    .split(/[\s,/]+/)
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return false;
+
+  // If any token matches as a substring or letter
+  return tokens.some(t => cleanTerm.includes(t));
+}
+
+/**
+ * Renders the word label beneath an image for Worksheet Type 14.
+ * In Answer Mode, highlights the target letter occurrences in bold red (#dc2626).
+ * Automatically scales down font size if the word exceeds maxWidthMm.
+ */
+export function drawType14WordLabel(
+  doc: jsPDF,
+  term: string,
+  targetLetter: string | undefined,
+  isAnswerMode: boolean,
+  hasTargetLetter: boolean,
+  centerX: number,
+  baselineY: number,
+  baseFontSize: number,
+  fontFamily: string,
+  maxWidthMm: number
+) {
+  const cleanTerm = term.trim().toLowerCase();
+  if (!cleanTerm) return;
+
+  // Defensive font auto-scaling to prevent overflowing card width
+  applyFont(doc, fontFamily, 'bold');
+  doc.setFontSize(baseFontSize);
+  const measuredW = doc.getTextWidth(cleanTerm);
+  let effectiveFontSize = baseFontSize;
+
+  if (measuredW > maxWidthMm && maxWidthMm > 5) {
+    effectiveFontSize = Math.max(7.5, Math.floor(baseFontSize * (maxWidthMm / measuredW)));
+    doc.setFontSize(effectiveFontSize);
+  }
+
+  // If not Answer Mode or word doesn't match target, render normal slate label
+  if (!isAnswerMode || !hasTargetLetter) {
+    applyFont(doc, fontFamily, 'normal');
+    doc.setFontSize(effectiveFontSize);
+    doc.setTextColor(30, 41, 59); // slate-800
+    doc.text(cleanTerm, centerX, baselineY, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    return;
+  }
+
+  // Answer Mode with match: Highlight target letter occurrences in red (#dc2626)
+  const cleanTarget = (targetLetter || 'V').trim().toLowerCase();
+  const tokens = cleanTarget.split(/[\s,/]+/).filter(Boolean);
+
+  // Mark characters belonging to target letter
+  const isTargetChar = new Array(cleanTerm.length).fill(false);
+  for (const tok of tokens) {
+    let startIdx = 0;
+    while ((startIdx = cleanTerm.indexOf(tok, startIdx)) !== -1) {
+      for (let k = 0; k < tok.length; k++) {
+        isTargetChar[startIdx + k] = true;
+      }
+      startIdx += tok.length;
+    }
+  }
+
+  // Build contiguous text segments with color
+  type Segment = { text: string; isRed: boolean };
+  const segments: Segment[] = [];
+  let currentSeg: Segment = { text: cleanTerm[0], isRed: isTargetChar[0] };
+
+  for (let i = 1; i < cleanTerm.length; i++) {
+    const isRed = isTargetChar[i];
+    if (isRed === currentSeg.isRed) {
+      currentSeg.text += cleanTerm[i];
+    } else {
+      segments.push(currentSeg);
+      currentSeg = { text: cleanTerm[i], isRed };
+    }
+  }
+  segments.push(currentSeg);
+
+  // Measure total width of all segments
+  let totalW = 0;
+  for (const seg of segments) {
+    applyFont(doc, fontFamily, seg.isRed ? 'bold' : 'normal');
+    doc.setFontSize(effectiveFontSize);
+    totalW += doc.getTextWidth(seg.text);
+  }
+
+  // Draw segments centered around centerX
+  let curX = centerX - totalW / 2;
+  for (const seg of segments) {
+    applyFont(doc, fontFamily, seg.isRed ? 'bold' : 'normal');
+    doc.setFontSize(effectiveFontSize);
+    if (seg.isRed) {
+      doc.setTextColor(220, 38, 38); // Highlight red
+    } else {
+      doc.setTextColor(30, 41, 59); // Slate-800
+    }
+    doc.text(seg.text, curX, baselineY);
+    curX += doc.getTextWidth(seg.text);
+  }
+  doc.setTextColor(0, 0, 0);
 }
 
 /**
@@ -3307,6 +3427,33 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
+// Safe addImage wrapper that detects PNG vs JPEG format to prevent jsPDF.scale error
+export function safeAddImage(
+  doc: jsPDF,
+  img: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+) {
+  if (!img) return;
+  try {
+    const isPng = img.startsWith('data:image/png') || img.startsWith('iVBORw0KGgo') || img.includes('data:image/png');
+    const format = isPng ? 'PNG' : 'JPEG';
+    doc.addImage(img, format, x, y, w, h);
+  } catch {
+    try {
+      doc.addImage(img, 'PNG', x, y, w, h);
+    } catch {
+      try {
+        doc.addImage(img, 'JPEG', x, y, w, h);
+      } catch (e) {
+        console.warn('safeAddImage fallback failed:', e);
+      }
+    }
+  }
+}
+
 // Insert decorative background if selected
 async function insertBackground(doc: jsPDF, bgId?: string, isA5: boolean = true) {
   if (!bgId) return;
@@ -3318,7 +3465,7 @@ async function insertBackground(doc: jsPDF, bgId?: string, isA5: boolean = true)
   const h = isA5 ? 210 : 297;
 
   try {
-    doc.addImage(bgBase64, 'JPEG', 0, 0, w, h);
+    safeAddImage(doc, bgBase64, 0, 0, w, h);
   } catch (e) {
     console.warn('Failed to insert background:', e);
   }
@@ -5355,45 +5502,41 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         const isAnsMode = options.answerMode === 'answer';
 
-        // Highlight correct image in Answer Mode
+        // Highlight correct image in Answer Mode (Clean red rounded frame, strictly NO red dot/circle badge)
         if (isAnsMode) {
           const ansX = isCorrectOnLeft ? lx : rx;
           const ansY = isCorrectOnLeft ? ly : ry;
 
           doc.setDrawColor(220, 38, 38);
-          doc.setLineWidth(0.5);
+          doc.setLineWidth(0.65);
+          setDocLineDash(doc, []);
           doc.roundedRect(ansX - 0.8, ansY - 0.8, maxImgDim + 1.6, maxImgDim + 1.6, 1.2, 1.2, 'S');
-
-          const badgeR = 2.0;
-          const badgeX = ansX + maxImgDim - 0.8;
-          const badgeY = ansY + 0.8;
-          doc.setFillColor(220, 38, 38);
-          doc.circle(badgeX, badgeY, badgeR, 'F');
-          applyFont(doc, 'r0c0i Linotte', 'bold');
-          doc.setFontSize(7.5);
-          doc.setTextColor(255, 255, 255);
-          doc.text('✓', badgeX, badgeY + 0.65, { align: 'center' });
         }
 
         // Word text (Centered under both images)
+        // Defensive font scaling prevents text wrapping onto 2 lines which could cause collisions at spacing 0pt
+        const maxTextW = cardWidth - 2.5;
+        applyFont(doc, fontFamily, isAnsMode ? 'bold' : 'normal');
+        let drawFontSize = effectiveFontSize;
+        doc.setFontSize(drawFontSize);
+        const measuredW = doc.getTextWidth(currentWord.term);
+        if (measuredW > maxTextW) {
+          drawFontSize = Math.max(8.5, Math.floor(effectiveFontSize * (maxTextW / measuredW)));
+          doc.setFontSize(drawFontSize);
+        }
+
         const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.0 : 1.3);
         if (isAnsMode) {
-          applyFont(doc, fontFamily, 'bold');
-          doc.setFontSize(effectiveFontSize);
           doc.setTextColor(220, 38, 38);
           doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-            align: 'center',
-            maxWidth: cardWidth - 2
+            align: 'center'
           });
           doc.setTextColor(0, 0, 0);
           applyFont(doc, fontFamily, 'normal');
         } else {
-          applyFont(doc, fontFamily, 'normal');
-          doc.setFontSize(effectiveFontSize);
           doc.setTextColor(30, 41, 59);
           doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-            align: 'center',
-            maxWidth: cardWidth - 2
+            align: 'center'
           });
           doc.setTextColor(0, 0, 0);
         }
@@ -5837,18 +5980,27 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const totalPages = Math.ceil(validWords.length / wordsPerPage);
     const showLabels = options.showWordLabels !== false;
     const effectiveFontSize = fontSize || (isA5 ? 11.5 : 13.5);
-    const labelH = showLabels ? (effectiveFontSize * 0.352778 + 3.5) : 0;
+
+    const isAnsMode = options.answerMode === 'answer';
+    const targetLetter = options.targetLetter || 'V';
+
+    // Circle radius around image: comfortable clearance around image
+    const circleR = Math.min((cardWidth - 2.5) / 2, imgSize / 2 + (isA5 ? 1.8 : 2.2));
+    const circleDeltaY = isAnsMode ? (circleR - imgSize / 2) : 0;
+
+    // Distance from bottom of image to word label baseline
+    const gapImgToText = Math.max(2.5, circleDeltaY + 1.2);
+    const labelH = showLabels ? (gapImgToText + effectiveFontSize * 0.352778 + (isA5 ? 1.5 : 2.0)) : 0;
     const cardHeight = imgSize + labelH;
 
     const effectiveSpacing = spacing !== undefined ? spacing : 6;
-    const baseGap = (spacing === 0) ? 1.5 : (isA5 ? 4.0 : 5.0);
+    // Spacing 0pt safety clearance: avoid overlap between row 0 and row 1 circles/labels
+    const minSafeGap = showLabels ? (isA5 ? 3.0 : 4.0) : (isA5 ? 4.5 : 5.5);
+    const baseGap = (spacing === 0) ? minSafeGap : (minSafeGap + (isA5 ? 2.5 : 3.5));
     const rowGap = baseGap + effectiveSpacing * 0.352778;
     const rowHeight = cardHeight + rowGap;
 
     const topMargin = (showHeader && title) ? margin + (isA5 ? 12 : 15) : margin + 4;
-
-    const isAnsMode = options.answerMode === 'answer';
-    const targetLetter = (options.targetLetter || 'a').toLowerCase();
 
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) doc.addPage();
@@ -5880,7 +6032,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         const currentWord = validWords[i];
         const targetImg = wordImages[i];
-        const hasTargetLetter = currentWord.term.toLowerCase().includes(targetLetter);
+        const hasTargetLetter = isType14WordMatchingTarget(currentWord.term, targetLetter);
 
         // Centered image (0.5 x 0.5 in = 12.7 x 12.7 mm)
         const imgX = cardX + (cardWidth - imgSize) / 2;
@@ -5896,31 +6048,29 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           doc.rect(imgX, imgY, imgSize, imgSize);
         }
 
-        // Highlight correct image in Answer Mode
+        // Highlight correct image in Answer Mode with clean red circle
         if (isAnsMode && hasTargetLetter) {
           doc.setDrawColor(220, 38, 38);
-          doc.setLineWidth(0.85);
+          doc.setLineWidth(isA5 ? 0.5 : 0.65);
           setDocLineDash(doc, []);
-          doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, imgSize * 0.58, 'S');
+          doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, circleR, 'S');
         }
 
-        // Lowercase Word label below image
+        // Lowercase Word label below image with font scaling and answer mode highlight
         if (showLabels) {
-          if (isAnsMode && hasTargetLetter) {
-            applyFont(doc, activeFont, 'bold');
-            doc.setFontSize(effectiveFontSize);
-            doc.setTextColor(220, 38, 38);
-          } else {
-            applyFont(doc, activeFont, 'normal');
-            doc.setFontSize(effectiveFontSize);
-            doc.setTextColor(30, 41, 59);
-          }
-          const textY = imgY + imgSize + (effectiveFontSize * 0.352778 * 0.9) + 2.0;
-          doc.text(currentWord.term.trim().toLowerCase(), cardX + cardWidth / 2, textY, {
-            align: 'center',
-            maxWidth: cardWidth - 2
-          });
-          doc.setTextColor(0, 0, 0);
+          const textY = imgY + imgSize + gapImgToText + (effectiveFontSize * 0.352778 * 0.85);
+          drawType14WordLabel(
+            doc,
+            currentWord.term,
+            targetLetter,
+            isAnsMode,
+            hasTargetLetter,
+            cardX + cardWidth / 2,
+            textY,
+            effectiveFontSize,
+            activeFont,
+            cardWidth - 2.5
+          );
         }
       }
 
@@ -6924,9 +7074,14 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
     } else if (section.type === 14) {
       const secFontSize = section.fontSize || globalFontSize || 12;
       const showLabels = section.showWordLabels !== false;
-      const labelH = showLabels ? (secFontSize * 0.352778 + 3.5) : 0;
+      const isAnsMode = section.answerMode === 'answer';
+      const circleR = Math.min(18.0, imgSize / 2 + (isA5 ? 1.8 : 2.2));
+      const circleDeltaY = isAnsMode ? (circleR - imgSize / 2) : 0;
+      const gapImgToText = Math.max(2.5, circleDeltaY + 1.2);
+      const labelH = showLabels ? (gapImgToText + secFontSize * 0.352778 + (isA5 ? 1.5 : 2.0)) : 0;
       const cardH = imgSize + labelH;
-      const baseGap = (secSpacing === 0) ? 1.5 : (isA5 ? 4.0 : 5.0);
+      const minSafeGap = showLabels ? (isA5 ? 3.0 : 4.0) : (isA5 ? 4.5 : 5.5);
+      const baseGap = (secSpacing === 0) ? minSafeGap : (minSafeGap + (isA5 ? 2.5 : 3.5));
       const rowGap = baseGap + (secSpacing !== undefined ? secSpacing : 0) * 0.352778;
       rowHeight = cardH + rowGap;
       minUnitH = 2 * rowHeight + 4;
@@ -7007,7 +7162,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       doc.setFontSize(isA5 ? 11.5 : 13.5);
       doc.setTextColor(15, 23, 42);
       if (section.type === 14) {
-        drawTargetLetterTitle(doc, section.title.trim(), section.targetLetter || 'V v', margin, currentY + 3.5, isA5 ? 11.5 : 13.5, 'r0c0i Linotte');
+        drawTargetLetterTitle(doc, section.title.trim(), section.targetLetter || 'V', margin, currentY + 3.5, isA5 ? 11.5 : 13.5, 'r0c0i Linotte');
       } else if (section.type === 18) {
         drawType18Title(
           doc,
@@ -8449,38 +8604,34 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             const ansY = isCorrectOnLeft ? ly : ry;
 
             doc.setDrawColor(220, 38, 38);
-            doc.setLineWidth(0.5);
+            doc.setLineWidth(0.65);
+            setDocLineDash(doc, []);
             doc.roundedRect(ansX - 0.8, ansY - 0.8, maxImgDim + 1.6, maxImgDim + 1.6, 1.2, 1.2, 'S');
+          }
 
-            const badgeR = 2.0;
-            const badgeX = ansX + maxImgDim - 0.8;
-            const badgeY = ansY + 0.8;
-            doc.setFillColor(220, 38, 38);
-            doc.circle(badgeX, badgeY, badgeR, 'F');
-            applyFont(doc, 'r0c0i Linotte', 'bold');
-            doc.setFontSize(7.5);
-            doc.setTextColor(255, 255, 255);
-            doc.text('✓', badgeX, badgeY + 0.65, { align: 'center' });
+          // Defensive font scaling prevents text wrapping onto 2 lines which could cause collisions at spacing 0pt
+          const maxTextW = cardWidth - 2.5;
+          applyFont(doc, secFont, isAnsMode ? 'bold' : 'normal');
+          let drawFontSize = effectiveFontSize;
+          doc.setFontSize(drawFontSize);
+          const measuredW = doc.getTextWidth(currentWord.term);
+          if (measuredW > maxTextW) {
+            drawFontSize = Math.max(8.5, Math.floor(effectiveFontSize * (maxTextW / measuredW)));
+            doc.setFontSize(drawFontSize);
           }
 
           const textY = cardY + imgBoxHeight + wordBoxHeight / 2 + (isA5 ? 1.0 : 1.3);
           if (isAnsMode) {
-            applyFont(doc, secFont, 'bold');
-            doc.setFontSize(effectiveFontSize);
             doc.setTextColor(220, 38, 38);
             doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-              align: 'center',
-              maxWidth: cardWidth - 2
+              align: 'center'
             });
             doc.setTextColor(0, 0, 0);
             applyFont(doc, secFont, 'normal');
           } else {
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(effectiveFontSize);
             doc.setTextColor(30, 41, 59);
             doc.text(currentWord.term, cardX + cardWidth / 2, textY, {
-              align: 'center',
-              maxWidth: cardWidth - 2
+              align: 'center'
             });
             doc.setTextColor(0, 0, 0);
           }
@@ -8817,14 +8968,20 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const secFontSize = section.fontSize || globalFontSize || 12;
       const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
       const showLabels = section.showWordLabels !== false;
-      const labelH = showLabels ? (secFontSize * 0.352778 + 3.5) : 0;
-      const cardH = imgSize + labelH;
-      const baseGap = (secSpacing === 0) ? 1.5 : (isA5 ? 4.0 : 5.0);
-      const rowGap = baseGap + (secSpacing !== undefined ? secSpacing : 0) * 0.352778;
-      const rowHeight = cardH + rowGap;
 
       const isAnsMode = section.answerMode === 'answer';
-      const targetLetter = (section.targetLetter || 'a').toLowerCase();
+      const targetLetter = section.targetLetter || 'V';
+
+      const circleR = Math.min((cardWidth - 2.5) / 2, imgSize / 2 + (isA5 ? 1.8 : 2.2));
+      const circleDeltaY = isAnsMode ? (circleR - imgSize / 2) : 0;
+      const gapImgToText = Math.max(2.5, circleDeltaY + 1.2);
+      const labelH = showLabels ? (gapImgToText + secFontSize * 0.352778 + (isA5 ? 1.5 : 2.0)) : 0;
+      const cardH = imgSize + labelH;
+
+      const minSafeGap = showLabels ? (isA5 ? 3.0 : 4.0) : (isA5 ? 4.5 : 5.5);
+      const baseGap = (secSpacing === 0) ? minSafeGap : (minSafeGap + (isA5 ? 2.5 : 3.5));
+      const rowGap = baseGap + (secSpacing !== undefined ? secSpacing : 0) * 0.352778;
+      const rowHeight = cardH + rowGap;
 
       const totalRows = Math.ceil(secWords.length / cols);
       for (let r = 0; r < totalRows; r++) {
@@ -8840,7 +8997,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const cardX = margin + col * (cardWidth + colGap);
           const cardY = currentY;
           const word = secWords[i];
-          const hasTargetLetter = word.term.toLowerCase().includes(targetLetter);
+          const hasTargetLetter = isType14WordMatchingTarget(word.term, targetLetter);
 
           const imgX = cardX + (cardWidth - imgSize) / 2;
           const imgY = cardY;
@@ -8858,27 +9015,25 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
           if (isAnsMode && hasTargetLetter) {
             doc.setDrawColor(220, 38, 38);
-            doc.setLineWidth(0.85);
+            doc.setLineWidth(isA5 ? 0.5 : 0.65);
             setDocLineDash(doc, []);
-            doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, imgSize * 0.58, 'S');
+            doc.circle(imgX + imgSize / 2, imgY + imgSize / 2, circleR, 'S');
           }
 
           if (showLabels) {
-            if (isAnsMode && hasTargetLetter) {
-              applyFont(doc, secFont, 'bold');
-              doc.setFontSize(secFontSize);
-              doc.setTextColor(220, 38, 38);
-            } else {
-              applyFont(doc, secFont, 'normal');
-              doc.setFontSize(secFontSize);
-              doc.setTextColor(30, 41, 59);
-            }
-            const textY = imgY + imgSize + (secFontSize * 0.352778 * 0.9) + 1.5;
-            doc.text(word.term.trim().toLowerCase(), cardX + cardWidth / 2, textY, {
-              align: 'center',
-              maxWidth: cardWidth - 2
-            });
-            doc.setTextColor(0, 0, 0);
+            const textY = imgY + imgSize + gapImgToText + (secFontSize * 0.352778 * 0.85);
+            drawType14WordLabel(
+              doc,
+              word.term,
+              targetLetter,
+              isAnsMode,
+              hasTargetLetter,
+              cardX + cardWidth / 2,
+              textY,
+              secFontSize,
+              secFont,
+              cardWidth - 2.5
+            );
           }
         }
 

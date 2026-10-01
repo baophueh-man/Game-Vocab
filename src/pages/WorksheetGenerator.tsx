@@ -2375,6 +2375,7 @@ export default function WorksheetGenerator() {
                         <label className="block text-xs font-semibold text-slate-700 mb-1">Phông Chữ (Font)</label>
                         <select
                           value={fontFamily}
+                          data-testid="single-fontfamily-select"
                           onChange={(e) => {
                             const ff = e.target.value as any;
                             setFontFamily(ff);
