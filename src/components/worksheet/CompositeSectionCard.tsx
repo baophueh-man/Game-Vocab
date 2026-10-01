@@ -496,7 +496,7 @@ export default function CompositeSectionCard({
                     11: { title: 'Write and circle the correct picture.' },
                     12: { title: 'Look and write' },
                     13: { title: 'Word Search Puzzle' },
-                    14: { title: 'Circle the pictures that have letter V v' },
+                    14: { title: 'Circle the pictures that have letter V' },
                     15: { title: 'Read the sentence and circle the correct picture.' },
                     16: { title: 'Look and circle the beginning sound' },
                     17: { title: 'Look and color the words' },
@@ -526,7 +526,7 @@ export default function CompositeSectionCard({
                     wordsearchGridSize: t.type === 13 ? (section.wordsearchGridSize || 'auto') : section.wordsearchGridSize,
                     wordsearchGridBorder: t.type === 13 ? (section.wordsearchGridBorder || 'none') : section.wordsearchGridBorder,
                     wordsearchCase: t.type === 13 ? (section.wordsearchCase || 'lower') : section.wordsearchCase,
-                    targetLetter: t.type === 14 ? (section.targetLetter || 'V v') : section.targetLetter,
+                    targetLetter: t.type === 14 ? (section.targetLetter || 'V') : section.targetLetter,
                     type15NumberStyle: t.type === 15 ? (section.type15NumberStyle || 'none') : section.type15NumberStyle,
                     type15Border: t.type === 15 ? (section.type15Border || 'full') : section.type15Border,
                     type15ChoiceMode: t.type === 15 ? (section.type15ChoiceMode || 'ab') : section.type15ChoiceMode,
@@ -1519,23 +1519,54 @@ export default function CompositeSectionCard({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Chữ Cái Mục Tiêu (Target Letter)
             </label>
-            <input
-              type="text"
-              value={section.targetLetter ?? 'V v'}
-              onChange={(e) => {
-                const val = e.target.value;
-                onUpdateSection(index, {
-                  targetLetter: val,
-                  title: `Circle the pictures that have letter ${val}`
-                });
-              }}
-              placeholder="Ví dụ: V v hoặc B b hoặc sh..."
-              data-testid={`section-target-letter-${index}`}
-              className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={section.targetLetter ?? 'V'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  onUpdateSection(index, {
+                    targetLetter: val,
+                    title: `Circle the pictures that have letter ${val}`
+                  });
+                }}
+                placeholder="V"
+                data-testid={`section-target-letter-${index}`}
+                className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="flex flex-wrap gap-1 flex-1">
+                {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
+                  const currentTarget = (section.targetLetter || 'V').trim().toUpperCase();
+                  const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
+                  return (
+                    <button
+                      key={lettr}
+                      type="button"
+                      onClick={() => {
+                        onUpdateSection(index, {
+                          targetLetter: lettr,
+                          title: `Circle the pictures that have letter ${lettr}`
+                        });
+                      }}
+                      data-testid={`section-type14-letter-btn-${lettr}-${index}`}
+                      className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {lettr}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Nhập chữ cái tuỳ ý hoặc bấm chọn nhanh A-Z. Tiêu đề mục sẽ tự động cập nhật.
+            </p>
           </div>
 
           <div>

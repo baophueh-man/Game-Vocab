@@ -244,7 +244,7 @@ export default function WorksheetGenerator() {
   const [wordsearchGridSize, setWordsearchGridSize] = useState<number | 'auto'>('auto');
   const [wordsearchGridBorder, setWordsearchGridBorder] = useState<WordsearchGridBorder>('none');
   const [wordsearchCase, setWordsearchCase] = useState<WordsearchCase>('lower');
-  const [targetLetter, setTargetLetter] = useState<string>('V v');
+  const [targetLetter, setTargetLetter] = useState<string>('V');
   const [showWordLabels, setShowWordLabels] = useState<boolean>(true);
   const [sentenceScramble, setSentenceScramble] = useState<boolean>(true);
   const [sentenceSeparator, setSentenceSeparator] = useState<'space' | 'slash'>('space');
@@ -322,7 +322,7 @@ export default function WorksheetGenerator() {
       11: { title: 'Write and circle the correct picture.' },
       12: { title: 'Look and write' },
       13: { title: 'Word Search Puzzle' },
-      14: { title: 'Circle the pictures that have letter V v' },
+      14: { title: 'Circle the pictures that have letter V' },
       15: { title: 'Read the sentence and circle the correct picture.' },
       16: { title: 'Look and circle the beginning sound' },
       17: { title: 'Look and color the words' },
@@ -1814,7 +1814,7 @@ export default function WorksheetGenerator() {
                           setTitle('Word Search Puzzle');
                           handleGeneratePreview(undefined, 'Word Search Puzzle', 13);
                         } else if (t.type === 14) {
-                          const currentLetter = targetLetter || 'V v';
+                          const currentLetter = targetLetter || 'V';
                           const newTitle = `Circle the pictures that have letter ${currentLetter}`;
                           setTitle(newTitle);
                           setShowHeader(true);
@@ -3393,28 +3393,94 @@ export default function WorksheetGenerator() {
                       </span>
                     </div>
 
-                    {/* Target Letter Input */}
+                    {/* Target Letter Input + 26 A-Z Buttons */}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                         Chữ Cái Mục Tiêu (Target Letter)
                       </label>
-                      <input
-                        type="text"
-                        value={targetLetter}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTargetLetter(val);
-                          const newTitle = `Circle the pictures that have letter ${val}`;
-                          setTitle(newTitle);
-                          handleGeneratePreview(undefined, newTitle, 14, { targetLetter: val });
-                        }}
-                        placeholder="Ví dụ: V v hoặc B b hoặc sh..."
-                        data-testid="target-letter-input"
-                        className="w-full px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={targetLetter}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTargetLetter(val);
+                            const newTitle = `Circle the pictures that have letter ${val}`;
+                            setTitle(newTitle);
+                            handleGeneratePreview(undefined, newTitle, 14, { targetLetter: val });
+                          }}
+                          placeholder="V"
+                          data-testid="target-letter-input"
+                          className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div className="flex flex-wrap gap-1 flex-1">
+                          {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
+                            const currentTarget = (targetLetter || 'V').trim().toUpperCase();
+                            const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
+                            return (
+                              <button
+                                key={lettr}
+                                type="button"
+                                onClick={() => {
+                                  setTargetLetter(lettr);
+                                  const newTitle = `Circle the pictures that have letter ${lettr}`;
+                                  setTitle(newTitle);
+                                  handleGeneratePreview(undefined, newTitle, 14, { targetLetter: lettr });
+                                }}
+                                data-testid={`type14-letter-btn-${lettr}`}
+                                className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                {lettr}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                       <p className="text-[11px] text-slate-400 mt-1">
                         Chữ cái này sẽ được tự động đồng bộ vào tiêu đề và tô đỏ nổi bật trên file PDF.
                       </p>
+                    </div>
+
+                    {/* Answer Mode Toggle for Type 14 */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Chế Độ Tạo Bản In (Answer Mode)
+                        </label>
+                        <span className="text-[11px] font-bold text-indigo-600">
+                          {answerMode === 'answer' ? 'Đáp án hoàn chỉnh' : 'Học sinh làm bài'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Bản Học Sinh (Không khoanh)', desc: 'Học sinh tự làm bài' },
+                          { value: 'answer' as const, label: 'Bản Đáp Án (Khoanh đỏ)', desc: 'Khoanh tròn tranh đúng' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 14, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type14-answermode-${opt.value}`}
+                            className={`py-2 px-2.5 rounded-lg border text-left transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{opt.label}</div>
+                            <div className={`text-[10px] ${answerMode === opt.value ? 'text-indigo-100' : 'text-slate-400'}`}>
+                              {opt.desc}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Show Word Labels Toggle */}

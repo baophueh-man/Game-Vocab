@@ -320,9 +320,9 @@ export const BUILT_IN_PRESETS: readonly WorksheetTemplate[] = [
       {
         id: 'sec_builtin_4_2',
         type: 14,
-        title: 'II. Circle the pictures that have letter V v',
+        title: 'II. Circle the pictures that have letter V',
         wordCount: 8,
-        targetLetter: 'V v',
+        targetLetter: 'V',
         showWordLabels: true,
         fontFamily: 'r0c0i Linotte',
         fontSize: 14,
