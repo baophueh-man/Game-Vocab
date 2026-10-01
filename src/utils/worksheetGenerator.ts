@@ -1271,9 +1271,18 @@ export function calculateType18Metrics(
   const spacingMm = effectiveSpacing * 0.352778;
   const isZero = effectiveSpacing === 0;
 
-  // Base moderate circle diameter (WS 9 style: moderate padding enclosing letter)
-  // Single letter height is ~3.5-5mm. Diameter 9.2mm (A5) / 11.8mm (A4) gives balanced ~2.5-3.4mm padding.
-  const baseTargetDiameter = isA5 ? 9.2 : 11.8;
+  // Dynamic moderate circle diameter based on fontSizePt (referencing WS 9 style: moderate padding enclosing letter)
+  // Single letter visual height/width is ~fontSizePt * 0.352778 * 0.74 mm.
+  // Add moderate padding of ~2.0mm (A4) / ~1.6mm (A5) around letter boundary,
+  // ensuring the circle snugly hugs the letter without looking excessively large.
+  const paddingMm = isA5 ? 1.6 : 2.0;
+  const rawLetterBoundMm = (fontSizePt * 0.352778) * 0.74;
+  const dynamicDiameter = rawLetterBoundMm + 2 * paddingMm;
+
+  // Baseline bounds: A4 moderate range 8.0mm - 10.5mm (around 9.2mm at 20pt); A5 6.5mm - 8.5mm (around 7.4mm at 16pt) - matching WS 9 (9.0mm A4, 7.2mm A5)
+  const minTargetDiameter = isA5 ? 6.5 : 8.0;
+  const maxTargetDiameter = isA5 ? 8.5 : 10.5;
+  const baseTargetDiameter = Math.max(minTargetDiameter, Math.min(dynamicDiameter, maxTargetDiameter));
 
   // Equal horizontal and vertical gaps between circles
   // At spacing 0pt: compact 2.0mm (A5) / 2.5mm (A4)
@@ -1307,8 +1316,8 @@ export function calculateType18Metrics(
   const cellH = circleDiameter + curGapY;
 
   // Font Scaling Protection:
-  // Circle interior safe zone is ~72% of diameter
-  const maxSafeFontPt = (circleDiameter * 0.72) / 0.352778;
+  // Circle interior safe zone: ensure letter never overflows circle
+  const maxSafeFontPt = (circleDiameter * 0.78) / 0.352778;
   const effectiveCellFontSize = Math.min(fontSizePt, maxSafeFontPt);
 
   return {
@@ -1440,14 +1449,14 @@ export function drawType18ContainerAndGrid(
   if (outerBorder === 'rounded') {
     doc.setDrawColor(30, 41, 59);
     doc.setLineWidth(isA5 ? 0.5 : 0.65);
-    doc.roundedRect(startX, startY, cardWidth, cardHeight, isA5 ? 6 : 8, isA5 ? 6 : 8, 'S');
+    doc.roundedRect(startX, startY, cardWidth, cardHeight, isA5 ? 5 : 6, isA5 ? 5 : 6, 'S');
   } else if (outerBorder === 'rect') {
     doc.setDrawColor(30, 41, 59);
     doc.setLineWidth(isA5 ? 0.5 : 0.65);
     doc.rect(startX, startY, cardWidth, cardHeight, 'S');
   }
 
-  // 2. Draw circles & letters (Referencing WS 9 style)
+  // 2. Draw circles & letters (Referencing WS 9 style: crisp 0.3mm stroke, balanced padding)
   for (const cell of cells) {
     const cx = startX + padX + circleRadius + cell.col * cellW;
     const cy = startY + padY + circleRadius + cell.row * cellH;
@@ -1457,7 +1466,7 @@ export function drawType18ContainerAndGrid(
       if (cell.isTargetUpper) {
         doc.setFillColor(upperInfo.rgb[0], upperInfo.rgb[1], upperInfo.rgb[2]);
         doc.setDrawColor(upperInfo.rgb[0], upperInfo.rgb[1], upperInfo.rgb[2]);
-        doc.setLineWidth(0.35);
+        doc.setLineWidth(isA5 ? 0.25 : 0.3);
         doc.circle(cx, cy, circleRadius, 'FD');
 
         const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
@@ -1468,7 +1477,7 @@ export function drawType18ContainerAndGrid(
       } else if (cell.isTargetLower) {
         doc.setFillColor(lowerInfo.rgb[0], lowerInfo.rgb[1], lowerInfo.rgb[2]);
         doc.setDrawColor(lowerInfo.rgb[0], lowerInfo.rgb[1], lowerInfo.rgb[2]);
-        doc.setLineWidth(0.35);
+        doc.setLineWidth(isA5 ? 0.25 : 0.3);
         doc.circle(cx, cy, circleRadius, 'FD');
 
         const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
@@ -1479,7 +1488,7 @@ export function drawType18ContainerAndGrid(
       } else {
         doc.setFillColor(255, 255, 255);
         doc.setDrawColor(180, 185, 195);
-        doc.setLineWidth(0.3);
+        doc.setLineWidth(isA5 ? 0.25 : 0.3);
         doc.circle(cx, cy, circleRadius, 'FD');
 
         const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
@@ -1489,21 +1498,21 @@ export function drawType18ContainerAndGrid(
         doc.text(cell.char, cx, cy, { align: 'center', baseline: 'middle' });
       }
     } else {
-      // Normal Student Worksheet Mode: Crisp outline circle, letter in middle
-      doc.setDrawColor(30, 41, 59);
+      // Normal Student Worksheet Mode: Crisp outline circle, letter in middle (WS 9 style)
+      doc.setDrawColor(70, 70, 70);
 
       if (circleStyle === 'solid') {
-        doc.setLineWidth(isA5 ? 0.35 : 0.45);
+        doc.setLineWidth(isA5 ? 0.25 : 0.3);
         doc.circle(cx, cy, circleRadius, 'S');
       } else if (circleStyle === 'dashed') {
-        doc.setLineWidth(isA5 ? 0.35 : 0.45);
+        doc.setLineWidth(isA5 ? 0.25 : 0.3);
         setDocLineDash(doc, [1.5, 1.0]);
         doc.circle(cx, cy, circleRadius, 'S');
         setDocLineDash(doc, []);
       } else if (circleStyle === 'double') {
-        doc.setLineWidth(0.3);
+        doc.setLineWidth(isA5 ? 0.22 : 0.25);
         doc.circle(cx, cy, circleRadius, 'S');
-        doc.circle(cx, cy, circleRadius - 0.7, 'S');
+        doc.circle(cx, cy, circleRadius - 0.6, 'S');
       }
 
       const cellFontStyle: 'bold' | 'normal' = (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) ? 'bold' : 'normal';
