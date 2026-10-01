@@ -4298,12 +4298,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           const img = wordImages[globalIdx];
 
           if (img) {
-            try {
-              const imgFmt = (img.startsWith('data:image/png') || img.startsWith('iVBORw0KGgo')) ? 'PNG' : 'JPEG';
-              doc.addImage(img, imgFmt, posX, posY, imgSize, imgSize);
-            } catch {
-              if (showImageBorder) doc.rect(posX, posY, imgSize, imgSize);
-            }
+            safeAddImage(doc, img, posX, posY, imgSize, imgSize);
+            if (showImageBorder) doc.rect(posX, posY, imgSize, imgSize);
           } else if (showImageBorder) {
             doc.rect(posX, posY, imgSize, imgSize);
           }
