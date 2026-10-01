@@ -314,6 +314,7 @@ export default function WorksheetGenerator() {
       2: { title: 'Write the words' },
       3: { title: 'Match picture with word' },
       4: { title: 'Missing letters' },
+      5: { title: 'Handwriting practice' },
       6: { title: 'Multiple choice' },
       7: { title: 'Unscramble letters' },
       8: { title: 'Look and trace' },
@@ -2192,6 +2193,7 @@ export default function WorksheetGenerator() {
                     </span>
                   </div>
                   <select
+                    data-testid="single-papersize-select"
                     value={paperSize}
                     onChange={(e) => {
                       const ps = e.target.value as 'a5' | 'a4';
@@ -2216,6 +2218,7 @@ export default function WorksheetGenerator() {
                     </span>
                   </div>
                   <select
+                    data-testid="single-spacing-select"
                     value={spacing}
                     onChange={(e) => {
                       const sp = Number(e.target.value);
@@ -2246,6 +2249,7 @@ export default function WorksheetGenerator() {
                     </span>
                   </div>
                   <select
+                    data-testid="single-imagesize-select"
                     value={imageSize}
                     onChange={(e) => {
                       const sz = Number(e.target.value);
@@ -2766,6 +2770,41 @@ export default function WorksheetGenerator() {
                         </button>
                       ))}
                     </div>
+
+                    {/* Chế Độ Đáp Án */}
+                    <div className="pt-2 border-t border-emerald-200/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-emerald-900">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 3, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type3-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -2947,6 +2986,41 @@ export default function WorksheetGenerator() {
                         </select>
                       </div>
                     )}
+
+                    {/* Chế Độ Đáp Án */}
+                    <div className="pt-2 border-t border-indigo-100/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 4, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type4-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -4555,6 +4629,137 @@ export default function WorksheetGenerator() {
                         </p>
                       </div>
                     )}
+
+                    {/* Chế Độ Đáp Án */}
+                    <div className="pt-2 border-t border-indigo-100/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 1, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type1-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 2 Options */}
+                {worksheetMode === 'single' && worksheetType === 2 && (
+                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                        <span>📝</span> Tuỳ Chọn Nhìn Tranh Viết Từ (Loại 2)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        Lưới 3x4
+                      </span>
+                    </div>
+                    {/* Chế Độ Đáp Án */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 2, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type2-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Type 5 Options */}
+                {worksheetMode === 'single' && worksheetType === 5 && (
+                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                        <span>🖋️</span> Tuỳ Chọn Luyện Viết Ô Ly (Loại 5)
+                      </label>
+                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                        Font HP001
+                      </span>
+                    </div>
+                    {/* Chế Độ Đáp Án */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Chế Độ Đáp Án
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 5, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type5-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 

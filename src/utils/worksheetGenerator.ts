@@ -24,7 +24,7 @@ export interface WorksheetWord {
   deckRole?: 'primary' | 'review';
 }
 
-export type WorksheetType = 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
+export type WorksheetType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
 export type BlankMode = 'vowels' | 'random1' | 'random2' | 'random3';
 export type Type4LayoutMode = 'grid' | 'table';
 export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only' | 'alphabet_order' | 'vowels_only';
@@ -319,6 +319,13 @@ export const WORKSHEET_TYPES: WorksheetTypeMeta[] = [
     name: 'Điền chữ cái còn thiếu',
     description: 'Dưới mỗi tranh là từ vựng được đục lỗ (nguyên âm hoặc ngẫu nhiên), không gạch chấm.',
     thumbnail: '/worksheet/types/loai-pdf-4.PNG'
+  },
+  {
+    type: 5,
+    name: 'Loại 5: Luyện viết chữ ô ly (Font HP001)',
+    description: 'Tranh minh họa bên trái và bảng ô ly tiểu học bên phải, hỗ trợ tập viết theo chuẩn chữ tiểu học HP001.',
+    thumbnail: '/worksheet/types/loai-pdf-5.PNG',
+    isNew: false
   },
   {
     type: 6,
@@ -663,8 +670,8 @@ export function calculateType2Metrics(
   const spacingMm = (spacingPt !== undefined ? spacingPt : 6) * 0.352778;
   const effectiveFontSize = fontSizePt || (isA5 ? 12 : 14);
   const fontHeightMm = effectiveFontSize * 0.352778;
-  const lineOffset = Math.max(4.0, fontHeightMm * 0.95 + 1.5) + spacingMm * 0.2;
-  const rowGap = Math.max(2.0, fontHeightMm * 0.4) + spacingMm * 0.5;
+  const lineOffset = Math.max(5.0, fontHeightMm + 2.0) + spacingMm * 0.35;
+  const rowGap = Math.max(2.5, fontHeightMm * 0.4) + spacingMm * 0.5;
   const rowHeight = imgSize + lineOffset + rowGap;
   return {
     effectiveFontSize,
@@ -3777,13 +3784,19 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         }
       }
     }
-  } else if ((type as number) === 5) {
+  } else if (type === 5) {
     // -------------------------------------------------------------
     // TYPE 5: Writing Word Worksheet (Handwriting Font HP001 + Ô Ly Grid)
     // -------------------------------------------------------------
-    const wordsPerPage = isA5 ? 7 : 5;
     const imgTop = (showHeader && title) ? margin + 14 : margin + 4;
-    const imgGap = isA5 ? 9 : 10;
+    const oLyH = isA5 ? 20 : 39;
+    const rowHeight = Math.max(imgSize, oLyH);
+    const effectiveSpacing = spacing !== undefined ? spacing : 6;
+    const spacingMm = effectiveSpacing * 0.352778;
+    const imgGap = (effectiveSpacing === 0 ? 3.0 : 3.0 + spacingMm * 0.7);
+    const rowPitch = rowHeight + imgGap;
+    const availH = printableHeight - (imgTop - margin) - (showFooter ? 8 : 4);
+    const wordsPerPage = Math.max(1, Math.min(isA5 ? 7 : 5, Math.floor(availH / rowPitch)));
     const totalPages = Math.ceil(validWords.length / wordsPerPage);
 
     for (let page = 0; page < totalPages; page++) {
@@ -3811,14 +3824,11 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const word = validWords[i];
         const img = wordImages[i];
         const xImg = margin;
-        const yImg = imgTop + (imgSize + imgGap) * rowOnPage;
+        const yImg = imgTop + rowPitch * rowOnPage;
 
         if (img) {
-          try {
-            doc.addImage(img, 'JPEG', xImg, yImg, imgSize, imgSize);
-          } catch {
-            if (showImageBorder) doc.rect(xImg, yImg, imgSize, imgSize);
-          }
+          safeAddImage(doc, img, xImg, yImg, imgSize, imgSize);
+          if (showImageBorder) doc.rect(xImg, yImg, imgSize, imgSize);
         } else if (showImageBorder) {
           doc.rect(xImg, yImg, imgSize, imgSize);
         }
@@ -3867,7 +3877,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             gridX + c * colSpacing,
             yImg + 1,
             gridX + c * colSpacing,
-            yImg + (isA5 ? 20 : 39)
+            yImg + oLyH
           );
         }
 
@@ -4103,7 +4113,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         const totalNeededW = (imgSize + dotImgGap) + prefixColWidth + suffixColWidth + writeColWidth;
         const remainingW = (pageWidth - margin * 2) - totalNeededW;
-        const interColGap = Math.max(isA5 ? 8 : 12, Math.min(isA5 ? 20 : 32, remainingW / 3));
+        const interColGap = Math.max(isA5 ? 3.5 : 5.0, Math.min(isA5 ? 12 : 20, remainingW / 3));
 
         const prefixLeftDotX = imgDotX + interColGap;
         const prefixRightDotX = prefixLeftDotX + prefixColWidth;
@@ -4193,14 +4203,20 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           applyFont(doc, currentWriteFont, isAnsMode ? 'bold' : 'normal');
           doc.setFontSize(currentWriteFontSize);
           doc.setTextColor(isAnsMode ? 220 : 45, isAnsMode ? 38 : 55, isAnsMode ? 38 : 72);
+          const availWriteW = Math.max(10, (pageWidth - margin - 2) - writeStartX);
+          let textW = doc.getTextWidth(writeTextToDraw);
+          if (textW > availWriteW) {
+            const scaled = Math.max(8.5, Math.floor(currentWriteFontSize * (availWriteW / textW)));
+            doc.setFontSize(scaled);
+            textW = doc.getTextWidth(writeTextToDraw);
+          }
 
           const textBaselineY = rowCenterY + (isA5 ? 1.0 : 1.3);
           doc.text(writeTextToDraw, writeStartX, textBaselineY, { align: 'left' });
 
           // Dashed baseline underneath word
           if (showBaseline) {
-            const textW = doc.getTextWidth(writeTextToDraw);
-            const baselineW = Math.max(textW + (isA5 ? 4 : 6), isA5 ? 20 : 28);
+            const baselineW = Math.min(Math.max(textW + (isA5 ? 4 : 6), isA5 ? 20 : 28), availWriteW);
             const baselineOffset = (writeMode === 'blank' || isAnsMode) ? (isA5 ? 2.8 : 3.4) : (isA5 ? 1.6 : 2.0);
             const baselineY = textBaselineY + baselineOffset;
 
@@ -6949,6 +6965,14 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
         rowHeight = gridMetrics.rowHeight;
         minUnitH = rowHeight;
       }
+    } else if (section.type === 5) {
+      const oLyH = isA5 ? 20 : 39;
+      const rowContentHeight = Math.max(imgSize, oLyH);
+      const effectiveSecSpacing = secSpacing !== undefined ? secSpacing : 6;
+      const spacingMm = effectiveSecSpacing * 0.352778;
+      const imgGap = (effectiveSecSpacing === 0 ? 3.0 : 3.0 + spacingMm * 0.7);
+      rowHeight = rowContentHeight + imgGap;
+      minUnitH = rowHeight;
     } else if (section.type === 6) {
       const isHorizontal = section.choiceLayout === 'horizontal';
       const numChoices = isHorizontal ? 2 : (section.choiceCount === 2 ? 2 : 3);
@@ -7546,6 +7570,90 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           isAtTopOfPage = false;
         }
       }
+    } else if (section.type === 5) {
+      // -------------------------------------------------------------
+      // TYPE 5: Handwriting Font HP001 + Ô Ly Grid in Composite Mode
+      // -------------------------------------------------------------
+      const oLyH = isA5 ? 20 : 39;
+      const rowContentHeight = Math.max(imgSize, oLyH);
+      const effectiveSecSpacing = secSpacing !== undefined ? secSpacing : 6;
+      const spacingMm = effectiveSecSpacing * 0.352778;
+      const imgGap = (effectiveSecSpacing === 0 ? 3.0 : 3.0 + spacingMm * 0.7);
+      const rowPitch = rowContentHeight + imgGap;
+
+      for (let i = 0; i < secWords.length; i++) {
+        if (currentY + rowContentHeight > maxContentY && !isAtTopOfPage) {
+          await addNewPage();
+        }
+
+        const word = secWords[i];
+        const img = word.imageUrl ? await fetchImageAsBase64(word.imageUrl) : null;
+        const xImg = margin;
+        const yImg = currentY;
+
+        if (img) {
+          safeAddImage(doc, img, xImg, yImg, imgSize, imgSize);
+          if (showImageBorder) doc.rect(xImg, yImg, imgSize, imgSize);
+        } else if (showImageBorder) {
+          doc.rect(xImg, yImg, imgSize, imgSize);
+        }
+
+        const gridX = xImg + imgSize + 5;
+        const gridY = yImg + (isA5 ? 5 : 9.5);
+
+        // Font HP001 4 hàng 2 ô ly lines
+        doc.setFont('fontHP001_4_2', 'normal');
+        doc.setFontSize(isA5 ? 15 : 22);
+        doc.setDrawColor(50, 50, 50);
+        doc.setLineWidth(0.1);
+        setDocLineDash(doc, [0.5]);
+
+        const blankLine = isA5 ? '                                ' : '                                          ';
+        doc.text(blankLine, gridX, gridY);
+        doc.text(blankLine, gridX, gridY + (isA5 ? 7 : 12.5));
+        doc.text(blankLine, gridX, gridY + (isA5 ? 14 : 25));
+
+        // Word text
+        doc.setFont('fontHP001_b4h', 'normal');
+        if (section.answerMode === 'answer') {
+          doc.setTextColor(220, 38, 38);
+          const wordWidth = doc.getTextWidth(word.term);
+          const repeatCount = isA5 ? 3 : 4;
+          const stepX = Math.max(wordWidth + 8, (printableWidth - (gridX - margin)) / repeatCount);
+          for (let rep = 0; rep < repeatCount; rep++) {
+            const rx = gridX + rep * stepX;
+            if (rx + wordWidth <= pageWidth - margin) {
+              doc.text(word.term, rx, gridY);
+            }
+          }
+          doc.setTextColor(0, 0, 0);
+        } else {
+          doc.setTextColor(0, 0, 0);
+          doc.text(word.term, gridX, gridY);
+        }
+
+        // Vertical lines for ô ly
+        const colCount = isA5 ? 55 : 88;
+        const colSpacing = 1.5;
+        for (let c = 0; c < colCount; c++) {
+          if (c % 4 === 0) {
+            setDocLineDash(doc, []);
+            doc.setLineWidth(0.1);
+          } else {
+            setDocLineDash(doc, [0.1]);
+            doc.setLineWidth(0.1);
+          }
+          doc.line(
+            gridX + c * colSpacing,
+            yImg + 1,
+            gridX + c * colSpacing,
+            yImg + oLyH
+          );
+        }
+
+        currentY += rowPitch;
+        isAtTopOfPage = false;
+      }
     } else if (section.type === 6) {
       // -------------------------------------------------------------
       // TYPE 6: Multiple choice (2 columns)
@@ -7900,7 +8008,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
           const totalNeededW = (imgSize + dotImgGap) + prefixColWidth + suffixColWidth + writeColWidth;
           const remainingW = (pageWidth - margin * 2) - totalNeededW;
-          const interColGap = Math.max(isA5 ? 8 : 12, Math.min(isA5 ? 20 : 32, remainingW / 3));
+          const interColGap = Math.max(isA5 ? 3.5 : 5.0, Math.min(isA5 ? 12 : 20, remainingW / 3));
 
           const prefixLeftDotX = imgDotX + interColGap;
           const prefixRightDotX = prefixLeftDotX + prefixColWidth;
@@ -7994,13 +8102,20 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               doc.setTextColor(45, 55, 72);
             }
 
+            const availWriteW = Math.max(10, (pageWidth - margin - 2) - writeStartX);
+            let textW = doc.getTextWidth(writeTextToDraw);
+            if (textW > availWriteW) {
+              const scaled = Math.max(8.5, Math.floor(currentWriteFontSize * (availWriteW / textW)));
+              doc.setFontSize(scaled);
+              textW = doc.getTextWidth(writeTextToDraw);
+            }
+
             const textBaselineY = rowCenterY + (isA5 ? 1.0 : 1.3);
             doc.text(writeTextToDraw, writeStartX, textBaselineY, { align: 'left' });
 
             // Dashed baseline underneath word
             if (showBaseline) {
-              const textW = doc.getTextWidth(writeTextToDraw);
-              const baselineW = Math.max(textW + (isA5 ? 4 : 6), isA5 ? 20 : 28);
+              const baselineW = Math.min(Math.max(textW + (isA5 ? 4 : 6), isA5 ? 20 : 28), availWriteW);
               const baselineOffset = writeMode === 'blank' ? (isA5 ? 2.8 : 3.4) : (isA5 ? 1.6 : 2.0);
               const baselineY = textBaselineY + baselineOffset;
 

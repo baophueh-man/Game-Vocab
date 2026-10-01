@@ -488,6 +488,7 @@ export default function CompositeSectionCard({
                     2: { title: 'Write the words' },
                     3: { title: 'Match picture with word' },
                     4: { title: 'Missing letters' },
+                    5: { title: 'Handwriting practice' },
                     6: { title: 'Multiple choice' },
                     7: { title: 'Unscramble letters' },
                     8: { title: 'Look and trace' },
