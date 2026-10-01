@@ -4586,11 +4586,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             }
             const imgX = tableX + (col1Width - imgW) / 2;
             const imgY = rowCenterY - imgH / 2;
-            try {
-              doc.addImage(img, 'JPEG', imgX, imgY, imgW, imgH);
-            } catch {
-              if (showImageBorder) doc.rect(imgX, imgY, imgW, imgH);
-            }
+            safeAddImage(doc, img, imgX, imgY, imgW, imgH);
             if (showImageBorder) doc.rect(imgX, imgY, imgW, imgH);
           } else if (showImageBorder) {
             doc.rect(tableX + (col1Width - imgDim) / 2, rowCenterY - imgDim / 2, imgDim, imgDim);
@@ -4698,11 +4694,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           const img = wordImages[i];
           if (img) {
-            try {
-              doc.addImage(img, 'JPEG', imgX, imgY, imgSize, imgSize);
-            } catch {
-              if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
-            }
+            safeAddImage(doc, img, imgX, imgY, imgSize, imgSize);
+            if (showImageBorder) doc.rect(imgX, imgY, imgSize, imgSize);
           } else if (showImageBorder) {
             doc.rect(imgX, imgY, imgSize, imgSize);
           }
