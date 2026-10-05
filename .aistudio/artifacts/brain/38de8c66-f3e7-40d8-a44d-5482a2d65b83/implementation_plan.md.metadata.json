@@ -1,0 +1,6 @@
+{
+  "summary":  "Kế hoạch triển khai chế độ game Trắc Nghiệm Đánh Banh / Sút Luân Lưu (Penalty Shootout Quiz):\n- Nghe phát âm từ vựng tiếng Anh và chọn hình ảnh/nghĩa đúng.\n- Hoạt ảnh vật lý bóng sút vào lưới khi trả lời đúng (GOAL!) và thủ môn bay người cản phá/bắt dính bóng khi trả lời sai (SAVED!).\n- Thể thức sút luân lưu 5 hoặc 10 quả bóng với chấm phạt đền, bảng tỷ số điện tử sân vận động, âm thanh reo hò, confetti và cúp vô địch.\n- Tuyệt đối giữ nguyên vẹn 100% code cũ của tất cả các chế độ và thành phần khác, chỉ tích hợp thêm component PenaltyShootoutQuiz độc lập vào GamePlayer.",
+  "updatedAt":  "2026-10-05T09:54:01.117077882Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
