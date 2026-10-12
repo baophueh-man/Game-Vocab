@@ -20,10 +20,11 @@ import WordRainBalloons from '../components/games/WordRainBalloons';
 import WordPathMaze from '../components/games/WordPathMaze';
 import GauntletReviewGame from '../components/games/GauntletReviewGame';
 import PenaltyShootoutQuiz from '../components/games/PenaltyShootoutQuiz';
+import WordTugOfWar from '../components/games/WordTugOfWar';
 import VoiceSettings from '../components/ui/VoiceSettings';
-import { ArrowLeft, BrainCircuit, Layers, Shuffle, Type, MousePointer2, Target, Volume2, CircleDashed, Package, Palette, Lock, Unlock, Headphones, CheckCheck, CloudRain, Footprints, Swords } from 'lucide-react';
+import { ArrowLeft, BrainCircuit, Layers, Shuffle, Type, MousePointer2, Target, Volume2, CircleDashed, Package, Palette, Lock, Unlock, Headphones, CheckCheck, CloudRain, Footprints, Swords, Zap } from 'lucide-react';
 
-type GameMode = 'menu' | 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'tapToHear' | 'listenMtq' | 'trueFalse' | 'wordRain' | 'wordPathMaze' | 'gauntlet' | 'penaltyQuiz';
+type GameMode = 'menu' | 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'tapToHear' | 'listenMtq' | 'trueFalse' | 'wordRain' | 'wordPathMaze' | 'gauntlet' | 'penaltyQuiz' | 'tugOfWar';
 
 const THEMES = [
   { id: 'default', name: 'Classic Light', bgImage: '', bgOverlay: 'bg-slate-50' },
@@ -126,6 +127,7 @@ export default function GamePlayer() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <GameCard title="Đấu Kéo Co Từ Vựng" description="Trò chơi đối kháng kéo co siêu kịch tính! Kéo dây thừng thi đấu với AI hoặc 2 người cùng máy. Siêu nhẹ, mượt mà 60 FPS!" icon={Zap} color="bg-indigo-600" onClick={() => setMode('tugOfWar')} />
                 <GameCard title="Sút Phạt Penalty" description="Đánh banh trắc nghiệm! Nghe phát âm chọn hình. Sút tung lưới ghi bàn ⚽ hoặc bị thủ môn bắt dính 🧤!" icon={Target} color="bg-emerald-600" onClick={() => setMode('penaltyQuiz')} />
                 <GameCard title="Kiểm Tra Bài Cũ" description="Chế độ Liên Hoàn 4 Ải (Đúng/Sai ➜ Nghe ➜ Chính tả ➜ Tốc độ). Bảng điểm tổng kết, xếp hạng S/A/B/C & thống kê từ cần ôn!" icon={Swords} color="bg-amber-600" onClick={() => setMode('gauntlet')} />
                 <GameCard title="Word Path Maze" description="Mê Cung Từ Vựng siêu nhẹ! Bước từng ô gạch đúng đến đích, không giật lag, cực kỳ dễ chơi." icon={Footprints} color="bg-emerald-600" onClick={() => setMode('wordPathMaze')} />
@@ -201,6 +203,7 @@ export default function GamePlayer() {
                 {mode === 'wordPathMaze' && <WordPathMaze words={set.words} onExit={() => setMode('menu')} />}
                 {mode === 'gauntlet' && <GauntletReviewGame words={set.words} onExit={() => setMode('menu')} />}
                 {mode === 'penaltyQuiz' && <PenaltyShootoutQuiz words={set.words} onExit={() => setMode('menu')} />}
+                {mode === 'tugOfWar' && <WordTugOfWar words={set.words} onExit={() => setMode('menu')} />}
               </div>
             </div>
           </>
