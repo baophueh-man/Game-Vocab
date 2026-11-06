@@ -437,31 +437,78 @@ export function applyTemplateToSections(
   const allocated = allocateWordSlotsToSections(targetCounts, totalWords);
 
   return template.sections.map((ts, idx) => {
-    let selectedIndices: number[];
+    let selectedIndices: number[] | undefined;
 
-    if (
-      ts.primaryWordCount !== undefined &&
-      ts.reviewWordCount !== undefined &&
-      hasReviewWords
-    ) {
-      selectedIndices = pickQuotaAwareRandomWordIndices(
-        availableWords,
-        ts.primaryWordCount,
-        ts.reviewWordCount
-      );
-    } else {
-      selectedIndices = allocated[idx] || [];
+    // 1. If template section has explicit selectedWordIndices, check if terms match
+    if (ts.selectedWordIndices && Array.isArray(ts.selectedWordIndices) && ts.selectedWordIndices.length > 0 && totalWords > 0) {
+      const valid = ts.selectedWordIndices.filter((i) => typeof i === 'number' && i >= 0 && i < totalWords);
+      if (valid.length > 0) {
+        if (ts.selectedWordTerms && Array.isArray(ts.selectedWordTerms) && ts.selectedWordTerms.length > 0) {
+          // Verify if terms at these indices still match the saved terms
+          const currentTerms = valid.map((i) => normalizeTerm(availableWords[i]?.term)).filter(Boolean);
+          const expectedTerms = ts.selectedWordTerms.map((t) => normalizeTerm(t));
+          const allMatch = currentTerms.length === expectedTerms.length && currentTerms.every((t, idx) => t === expectedTerms[idx]);
+          if (allMatch) {
+            selectedIndices = valid;
+          }
+        } else {
+          selectedIndices = valid;
+        }
+      }
     }
 
+    // 2. If not matched by index (e.g. deck was shuffled or re-ordered), match by selectedWordTerms
+    if (
+      (!selectedIndices || selectedIndices.length === 0) &&
+      ts.selectedWordTerms &&
+      Array.isArray(ts.selectedWordTerms) &&
+      ts.selectedWordTerms.length > 0 &&
+      totalWords > 0
+    ) {
+      const matched: number[] = [];
+      for (const term of ts.selectedWordTerms) {
+        const norm = normalizeTerm(term);
+        const found = availableWords.findIndex((w, i) => !matched.includes(i) && normalizeTerm(w.term) === norm);
+        if (found !== -1) {
+          matched.push(found);
+        }
+      }
+      if (matched.length > 0) {
+        selectedIndices = matched;
+      }
+    }
+
+    // 3. Fallback to quota-aware randomization or sequential modulo allocation only if no specific selection was stored
+    if (!selectedIndices || selectedIndices.length === 0) {
+      if (
+        ts.primaryWordCount !== undefined &&
+        ts.reviewWordCount !== undefined &&
+        hasReviewWords
+      ) {
+        selectedIndices = pickQuotaAwareRandomWordIndices(
+          availableWords,
+          ts.primaryWordCount,
+          ts.reviewWordCount
+        );
+      } else {
+        selectedIndices = allocated[idx] || [];
+      }
+    }
+
+    const finalTargetCount = (selectedIndices && selectedIndices.length > 0)
+      ? selectedIndices.length
+      : targetCounts[idx];
+
     return {
+      ...ts,
       id: generateId(),
       type: ts.type,
       title: ts.title,
       instruction: ts.instruction,
-      targetWordCount: targetCounts[idx],
+      targetWordCount: finalTargetCount,
       primaryWordCount: ts.primaryWordCount,
       reviewWordCount: ts.reviewWordCount,
-      selectedWordIndices: selectedIndices,
+      selectedWordIndices: selectedIndices || [],
       blankMode: ts.blankMode,
       type4LayoutMode: ts.type4LayoutMode,
       type4ColumnMode: ts.type4ColumnMode,
@@ -476,20 +523,83 @@ export function applyTemplateToSections(
       choiceLayout: ts.choiceLayout,
       matchMode: ts.matchMode,
       matchHint: ts.matchHint,
+      lookMatchWriteShuffleSuffix: ts.lookMatchWriteShuffleSuffix,
+      lookMatchWriteMode: ts.lookMatchWriteMode,
+      lookMatchWriteShowBaseline: ts.lookMatchWriteShowBaseline,
+      lookMatchWriteTraceFontSize: ts.lookMatchWriteTraceFontSize,
       wordsearchDirections: ts.wordsearchDirections,
       wordsearchHintType: ts.wordsearchHintType,
       wordsearchGridSize: ts.wordsearchGridSize,
       wordsearchGridBorder: ts.wordsearchGridBorder,
       wordsearchCase: ts.wordsearchCase,
+      wordsearchSeed: ts.wordsearchSeed,
+      type3Seed: ts.type3Seed,
+      type6Seed: ts.type6Seed,
       targetLetter: ts.targetLetter,
       showWordLabels: ts.showWordLabels,
       sentenceScramble: ts.sentenceScramble,
       sentenceSeparator: ts.sentenceSeparator,
       sentenceHintStyle: ts.sentenceHintStyle,
+      sentenceTraceFontSize: ts.sentenceTraceFontSize,
       type15NumberStyle: ts.type15NumberStyle,
       type15Border: ts.type15Border,
       type15ChoiceMode: ts.type15ChoiceMode,
-      type15LetterBandBg: ts.type15LetterBandBg
+      type15LetterBandBg: ts.type15LetterBandBg,
+      type16SoundMode: ts.type16SoundMode,
+      type16ChoiceCount: ts.type16ChoiceCount,
+      type16Layout: ts.type16Layout,
+      type16LetterCase: ts.type16LetterCase,
+      type16Border: ts.type16Border,
+      type17TaskMode: ts.type17TaskMode,
+      type17Border: ts.type17Border,
+      type17CardBorder: ts.type17CardBorder,
+      type17LetterCase: ts.type17LetterCase,
+      type17StripLength: ts.type17StripLength,
+      type17HighlightTarget: ts.type17HighlightTarget,
+      type17ShowExample: ts.type17ShowExample,
+      type18TargetLetter: ts.type18TargetLetter,
+      type18Mode: ts.type18Mode,
+      type18ColorUpper: ts.type18ColorUpper,
+      type18ColorLower: ts.type18ColorLower,
+      type18GridRows: ts.type18GridRows,
+      type18GridCols: ts.type18GridCols,
+      type18Border: ts.type18Border,
+      type18CircleStyle: ts.type18CircleStyle,
+      type18DistractorCasing: ts.type18DistractorCasing,
+      type18HighlightTarget: ts.type18HighlightTarget,
+      type19MazeMode: ts.type19MazeMode,
+      type19WallColor: ts.type19WallColor,
+      type19EntranceCharacter: ts.type19EntranceCharacter,
+      type19TargetItem: ts.type19TargetItem,
+      type19SentenceStem: ts.type19SentenceStem,
+      type19CornerStyle: ts.type19CornerStyle,
+      type19WallThickness: ts.type19WallThickness,
+      type19MazeSeed: ts.type19MazeSeed,
+      type19HintMode: ts.type19HintMode,
+      type19GridBorder: ts.type19GridBorder,
+      type19LineStyle: ts.type19LineStyle,
+      type19BorderColor: ts.type19BorderColor,
+      type19PuzzlesPerPage: ts.type19PuzzlesPerPage,
+      type19Casing: ts.type19Casing,
+      type19ShowClueImage: ts.type19ShowClueImage,
+      type19ShowClueNumber: ts.type19ShowClueNumber,
+      type19ShowClueText: ts.type19ShowClueText,
+      type19ShowTrace: ts.type19ShowTrace,
+      type20HintMode: ts.type20HintMode,
+      type20GridBorder: ts.type20GridBorder,
+      type20LineStyle: ts.type20LineStyle,
+      type20BorderColor: ts.type20BorderColor,
+      type20PuzzlesPerPage: ts.type20PuzzlesPerPage,
+      type20Casing: ts.type20Casing,
+      type20ShowClueImage: ts.type20ShowClueImage,
+      type20ShowClueNumber: ts.type20ShowClueNumber,
+      type20ShowClueText: ts.type20ShowClueText,
+      type20ShowTrace: ts.type20ShowTrace,
+      type20GridMode: ts.type20GridMode,
+      type20HollowArrows: ts.type20HollowArrows,
+      type20ClueColumns: ts.type20ClueColumns,
+      type19CellSize: ts.type19CellSize,
+      answerMode: ts.answerMode
     };
   });
 }

@@ -23,9 +23,21 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
+  "include": [
+    "src/**/*",
+    "server.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
-    "src/backup_composite_r2"
+    "src/backup_*",
+    "src/backup_composite_r2",
+    "src/backup_type20_upgrade",
+    "src/backup_type20_v2",
+    "src/backup_ws_template_fix",
+    "src/backup_ws3_fix",
+    "test_*.ts",
+    "*.mjs",
+    "*.cjs"
   ]
 }

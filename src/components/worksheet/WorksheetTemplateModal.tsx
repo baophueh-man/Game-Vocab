@@ -53,7 +53,12 @@ export const EXERCISE_TYPE_NAMES: Record<number, string> = {
   12: 'Trắc nghiệm hình ảnh',
   13: 'Ô chữ Wordsearch',
   14: 'Nhận biết chữ cái',
-  15: 'Vòng xoay chữ cái'
+  15: 'Đọc câu khoanh tranh',
+  16: 'Khoanh âm đầu/cuối',
+  17: 'Tô màu từ / Gạch chữ dư',
+  18: 'Tô màu chữ cái',
+  19: 'Mê cung từ vựng',
+  20: 'Ô chữ giao nhau'
 };
 
 /**
@@ -993,10 +998,16 @@ export default function WorksheetTemplateModal({
 
                     <div className="flex items-center gap-4 text-[11px] text-slate-500 pl-7 flex-wrap">
                       {sec.blankMode && <span>Ô khuyết: <strong>{sec.blankMode}</strong></span>}
-                      {sec.type4LayoutMode && <span>Bố cục Type 4: <strong>{sec.type4LayoutMode}</strong></span>}
+                      {sec.type4LayoutMode && <span>Bố cục: <strong>{sec.type4LayoutMode}</strong></span>}
                       {sec.choiceCount && <span>Số đáp án: <strong>{sec.choiceCount}</strong></span>}
                       {sec.matchMode && <span>Kiểu nối: <strong>{sec.matchMode}</strong></span>}
                       {sec.wordsearchGridSize && <span>Ô chữ: <strong>{sec.wordsearchGridSize}</strong></span>}
+                      {sec.type15ChoiceMode && <span>Lựa chọn WS 15: <strong>{sec.type15ChoiceMode}</strong></span>}
+                      {sec.type16SoundMode && <span>Âm thanh WS 16: <strong>{sec.type16SoundMode === 'beginning' ? 'Âm đầu' : 'Âm cuối'}</strong></span>}
+                      {sec.type17TaskMode && <span>Chế độ WS 17: <strong>{sec.type17TaskMode === 'color' ? 'Tô màu' : 'Gạch chữ dư'}</strong></span>}
+                      {sec.type18TargetLetter && <span>Chữ cái WS 18: <strong>{sec.type18TargetLetter}</strong></span>}
+                      {sec.type19MazeMode && <span>Mê cung WS 19: <strong>{sec.type19MazeMode === 'single_goal' ? 'Tìm đích' : 'Rẽ nhánh'}</strong></span>}
+                      {sec.type20HintMode && <span>Khuyết chữ WS 20: <strong>{sec.type20HintMode}</strong></span>}
                       {sec.pageBreakBefore && (
                         <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                           Sang trang mới

@@ -29,7 +29,26 @@ import {
   Type18Border,
   Type18CircleStyle,
   Type18DistractorCasing,
-  Type18HighlightTarget
+  Type18HighlightTarget,
+  Type19MazeMode,
+  Type19WallColor,
+  Type19EntranceCharacter,
+  Type19TargetItem,
+  Type19CornerStyle,
+  Type19WallThickness,
+  Type20HintMode,
+  Type20GridBorder,
+  Type20LineStyle,
+  Type20BorderColor,
+  Type20PuzzlesPerPage,
+  Type20Casing,
+  Type19HintMode,
+  Type19GridBorder,
+  Type19LineStyle,
+  Type19BorderColor,
+  Type19PuzzlesPerPage,
+  Type19Casing,
+  Type20GridMode
 } from './worksheetGenerator';
 import { generateId } from '../lib/utils';
 
@@ -39,9 +58,9 @@ export const IDB_DATABASE_NAME = 'VocaGameTemplatesDB';
 export const IDB_STORE_NAME = 'templates';
 export const IDB_VERSION = 1;
 
-// Allowed section types for composite worksheets (1-18 except 5)
+// Allowed section types for composite worksheets (1-20 except 5)
 export const VALID_WORKSHEET_SECTION_TYPES: readonly WorksheetType[] = [
-  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+  1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
 ];
 
 export interface WorksheetTemplateSection {
@@ -107,7 +126,46 @@ export interface WorksheetTemplateSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
-  answerMode?: 'student' | 'answer';
+  type19MazeMode?: Type19MazeMode;
+  type19WallColor?: Type19WallColor;
+  type19EntranceCharacter?: Type19EntranceCharacter;
+  type19TargetItem?: Type19TargetItem;
+  type19SentenceStem?: string;
+  type19CornerStyle?: Type19CornerStyle;
+  type19WallThickness?: Type19WallThickness;
+  type19MazeSeed?: number | string;
+  type19Seed?: number | string;
+  type19HintMode?: Type19HintMode;
+  type19GridBorder?: Type19GridBorder;
+  type19LineStyle?: Type19LineStyle;
+  type19BorderColor?: Type19BorderColor;
+  type19PuzzlesPerPage?: Type19PuzzlesPerPage;
+  type19Casing?: Type19Casing;
+  type19ShowClueImage?: boolean;
+  type19ShowClueNumber?: boolean;
+  type19ShowClueText?: boolean;
+  type19ShowTrace?: boolean;
+  type20HintMode?: Type20HintMode;
+  type20GridBorder?: Type20GridBorder;
+  type20LineStyle?: Type20LineStyle;
+  type20BorderColor?: Type20BorderColor;
+  type20PuzzlesPerPage?: Type20PuzzlesPerPage;
+  type20Casing?: Type20Casing;
+  type20ShowClueImage?: boolean;
+  type20ShowClueNumber?: boolean;
+  type20ShowClueText?: boolean;
+  type20ShowTrace?: boolean;
+  type20GridMode?: Type20GridMode;
+  type20HollowArrows?: boolean;
+  type20ClueColumns?: number;
+  type19CellSize?: number;
+  answerMode?: 'student' | 'answer' | 'both';
+  selectedWordIndices?: number[];
+  selectedWordTerms?: string[];
+  wordsearchSeed?: number | string;
+  type3Seed?: number | string;
+  type6Seed?: number | string;
+  [key: string]: any;
 }
 
 export interface WorksheetTemplate {
@@ -124,7 +182,7 @@ export interface WorksheetTemplate {
   spacing?: number;
   imageSize?: number;
   showHeader?: boolean;
-  answerMode?: 'student' | 'answer';
+  answerMode?: 'student' | 'answer' | 'both';
   showFooter?: boolean;
   showImageBorder?: boolean;
   showTableGrid?: boolean;
@@ -883,7 +941,45 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.type18CircleStyle ? { type18CircleStyle: item.type18CircleStyle } : {}),
       ...(item.type18DistractorCasing ? { type18DistractorCasing: item.type18DistractorCasing } : {}),
       ...(item.type18HighlightTarget ? { type18HighlightTarget: item.type18HighlightTarget } : {}),
-      ...(item.answerMode ? { answerMode: item.answerMode } : {})
+      ...(item.answerMode ? { answerMode: item.answerMode } : {}),
+      ...(Array.isArray(item.selectedWordIndices) ? { selectedWordIndices: item.selectedWordIndices } : {}),
+      ...(Array.isArray(item.selectedWordTerms) ? { selectedWordTerms: item.selectedWordTerms } : {}),
+      ...(item.wordsearchSeed !== undefined ? { wordsearchSeed: item.wordsearchSeed } : {}),
+      ...(item.type3Seed !== undefined ? { type3Seed: item.type3Seed } : {}),
+      ...(item.type6Seed !== undefined ? { type6Seed: item.type6Seed } : {}),
+      ...(item.type19MazeMode ? { type19MazeMode: item.type19MazeMode } : {}),
+      ...(item.type19WallColor ? { type19WallColor: item.type19WallColor } : {}),
+      ...(item.type19EntranceCharacter ? { type19EntranceCharacter: item.type19EntranceCharacter } : {}),
+      ...(item.type19TargetItem ? { type19TargetItem: item.type19TargetItem } : {}),
+      ...(typeof item.type19SentenceStem === 'string' ? { type19SentenceStem: item.type19SentenceStem } : {}),
+      ...(item.type19CornerStyle ? { type19CornerStyle: item.type19CornerStyle } : {}),
+      ...(item.type19WallThickness ? { type19WallThickness: item.type19WallThickness } : {}),
+      ...(item.type19MazeSeed !== undefined ? { type19MazeSeed: item.type19MazeSeed } : {}),
+      ...(item.type19Seed !== undefined ? { type19Seed: item.type19Seed } : {}),
+      ...(item.type19HintMode ? { type19HintMode: item.type19HintMode } : {}),
+      ...(item.type19GridBorder ? { type19GridBorder: item.type19GridBorder } : {}),
+      ...(item.type19LineStyle ? { type19LineStyle: item.type19LineStyle } : {}),
+      ...(item.type19BorderColor ? { type19BorderColor: item.type19BorderColor } : {}),
+      ...(item.type19PuzzlesPerPage !== undefined ? { type19PuzzlesPerPage: item.type19PuzzlesPerPage } : {}),
+      ...(item.type19Casing ? { type19Casing: item.type19Casing } : {}),
+      ...(typeof item.type19ShowClueImage === 'boolean' ? { type19ShowClueImage: item.type19ShowClueImage } : {}),
+      ...(typeof item.type19ShowClueNumber === 'boolean' ? { type19ShowClueNumber: item.type19ShowClueNumber } : {}),
+      ...(typeof item.type19ShowClueText === 'boolean' ? { type19ShowClueText: item.type19ShowClueText } : {}),
+      ...(typeof item.type19ShowTrace === 'boolean' ? { type19ShowTrace: item.type19ShowTrace } : {}),
+      ...(item.type20HintMode ? { type20HintMode: item.type20HintMode } : {}),
+      ...(item.type20GridBorder ? { type20GridBorder: item.type20GridBorder } : {}),
+      ...(item.type20LineStyle ? { type20LineStyle: item.type20LineStyle } : {}),
+      ...(item.type20BorderColor ? { type20BorderColor: item.type20BorderColor } : {}),
+      ...(item.type20PuzzlesPerPage !== undefined ? { type20PuzzlesPerPage: item.type20PuzzlesPerPage } : {}),
+      ...(item.type20Casing ? { type20Casing: item.type20Casing } : {}),
+      ...(typeof item.type20ShowClueImage === 'boolean' ? { type20ShowClueImage: item.type20ShowClueImage } : {}),
+      ...(typeof item.type20ShowClueNumber === 'boolean' ? { type20ShowClueNumber: item.type20ShowClueNumber } : {}),
+      ...(typeof item.type20ShowClueText === 'boolean' ? { type20ShowClueText: item.type20ShowClueText } : {}),
+      ...(typeof item.type20ShowTrace === 'boolean' ? { type20ShowTrace: item.type20ShowTrace } : {}),
+      ...(item.type20GridMode ? { type20GridMode: item.type20GridMode } : {}),
+      ...(typeof item.type20HollowArrows === 'boolean' ? { type20HollowArrows: item.type20HollowArrows } : {}),
+      ...(typeof item.type20ClueColumns === 'number' ? { type20ClueColumns: item.type20ClueColumns } : {}),
+      ...(typeof item.type19CellSize === 'number' ? { type19CellSize: item.type19CellSize } : {})
     };
 
     sanitized.push(sec);
@@ -989,6 +1085,7 @@ export function importTemplateFromJSON(
       showFooter: typeof candidate.showFooter === 'boolean' ? candidate.showFooter : true,
       showImageBorder: typeof candidate.showImageBorder === 'boolean' ? candidate.showImageBorder : false,
       showTableGrid: typeof candidate.showTableGrid === 'boolean' ? candidate.showTableGrid : false,
+      ...(candidate.answerMode ? { answerMode: candidate.answerMode } : {}),
       sections: sanitizedSections
     });
 

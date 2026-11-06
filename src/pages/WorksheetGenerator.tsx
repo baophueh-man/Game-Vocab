@@ -23,16 +23,21 @@ import {
   ArrowLeft,
   Plus,
   LayoutGrid,
-  ListFilter
+  ListFilter,
+  Target,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { getSets, saveSet, getImageFile } from '../lib/storage';
 import { WordSet } from '../types';
 import { generateId } from '../lib/utils';
 import SmartImage from '../components/ui/SmartImage';
+import { ALL_ENTRANCE_CHARACTERS } from '../utils/worksheetCharactersData';
 import WorksheetModeSwitch from '../components/worksheet/WorksheetModeSwitch';
 import CompositeSectionCard, { UICompositeSection } from '../components/worksheet/CompositeSectionCard';
 import CompositeSectionTabs from '../components/worksheet/CompositeSectionTabs';
 import CompositeQuickNav from '../components/worksheet/CompositeQuickNav';
+import { createAllWorksheetSections } from '../utils/worksheetCompositeHelpers';
 import GlobalMultiSetLoader from '../components/worksheet/GlobalMultiSetLoader';
 import MultiDeckQuickAddModal from '../components/worksheet/MultiDeckQuickAddModal';
 import WorksheetTemplateModal from '../components/worksheet/WorksheetTemplateModal';
@@ -49,6 +54,7 @@ import {
   reallocateWordsForSections,
   applyTemplateToSections
 } from '../utils/worksheetVocabEngine';
+import { DEFAULT_SAMPLE_WORDS } from '../utils/worksheetSampleData';
 import {
   generateWorksheetPDF,
   generateCompositeWorksheetPDF,
@@ -91,7 +97,26 @@ import {
   Type18CircleStyle,
   Type18DistractorCasing,
   Type18HighlightTarget,
-  TYPE18_COLOR_MAP
+  TYPE18_COLOR_MAP,
+  Type19MazeMode,
+  Type19WallColor,
+  Type19EntranceCharacter,
+  Type19TargetItem,
+  Type19CornerStyle,
+  Type19WallThickness,
+  Type19HintMode,
+  Type19GridBorder,
+  Type19LineStyle,
+  Type19BorderColor,
+  Type19PuzzlesPerPage,
+  Type19Casing,
+  Type20HintMode,
+  Type20GridBorder,
+  Type20LineStyle,
+  Type20BorderColor,
+  Type20PuzzlesPerPage,
+  Type20Casing,
+  Type20GridMode
 } from '../utils/worksheetGenerator';
 
 // Sensible default sections generator for Composite mode
@@ -202,18 +227,20 @@ export default function WorksheetGenerator() {
   const [worksheetMode, setWorksheetMode] = useState<'single' | 'composite'>(
     paramMode === 'single' ? 'single' : 'composite'
   );
-  const [compositeSections, setCompositeSections] = useState<UICompositeSection[]>(() => createDefaultCompositeSections([]));
+  const [compositeSections, setCompositeSections] = useState<UICompositeSection[]>(() => createDefaultCompositeSections(DEFAULT_SAMPLE_WORDS));
   const [compositeViewMode, setCompositeViewMode] = useState<'tabs' | 'accordion'>('tabs');
   const [activeSectionTab, setActiveSectionTab] = useState<number>(0);
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<Set<string>>(new Set());
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [highlightedSectionIndex, setHighlightedSectionIndex] = useState<number | null>(null);
+  const [compositePreviewScope, setCompositePreviewScope] = useState<'focused' | 'all'>('focused');
+  const [focusedSectionIndex, setFocusedSectionIndex] = useState<number>(0);
 
   // Current Vocabulary Data
   const [title, setTitle] = useState<string>('Lớp 3 - Unit 6');
   const [sourceUrl, setSourceUrl] = useState<string>('https://yourhomework.net');
-  const [words, setWords] = useState<WorksheetWord[]>([]);
-  const [selectedWordIndices, setSelectedWordIndices] = useState<Set<number>>(new Set());
+  const [words, setWords] = useState<WorksheetWord[]>(DEFAULT_SAMPLE_WORDS);
+  const [selectedWordIndices, setSelectedWordIndices] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5]));
 
   // Worksheet Configuration
   const [worksheetType, setWorksheetType] = useState<WorksheetType>(4);
@@ -244,12 +271,14 @@ export default function WorksheetGenerator() {
   const [wordsearchGridSize, setWordsearchGridSize] = useState<number | 'auto'>('auto');
   const [wordsearchGridBorder, setWordsearchGridBorder] = useState<WordsearchGridBorder>('none');
   const [wordsearchCase, setWordsearchCase] = useState<WordsearchCase>('lower');
+  const [wordsearchSeed, setWordsearchSeed] = useState<number>(() => Date.now());
   const [targetLetter, setTargetLetter] = useState<string>('V');
   const [showWordLabels, setShowWordLabels] = useState<boolean>(true);
   const [sentenceScramble, setSentenceScramble] = useState<boolean>(true);
   const [sentenceSeparator, setSentenceSeparator] = useState<'space' | 'slash'>('space');
   const [sentenceHintStyle, setSentenceHintStyle] = useState<'underscores' | 'dots' | 'trace'>('underscores');
   const [sentenceTraceFontSize, setSentenceTraceFontSize] = useState<number>(28);
+  const [sentenceWordsFont, setSentenceWordsFont] = useState<'inherit' | 'Andika'>('inherit');
   const [type15NumberStyle, setType15NumberStyle] = useState<'none' | 'traditional'>('none');
   const [type15Border, setType15Border] = useState<'full' | 'outerOnly' | 'none'>('full');
   const [type15ChoiceMode, setType15ChoiceMode] = useState<'ab' | 'checkbox' | 'none'>('ab');
@@ -276,12 +305,43 @@ export default function WorksheetGenerator() {
   const [type18CircleStyle, setType18CircleStyle] = useState<Type18CircleStyle>('solid');
   const [type18DistractorCasing, setType18DistractorCasing] = useState<Type18DistractorCasing>('upper');
   const [type18HighlightTarget, setType18HighlightTarget] = useState<Type18HighlightTarget>('none');
+  const [type19MazeMode, setType19MazeMode] = useState<Type19MazeMode>('single_goal');
+  const [type19WallColor, setType19WallColor] = useState<Type19WallColor>('black_white');
+  const [type19EntranceCharacter, setType19EntranceCharacter] = useState<Type19EntranceCharacter>('boy');
+  const [type19TargetItem, setType19TargetItem] = useState<Type19TargetItem>('box');
+  const [type19SentenceStem, setType19SentenceStem] = useState<string>("There's a _____.");
+  const [type19CornerStyle, setType19CornerStyle] = useState<Type19CornerStyle>('rounded');
+  const [type19WallThickness, setType19WallThickness] = useState<Type19WallThickness>('medium');
+  const [type19MazeSeed, setType19MazeSeed] = useState<number | string>(42);
+  const [type19HintMode, setType19HintMode] = useState<Type19HintMode>('intersection_blank');
+  const [type19GridBorder, setType19GridBorder] = useState<Type19GridBorder>('full');
+  const [type19LineStyle, setType19LineStyle] = useState<Type19LineStyle>('solid');
+  const [type19BorderColor, setType19BorderColor] = useState<Type19BorderColor>('orange');
+  const [type19PuzzlesPerPage, setType19PuzzlesPerPage] = useState<Type19PuzzlesPerPage>(2);
+  const [type19Casing, setType19Casing] = useState<Type19Casing>('upper');
+  const [type19ShowClueImage, setType19ShowClueImage] = useState<boolean>(true);
+  const [type19ShowClueNumber, setType19ShowClueNumber] = useState<boolean>(true);
+  const [type19ShowTrace, setType19ShowTrace] = useState<boolean>(false);
+  const [type20HintMode, setType20HintMode] = useState<Type20HintMode>('all_blank');
+  const [type20GridBorder, setType20GridBorder] = useState<Type20GridBorder>('full');
+  const [type20LineStyle, setType20LineStyle] = useState<Type20LineStyle>('solid');
+  const [type20BorderColor, setType20BorderColor] = useState<Type20BorderColor>('orange');
+  const [type20PuzzlesPerPage, setType20PuzzlesPerPage] = useState<Type20PuzzlesPerPage>(2);
+  const [type20Casing, setType20Casing] = useState<Type20Casing>('upper');
+  const [type20ShowClueImage, setType20ShowClueImage] = useState<boolean>(true);
+  const [type20ShowClueNumber, setType20ShowClueNumber] = useState<boolean>(true);
+  const [type20ShowTrace, setType20ShowTrace] = useState<boolean>(false);
+  const [type20GridMode, setType20GridMode] = useState<Type20GridMode>('connected');
+  const [type20HollowArrows, setType20HollowArrows] = useState<boolean>(true);
+  const [type20Seed, setType20Seed] = useState<number>(() => Date.now());
+  const [type9Seed, setType9Seed] = useState<number>(() => Date.now());
+  const [type15Seed, setType15Seed] = useState<number>(() => Date.now());
   const [background, setBackground] = useState<string>('');
   const [showHeader, setShowHeader] = useState<boolean>(false);
   const [showFooter, setShowFooter] = useState<boolean>(false);
   const [showImageBorder, setShowImageBorder] = useState<boolean>(false);
   const [showTableGrid, setShowTableGrid] = useState<boolean>(false);
-  const [answerMode, setAnswerMode] = useState<'student' | 'answer'>('student');
+  const [answerMode, setAnswerMode] = useState<'student' | 'answer' | 'both'>('student');
 
   // Generation state
   const [isLoadingVocab, setIsLoadingVocab] = useState<boolean>(false);
@@ -327,7 +387,9 @@ export default function WorksheetGenerator() {
       15: { title: 'Read the sentence and circle the correct picture.' },
       16: { title: 'Look and circle the beginning sound' },
       17: { title: 'Look and color the words' },
-      18: { title: 'Color E green and e red' }
+      18: { title: 'Color E green and e red' },
+      19: { title: 'Game: Find and say.' },
+      20: { title: 'Look, read and write' }
     };
     const meta = titles[defaultType] || { title: 'Worksheet Section' };
     const newSec: UICompositeSection = {
@@ -350,6 +412,7 @@ export default function WorksheetGenerator() {
 
     const newIndex = nextSections.length - 1;
     setActiveSectionTab(newIndex);
+    setFocusedSectionIndex(newIndex);
 
     if (focusMode) {
       const allPrev = new Set(compositeSections.map((s) => s.id));
@@ -375,7 +438,48 @@ export default function WorksheetGenerator() {
     }, 80);
 
     setTimeout(() => {
-      handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite');
+      handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite', compositePreviewScope, newIndex);
+    }, 150);
+  };
+
+  const handleAddAllSections = () => {
+    const newSections = createAllWorksheetSections(WORKSHEET_TYPES, words);
+    const isOnlyDefaultEmpty =
+      compositeSections.length <= 2 &&
+      compositeSections.every((s) => !s.selectedWordIndices || s.selectedWordIndices.length === 0);
+
+    const nextSections = isOnlyDefaultEmpty ? newSections : [...compositeSections, ...newSections];
+    setCompositeSections(nextSections);
+
+    const firstNewIndex = isOnlyDefaultEmpty ? 0 : compositeSections.length;
+    setActiveSectionTab(firstNewIndex);
+    setFocusedSectionIndex(firstNewIndex);
+
+    if (focusMode) {
+      const allPrev = new Set(nextSections.map((s) => s.id));
+      setCollapsedSectionIds(allPrev);
+    } else {
+      setCollapsedSectionIds((prev) => {
+        const next = new Set(prev);
+        newSections.forEach((s) => next.delete(s.id));
+        return next;
+      });
+    }
+
+    setHighlightedSectionIndex(firstNewIndex);
+    setTimeout(() => {
+      setHighlightedSectionIndex(null);
+    }, 1500);
+
+    setTimeout(() => {
+      const el = document.getElementById(`composite-section-card-${firstNewIndex}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 80);
+
+    setTimeout(() => {
+      handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite', compositePreviewScope, firstNewIndex);
     }, 150);
   };
 
@@ -387,6 +491,7 @@ export default function WorksheetGenerator() {
       nextSections = next;
       return next;
     });
+    setFocusedSectionIndex(index);
     if (
       updated.fontFamily !== undefined ||
       updated.fontSize !== undefined ||
@@ -407,10 +512,23 @@ export default function WorksheetGenerator() {
       updated.blankMode !== undefined ||
       updated.pageBreakBefore !== undefined ||
       updated.selectedWordIndices !== undefined ||
-      updated.targetWordCount !== undefined
+      updated.targetWordCount !== undefined ||
+      updated.type19MazeMode !== undefined ||
+      updated.type19WallColor !== undefined ||
+      updated.type19WallThickness !== undefined ||
+      updated.type19CornerStyle !== undefined ||
+      updated.type19EntranceCharacter !== undefined ||
+      updated.type19TargetItem !== undefined ||
+      updated.type19SentenceStem !== undefined ||
+      updated.type19MazeSeed !== undefined ||
+      updated.type9Seed !== undefined ||
+      updated.type15Seed !== undefined ||
+      updated.wordsearchSeed !== undefined ||
+      updated.type3Seed !== undefined ||
+      updated.answerMode !== undefined
     ) {
       setTimeout(() => {
-        handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite');
+        handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite', compositePreviewScope, index);
       }, 150);
     }
   };
@@ -429,6 +547,11 @@ export default function WorksheetGenerator() {
     } else if (activeSectionTab === index - 1) {
       setActiveSectionTab(index);
     }
+    if (focusedSectionIndex === index) {
+      setFocusedSectionIndex(index - 1);
+    } else if (focusedSectionIndex === index - 1) {
+      setFocusedSectionIndex(index);
+    }
   };
 
   const handleMoveDownSection = (index: number) => {
@@ -445,6 +568,11 @@ export default function WorksheetGenerator() {
     } else if (activeSectionTab === index + 1) {
       setActiveSectionTab(index);
     }
+    if (focusedSectionIndex === index) {
+      setFocusedSectionIndex(index + 1);
+    } else if (focusedSectionIndex === index + 1) {
+      setFocusedSectionIndex(index);
+    }
   };
 
   const handleDeleteSection = (index: number) => {
@@ -458,11 +586,14 @@ export default function WorksheetGenerator() {
         return next;
       });
     }
-    setActiveSectionTab((prev) => Math.max(0, Math.min(prev, compositeSections.length - 2)));
+    const nextIdx = Math.max(0, Math.min(index, compositeSections.length - 2));
+    setActiveSectionTab(nextIdx);
+    setFocusedSectionIndex(nextIdx);
   };
 
   const handleDuplicateSection = (index: number) => {
     const copyId = generateId();
+    let nextSections: UICompositeSection[] = [];
     setCompositeSections((prev) => {
       const target = prev[index];
       const copy: UICompositeSection = {
@@ -472,14 +603,42 @@ export default function WorksheetGenerator() {
       };
       const next = [...prev];
       next.splice(index + 1, 0, copy);
+      nextSections = next;
       return next;
     });
     const newIdx = index + 1;
     setActiveSectionTab(newIdx);
+    setFocusedSectionIndex(newIdx);
     setHighlightedSectionIndex(newIdx);
     setTimeout(() => {
       setHighlightedSectionIndex(null);
     }, 1500);
+    setTimeout(() => {
+      handleGeneratePreview(undefined, undefined, undefined, undefined, nextSections, 'composite', compositePreviewScope, newIdx);
+    }, 150);
+  };
+
+  const handleTogglePreviewScope = (scope: 'focused' | 'all') => {
+    setCompositePreviewScope(scope);
+    handleGeneratePreview(undefined, undefined, undefined, undefined, compositeSections, 'composite', scope, focusedSectionIndex);
+  };
+
+  const handleFocusSection = (index: number) => {
+    const safeIdx = Math.max(0, Math.min(index, compositeSections.length - 1));
+    setFocusedSectionIndex(safeIdx);
+    setActiveSectionTab(safeIdx);
+    setHighlightedSectionIndex(safeIdx);
+    if (compositePreviewScope === 'focused') {
+      handleGeneratePreview(undefined, undefined, undefined, undefined, compositeSections, 'composite', 'focused', safeIdx);
+    }
+  };
+
+  const handleNavigateFocusedSection = (newIndex: number) => {
+    const safeIdx = Math.max(0, Math.min(newIndex, compositeSections.length - 1));
+    setFocusedSectionIndex(safeIdx);
+    setActiveSectionTab(safeIdx);
+    setHighlightedSectionIndex(safeIdx);
+    handleGeneratePreview(undefined, undefined, undefined, undefined, compositeSections, 'composite', 'focused', safeIdx);
   };
 
   const handleToggleCollapse = (index: number) => {
@@ -552,6 +711,7 @@ export default function WorksheetGenerator() {
     const sec = compositeSections[index];
     if (!sec) return;
 
+    setFocusedSectionIndex(index);
     if (compositeViewMode === 'tabs') {
       setActiveSectionTab(index);
     } else {
@@ -581,6 +741,10 @@ export default function WorksheetGenerator() {
     setTimeout(() => {
       setHighlightedSectionIndex(null);
     }, 1500);
+
+    if (compositePreviewScope === 'focused') {
+      handleGeneratePreview(undefined, undefined, undefined, undefined, compositeSections, 'composite', 'focused', index);
+    }
   };
 
   const handleModeChange = (nextMode: 'single' | 'composite') => {
@@ -602,66 +766,136 @@ export default function WorksheetGenerator() {
     }
   };
 
+  // Helper to convert current single worksheet options to a UICompositeSection
+  const getCurrentSingleAsCompositeSection = (): UICompositeSection => {
+    const activeIndices = selectedWordIndices.size > 0 ? Array.from(selectedWordIndices) : words.map((_, i) => i);
+    return {
+      id: `sec_single_${generateId()}`,
+      type: worksheetType,
+      title: title || 'English Worksheet',
+      instruction: '',
+      selectedWordIndices: activeIndices,
+      targetWordCount: activeIndices.length || 4,
+      fontSize,
+      fontFamily,
+      spacing,
+      imageSize,
+      blankMode,
+      choiceCount,
+      choiceLayout,
+      matchMode,
+      matchHint,
+      lookMatchWriteShuffleSuffix,
+      lookMatchWriteMode,
+      lookMatchWriteShowBaseline,
+      lookMatchWriteTraceFontSize,
+      wordsearchDirections,
+      wordsearchHintType,
+      wordsearchGridSize,
+      wordsearchGridBorder,
+      wordsearchCase,
+      wordsearchSeed,
+      type3Seed: Date.now(),
+      type6Seed: Date.now(),
+      targetLetter,
+      showWordLabels,
+      sentenceScramble,
+      sentenceSeparator,
+      sentenceHintStyle,
+      sentenceTraceFontSize,
+      sentenceWordsFont,
+      type4LayoutMode,
+      type4ColumnMode,
+      type4TraceFontSize,
+      type4AlphabetTargetLetter,
+      type15NumberStyle,
+      type15Border,
+      type15ChoiceMode,
+      type15LetterBandBg,
+      type15Seed,
+      type16SoundMode,
+      type16ChoiceCount,
+      type16Layout,
+      type16LetterCase,
+      type16Border,
+      type17TaskMode,
+      type17Border,
+      type17CardBorder,
+      type17LetterCase,
+      type17StripLength,
+      type17HighlightTarget,
+      type17ShowExample,
+      type18TargetLetter,
+      type18Mode,
+      type18ColorUpper,
+      type18ColorLower,
+      type18GridRows,
+      type18GridCols,
+      type18Border,
+      type18CircleStyle,
+      type18DistractorCasing,
+      type18HighlightTarget,
+      type19MazeMode,
+      type19WallColor,
+      type19EntranceCharacter,
+      type19TargetItem,
+      type19SentenceStem,
+      type19CornerStyle,
+      type19WallThickness,
+      type19MazeSeed,
+      type19HintMode,
+      type19GridBorder,
+      type19LineStyle,
+      type19BorderColor,
+      type19PuzzlesPerPage,
+      type19Casing,
+      type19ShowClueImage,
+      type19ShowClueNumber,
+      type19ShowClueText: false,
+      type19ShowTrace,
+      type20HintMode,
+      type20GridBorder,
+      type20LineStyle,
+      type20BorderColor,
+      type20PuzzlesPerPage,
+      type20Casing,
+      type20ShowClueImage,
+      type20ShowClueNumber,
+      type20ShowClueText: true,
+      type20ShowTrace,
+      type20GridMode,
+      type20HollowArrows,
+      type20Seed,
+      answerMode
+    };
+  };
+
   // Milestone 3: Worksheet Template Handlers
   const handleSaveCurrentAsTemplate = (name: string, description?: string): WorksheetTemplate => {
-    const templateSections: WorksheetTemplateSection[] = compositeSections.map((s) => ({
-      id: s.id,
-      type: s.type,
-      title: s.title,
-      instruction: s.instruction,
-      wordCount: s.targetWordCount || (s.selectedWordIndices ? s.selectedWordIndices.length : 0) || 4,
-      primaryWordCount: s.primaryWordCount,
-      reviewWordCount: s.reviewWordCount,
-      blankMode: s.blankMode,
-      type4LayoutMode: s.type4LayoutMode,
-      type4ColumnMode: s.type4ColumnMode,
-      type4TraceFontSize: s.type4TraceFontSize,
-      type4AlphabetTargetLetter: s.type4AlphabetTargetLetter,
-      pageBreakBefore: s.pageBreakBefore,
-      fontSize: s.fontSize,
-      fontFamily: s.fontFamily,
-      spacing: s.spacing,
-      imageSize: s.imageSize,
-      choiceCount: s.choiceCount,
-      choiceLayout: s.choiceLayout,
-      matchMode: s.matchMode,
-      matchHint: s.matchHint,
-      lookMatchWriteShuffleSuffix: s.lookMatchWriteShuffleSuffix,
-      lookMatchWriteMode: s.lookMatchWriteMode,
-      lookMatchWriteShowBaseline: s.lookMatchWriteShowBaseline,
-      lookMatchWriteTraceFontSize: s.lookMatchWriteTraceFontSize,
-      wordsearchDirections: s.wordsearchDirections,
-      wordsearchHintType: s.wordsearchHintType,
-      wordsearchGridSize: s.wordsearchGridSize,
-      wordsearchGridBorder: s.wordsearchGridBorder,
-      wordsearchCase: s.wordsearchCase,
-      targetLetter: s.targetLetter,
-      showWordLabels: s.showWordLabels,
-      sentenceScramble: s.sentenceScramble,
-      sentenceSeparator: s.sentenceSeparator,
-      sentenceHintStyle: s.sentenceHintStyle,
-      sentenceTraceFontSize: s.sentenceTraceFontSize,
-      type15NumberStyle: s.type15NumberStyle,
-      type15LetterBandBg: s.type15LetterBandBg,
-      type16Border: s.type16Border,
-      type17TaskMode: s.type17TaskMode,
-      type17Border: s.type17Border,
-      type17CardBorder: s.type17CardBorder,
-      type17LetterCase: s.type17LetterCase,
-      type17StripLength: s.type17StripLength,
-      type17HighlightTarget: s.type17HighlightTarget,
-      type17ShowExample: s.type17ShowExample,
-      type18TargetLetter: s.type18TargetLetter,
-      type18Mode: s.type18Mode,
-      type18ColorUpper: s.type18ColorUpper,
-      type18ColorLower: s.type18ColorLower,
-      type18GridRows: s.type18GridRows,
-      type18GridCols: s.type18GridCols,
-      type18Border: s.type18Border,
-      type18CircleStyle: s.type18CircleStyle,
-      type18DistractorCasing: s.type18DistractorCasing,
-      type18HighlightTarget: s.type18HighlightTarget
-    }));
+    const sectionsSource = worksheetMode === 'single'
+      ? [getCurrentSingleAsCompositeSection()]
+      : (compositeSections && compositeSections.length > 0 ? compositeSections : [getCurrentSingleAsCompositeSection()]);
+
+    const templateSections: WorksheetTemplateSection[] = sectionsSource.map((s) => {
+      const cloned = JSON.parse(JSON.stringify(s));
+      const wordCount = s.targetWordCount || (s.selectedWordIndices ? s.selectedWordIndices.length : 0) || 4;
+      const selectedWordTerms = s.selectedWordIndices && s.selectedWordIndices.length > 0 && words.length > 0
+        ? s.selectedWordIndices.map((i) => words[i]?.term).filter(Boolean)
+        : s.selectedWordTerms;
+
+      return {
+        ...cloned,
+        id: s.id || `sec_${generateId()}`,
+        type: s.type,
+        title: s.title,
+        instruction: s.instruction,
+        wordCount,
+        ...(s.primaryWordCount !== undefined ? { primaryWordCount: s.primaryWordCount } : {}),
+        ...(s.reviewWordCount !== undefined ? { reviewWordCount: s.reviewWordCount } : {}),
+        selectedWordIndices: s.selectedWordIndices,
+        selectedWordTerms
+      };
+    });
 
     const saved = saveCustomTemplate({
       name: name.trim(),
@@ -676,6 +910,7 @@ export default function WorksheetGenerator() {
       showFooter,
       showImageBorder,
       showTableGrid,
+      answerMode,
       sections: templateSections
     });
 
@@ -696,28 +931,122 @@ export default function WorksheetGenerator() {
     if (template.showFooter !== undefined) setShowFooter(template.showFooter);
     if (template.showImageBorder !== undefined) setShowImageBorder(template.showImageBorder);
     if (template.showTableGrid !== undefined) setShowTableGrid(template.showTableGrid);
+    if (template.answerMode) setAnswerMode(template.answerMode);
 
     // 2. Convert template sections to UICompositeSection[] using applyTemplateToSections
     const newSections = applyTemplateToSections(template, words);
 
-    // 3. Set worksheet mode to composite
-    setWorksheetMode('composite');
+    // 3. Sync first section into Single Mode state variables so Single & Composite are 100% consistent
+    if (newSections && newSections.length > 0) {
+      const firstSec = newSections[0];
+      setWorksheetType(firstSec.type);
+      if (firstSec.title) setTitle(firstSec.title);
+      if (firstSec.selectedWordIndices && firstSec.selectedWordIndices.length > 0) {
+        setSelectedWordIndices(new Set(firstSec.selectedWordIndices));
+      }
+      if (firstSec.blankMode) setBlankMode(firstSec.blankMode);
+      if (firstSec.choiceCount) setChoiceCount(firstSec.choiceCount);
+      if (firstSec.choiceLayout) setChoiceLayout(firstSec.choiceLayout);
+      if (firstSec.matchMode) setMatchMode(firstSec.matchMode);
+      if (firstSec.matchHint) setMatchHint(firstSec.matchHint);
+      if (firstSec.lookMatchWriteShuffleSuffix !== undefined) setLookMatchWriteShuffleSuffix(firstSec.lookMatchWriteShuffleSuffix);
+      if (firstSec.lookMatchWriteMode) setLookMatchWriteMode(firstSec.lookMatchWriteMode);
+      if (firstSec.lookMatchWriteShowBaseline !== undefined) setLookMatchWriteShowBaseline(firstSec.lookMatchWriteShowBaseline);
+      if (firstSec.lookMatchWriteTraceFontSize) setLookMatchWriteTraceFontSize(firstSec.lookMatchWriteTraceFontSize);
+      if (firstSec.wordsearchDirections) setWordsearchDirections(firstSec.wordsearchDirections);
+      if (firstSec.wordsearchHintType) setWordsearchHintType(firstSec.wordsearchHintType);
+      if (firstSec.wordsearchGridSize !== undefined) setWordsearchGridSize(firstSec.wordsearchGridSize);
+      if (firstSec.wordsearchGridBorder) setWordsearchGridBorder(firstSec.wordsearchGridBorder);
+      if (firstSec.wordsearchCase) setWordsearchCase(firstSec.wordsearchCase);
+      if (firstSec.wordsearchSeed !== undefined) setWordsearchSeed(firstSec.wordsearchSeed);
+      if (firstSec.targetLetter) setTargetLetter(firstSec.targetLetter);
+      if (firstSec.showWordLabels !== undefined) setShowWordLabels(firstSec.showWordLabels);
+      if (firstSec.sentenceScramble !== undefined) setSentenceScramble(firstSec.sentenceScramble);
+      if (firstSec.sentenceSeparator) setSentenceSeparator(firstSec.sentenceSeparator);
+      if (firstSec.sentenceHintStyle) setSentenceHintStyle(firstSec.sentenceHintStyle);
+      if (firstSec.sentenceTraceFontSize) setSentenceTraceFontSize(firstSec.sentenceTraceFontSize);
+      if (firstSec.sentenceWordsFont) setSentenceWordsFont(firstSec.sentenceWordsFont);
+      if (firstSec.type4LayoutMode) setType4LayoutMode(firstSec.type4LayoutMode);
+      if (firstSec.type4ColumnMode) setType4ColumnMode(firstSec.type4ColumnMode);
+      if (firstSec.type4TraceFontSize) setType4TraceFontSize(firstSec.type4TraceFontSize);
+      if (firstSec.type4AlphabetTargetLetter) setType4AlphabetTargetLetter(firstSec.type4AlphabetTargetLetter);
+      if (firstSec.type15NumberStyle) setType15NumberStyle(firstSec.type15NumberStyle);
+      if (firstSec.type15Border) setType15Border(firstSec.type15Border);
+      if (firstSec.type15ChoiceMode) setType15ChoiceMode(firstSec.type15ChoiceMode);
+      if (firstSec.type15LetterBandBg) setType15LetterBandBg(firstSec.type15LetterBandBg);
+      if (firstSec.type15Seed !== undefined) setType15Seed(Number(firstSec.type15Seed));
+      if (firstSec.type16SoundMode) setType16SoundMode(firstSec.type16SoundMode);
+      if (firstSec.type16ChoiceCount) setType16ChoiceCount(firstSec.type16ChoiceCount);
+      if (firstSec.type16Layout) setType16Layout(firstSec.type16Layout);
+      if (firstSec.type16LetterCase) setType16LetterCase(firstSec.type16LetterCase);
+      if (firstSec.type16Border) setType16Border(firstSec.type16Border);
+      if (firstSec.type17TaskMode) setType17TaskMode(firstSec.type17TaskMode);
+      if (firstSec.type17Border) setType17Border(firstSec.type17Border);
+      if (firstSec.type17CardBorder) setType17CardBorder(firstSec.type17CardBorder);
+      if (firstSec.type17LetterCase) setType17LetterCase(firstSec.type17LetterCase);
+      if (firstSec.type17StripLength) setType17StripLength(firstSec.type17StripLength);
+      if (firstSec.type17HighlightTarget) setType17HighlightTarget(firstSec.type17HighlightTarget);
+      if (firstSec.type17ShowExample !== undefined) setType17ShowExample(firstSec.type17ShowExample);
+      if (firstSec.type18TargetLetter) setType18TargetLetter(firstSec.type18TargetLetter);
+      if (firstSec.type18Mode) setType18Mode(firstSec.type18Mode);
+      if (firstSec.type18ColorUpper) setType18ColorUpper(firstSec.type18ColorUpper);
+      if (firstSec.type18ColorLower) setType18ColorLower(firstSec.type18ColorLower);
+      if (firstSec.type18GridRows !== undefined) setType18GridRows(firstSec.type18GridRows);
+      if (firstSec.type18GridCols !== undefined) setType18GridCols(firstSec.type18GridCols);
+      if (firstSec.type18Border) setType18Border(firstSec.type18Border);
+      if (firstSec.type18CircleStyle) setType18CircleStyle(firstSec.type18CircleStyle);
+      if (firstSec.type18DistractorCasing) setType18DistractorCasing(firstSec.type18DistractorCasing);
+      if (firstSec.type18HighlightTarget) setType18HighlightTarget(firstSec.type18HighlightTarget);
+      if (firstSec.type19MazeMode) setType19MazeMode(firstSec.type19MazeMode);
+      if (firstSec.type19WallColor) setType19WallColor(firstSec.type19WallColor);
+      if (firstSec.type19EntranceCharacter) setType19EntranceCharacter(firstSec.type19EntranceCharacter);
+      if (firstSec.type19TargetItem) setType19TargetItem(firstSec.type19TargetItem);
+      if (firstSec.type19SentenceStem !== undefined) setType19SentenceStem(firstSec.type19SentenceStem);
+      if (firstSec.type19CornerStyle) setType19CornerStyle(firstSec.type19CornerStyle);
+      if (firstSec.type19WallThickness) setType19WallThickness(firstSec.type19WallThickness);
+      if (firstSec.type19MazeSeed !== undefined) setType19MazeSeed(firstSec.type19MazeSeed);
+      if (firstSec.type19HintMode) setType19HintMode(firstSec.type19HintMode);
+      if (firstSec.type19GridBorder) setType19GridBorder(firstSec.type19GridBorder);
+      if (firstSec.type19LineStyle) setType19LineStyle(firstSec.type19LineStyle);
+      if (firstSec.type19BorderColor) setType19BorderColor(firstSec.type19BorderColor);
+      if (firstSec.type19PuzzlesPerPage !== undefined) setType19PuzzlesPerPage(firstSec.type19PuzzlesPerPage);
+      if (firstSec.type19Casing) setType19Casing(firstSec.type19Casing);
+      if (firstSec.type19ShowClueImage !== undefined) setType19ShowClueImage(firstSec.type19ShowClueImage);
+      if (firstSec.type19ShowClueNumber !== undefined) setType19ShowClueNumber(firstSec.type19ShowClueNumber);
+      if (firstSec.type19ShowTrace !== undefined) setType19ShowTrace(firstSec.type19ShowTrace);
+      if (firstSec.type20HintMode) setType20HintMode(firstSec.type20HintMode);
+      if (firstSec.type20GridBorder) setType20GridBorder(firstSec.type20GridBorder);
+      if (firstSec.type20LineStyle) setType20LineStyle(firstSec.type20LineStyle);
+      if (firstSec.type20BorderColor) setType20BorderColor(firstSec.type20BorderColor);
+      if (firstSec.type20PuzzlesPerPage !== undefined) setType20PuzzlesPerPage(firstSec.type20PuzzlesPerPage);
+      if (firstSec.type20Casing) setType20Casing(firstSec.type20Casing);
+      if (firstSec.type20ShowClueImage !== undefined) setType20ShowClueImage(firstSec.type20ShowClueImage);
+      if (firstSec.type20ShowClueNumber !== undefined) setType20ShowClueNumber(firstSec.type20ShowClueNumber);
+      if (firstSec.type20ShowTrace !== undefined) setType20ShowTrace(firstSec.type20ShowTrace);
+      if (firstSec.type20GridMode) setType20GridMode(firstSec.type20GridMode);
+      if (firstSec.type20HollowArrows !== undefined) setType20HollowArrows(firstSec.type20HollowArrows);
+    }
 
-    // 4. Set composite sections
+    // 4. Set mode: if applying a single-section template while in single mode, keep single mode; otherwise switch to composite
+    const targetMode = (template.sections.length === 1 && worksheetMode === 'single') ? 'single' : 'composite';
+    setWorksheetMode(targetMode);
+
+    // 5. Set composite sections
     setCompositeSections(newSections);
 
-    // 5. Set active section tab to 0
+    // 6. Set active section tab to 0
     setActiveSectionTab(0);
 
-    // 6. Close the modal
+    // 7. Close the modal
     setIsTemplateModalOpen(false);
 
-    // 7. Trigger immediate debounced PDF re-rendering so live preview updates smoothly
+    // 8. Trigger immediate debounced PDF re-rendering so live preview updates smoothly
+    const activeAnswerMode = template.answerMode || answerMode;
     setTimeout(() => {
       handleGeneratePreview(
         words,
         title,
-        undefined,
+        targetMode === 'single' ? newSections[0]?.type : undefined,
         {
           paperSize: template.paperSize || paperSize,
           fontFamily: template.fontFamily || fontFamily,
@@ -728,14 +1057,15 @@ export default function WorksheetGenerator() {
           showHeader: template.showHeader !== undefined ? template.showHeader : showHeader,
           showFooter: template.showFooter !== undefined ? template.showFooter : showFooter,
           showImageBorder: template.showImageBorder !== undefined ? template.showImageBorder : showImageBorder,
-          showTableGrid: template.showTableGrid !== undefined ? template.showTableGrid : showTableGrid
+          showTableGrid: template.showTableGrid !== undefined ? template.showTableGrid : showTableGrid,
+          answerMode: activeAnswerMode
         },
         newSections,
-        'composite'
+        targetMode
       );
     }, 150);
 
-    // 8. Display friendly feedback toast
+    // 9. Display friendly feedback toast
     setTemplateSuccessToast(`Đã áp dụng mẫu "${template.name}" (${newSections.length} phần bài tập)!`);
     setTimeout(() => setTemplateSuccessToast(null), 4000);
   };
@@ -750,7 +1080,23 @@ export default function WorksheetGenerator() {
           setSourceMode('library');
           setSelectedSetId(found.id);
           loadFromWordSet(found);
+          return;
         }
+      }
+      if (loaded.length > 0) {
+        setSourceMode('library');
+        setSelectedSetId(loaded[0].id);
+        loadFromWordSet(loaded[0]);
+      } else {
+        // Fallback default sample words so preview generates immediately
+        setTimeout(() => {
+          if (worksheetMode === 'composite') {
+            const finalSecs = createDefaultCompositeSections(DEFAULT_SAMPLE_WORDS);
+            handleGeneratePreview(DEFAULT_SAMPLE_WORDS, 'Lớp 3 - Unit 6', undefined, undefined, finalSecs, 'composite');
+          } else {
+            handleGeneratePreview(DEFAULT_SAMPLE_WORDS, 'Lớp 3 - Unit 6');
+          }
+        }, 150);
       }
     });
   }, [id]);
@@ -783,8 +1129,8 @@ export default function WorksheetGenerator() {
         }
         return {
           id: w.id,
-          term: w.term,
-          definition: w.definition,
+          term: w.term || (w as any).word || '',
+          definition: w.definition || (w as any).meaning || '',
           phonetic: w.phonetic || '',
           imageUrl: img,
           exampleSentence: w.exampleSentence,
@@ -998,6 +1344,32 @@ export default function WorksheetGenerator() {
     return words.filter((_, idx) => selectedWordIndices.has(idx));
   };
 
+  const handleSwitchAnswerMode = (newMode: 'student' | 'answer' | 'both') => {
+    setAnswerMode(newMode);
+    if (worksheetMode === 'composite') {
+      const updated = compositeSections.map((sec) => ({
+        ...sec,
+        answerMode: newMode,
+        ...(sec.type === 17 ? { type17HighlightTarget: newMode === 'answer' ? ('red' as const) : ('none' as const) } : {}),
+        ...(sec.type === 18 ? { type18HighlightTarget: newMode === 'answer' ? ('answer_key' as const) : ('none' as const) } : {})
+      }));
+      setCompositeSections(updated);
+      handleGeneratePreview(undefined, undefined, undefined, { answerMode: newMode }, updated, 'composite');
+    } else {
+      if (worksheetType === 17) {
+        setType17HighlightTarget(newMode === 'answer' ? 'red' : 'none');
+      }
+      if (worksheetType === 18) {
+        setType18HighlightTarget(newMode === 'answer' ? 'answer_key' : 'none');
+      }
+      handleGeneratePreview(undefined, undefined, worksheetType, {
+        answerMode: newMode,
+        ...(worksheetType === 17 ? { type17HighlightTarget: newMode === 'answer' ? 'red' : 'none' } : {}),
+        ...(worksheetType === 18 ? { type18HighlightTarget: newMode === 'answer' ? 'answer_key' : 'none' } : {})
+      });
+    }
+  };
+
   const handleGeneratePreview = async (
     wordsToUse?: WorksheetWord[],
     titleToUse?: string,
@@ -1027,12 +1399,14 @@ export default function WorksheetGenerator() {
       wordsearchGridSize?: number | 'auto';
       wordsearchGridBorder?: WordsearchGridBorder;
       wordsearchCase?: WordsearchCase;
+      wordsearchSeed?: number | string;
       targetLetter?: string;
       showWordLabels?: boolean;
       sentenceScramble?: boolean;
       sentenceSeparator?: 'space' | 'slash';
       sentenceHintStyle?: 'underscores' | 'dots' | 'trace';
       sentenceTraceFontSize?: number;
+      sentenceWordsFont?: 'inherit' | 'Andika';
       type4LayoutMode?: Type4LayoutMode;
       type4ColumnMode?: Type4ColumnMode;
       type4TraceFontSize?: number;
@@ -1041,6 +1415,7 @@ export default function WorksheetGenerator() {
       type15Border?: Type15Border;
       type15ChoiceMode?: Type15ChoiceMode;
       type15LetterBandBg?: 'tint' | 'white';
+      type15Seed?: number | string;
       type16SoundMode?: Type16SoundMode;
       type16ChoiceCount?: Type16ChoiceCount;
       type16Layout?: Type16Layout;
@@ -1063,13 +1438,45 @@ export default function WorksheetGenerator() {
       type18CircleStyle?: Type18CircleStyle;
       type18DistractorCasing?: Type18DistractorCasing;
       type18HighlightTarget?: Type18HighlightTarget;
-      answerMode?: 'student' | 'answer';
+      type19MazeMode?: Type19MazeMode;
+      type19WallColor?: Type19WallColor;
+      type19EntranceCharacter?: Type19EntranceCharacter;
+      type19TargetItem?: Type19TargetItem;
+      type19SentenceStem?: string;
+      type19CornerStyle?: Type19CornerStyle;
+      type19WallThickness?: Type19WallThickness;
+      type19MazeSeed?: number | string;
+      type19HintMode?: Type19HintMode;
+      type19GridBorder?: Type19GridBorder;
+      type19LineStyle?: Type19LineStyle;
+      type19BorderColor?: Type19BorderColor;
+      type19PuzzlesPerPage?: Type19PuzzlesPerPage;
+      type19Casing?: Type19Casing;
+      type19ShowClueImage?: boolean;
+      type19ShowClueNumber?: boolean;
+      type19ShowTrace?: boolean;
+      type20HintMode?: Type20HintMode;
+      type20GridBorder?: Type20GridBorder;
+      type20LineStyle?: Type20LineStyle;
+      type20BorderColor?: Type20BorderColor;
+      type20PuzzlesPerPage?: Type20PuzzlesPerPage;
+      type20Casing?: Type20Casing;
+      type20ShowClueImage?: boolean;
+      type20ShowClueNumber?: boolean;
+      type20ShowTrace?: boolean;
+      type20GridMode?: Type20GridMode;
+      type20HollowArrows?: boolean;
+      type20Seed?: number | string;
+      type9Seed?: number | string;
+      answerMode?: 'student' | 'answer' | 'both';
     },
     sectionsToUse?: UICompositeSection[],
-    modeOverride?: 'single' | 'composite'
+    modeOverride?: 'single' | 'composite',
+    scopeOverride?: 'focused' | 'all',
+    focusedIndexOverride?: number
   ) => {
     const currentMode = modeOverride || worksheetMode;
-    const allAvailableWords = wordsToUse || words;
+    const allAvailableWords = (wordsToUse && wordsToUse.length > 0) ? wordsToUse : (words.length > 0 ? words : DEFAULT_SAMPLE_WORDS);
 
     if (currentMode === 'composite') {
       const sections = sectionsToUse || compositeSections;
@@ -1077,7 +1484,16 @@ export default function WorksheetGenerator() {
         setErrorMessage('Danh sách phần bài tập trống. Vui lòng bấm "+ Thêm phần bài tập" để tạo nội dung.');
         return;
       }
-      const emptySection = sections.find((s) => s.type !== 18 && s.selectedWordIndices.length === 0);
+
+      const effectiveScope = scopeOverride !== undefined ? scopeOverride : compositePreviewScope;
+      const effectiveFocusedIdx = focusedIndexOverride !== undefined ? focusedIndexOverride : focusedSectionIndex;
+      const safeFocusedIdx = Math.max(0, Math.min(effectiveFocusedIdx, sections.length - 1));
+
+      const activeSectionsForPreview = effectiveScope === 'focused' && sections[safeFocusedIdx]
+        ? [sections[safeFocusedIdx]]
+        : sections;
+
+      const emptySection = activeSectionsForPreview.find((s) => s.type !== 18 && s.selectedWordIndices.length === 0);
       if (emptySection) {
         setErrorMessage(`Phần "${emptySection.title}" chưa có từ vựng nào được chọn. Vui lòng chọn ít nhất 1 từ.`);
         return;
@@ -1101,7 +1517,8 @@ export default function WorksheetGenerator() {
           showTableGrid: customOptions?.showTableGrid !== undefined ? customOptions.showTableGrid : showTableGrid,
           sourceUrl,
           allWords: allAvailableWords,
-          sections: sections.map((sec) => ({
+          answerMode: customOptions?.answerMode !== undefined ? customOptions.answerMode : answerMode,
+          sections: activeSectionsForPreview.map((sec) => ({
             id: sec.id,
             type: sec.type,
             title: sec.title,
@@ -1129,16 +1546,20 @@ export default function WorksheetGenerator() {
             wordsearchGridSize: sec.wordsearchGridSize,
             wordsearchGridBorder: sec.wordsearchGridBorder || 'none',
             wordsearchCase: sec.wordsearchCase || 'lower',
+            wordsearchSeed: sec.wordsearchSeed ?? wordsearchSeed,
+            type9Seed: sec.type9Seed || type9Seed,
             targetLetter: sec.targetLetter,
             showWordLabels: sec.showWordLabels,
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
             sentenceHintStyle: sec.sentenceHintStyle,
             sentenceTraceFontSize: sec.sentenceTraceFontSize,
+            sentenceWordsFont: sec.sentenceWordsFont,
             type15NumberStyle: sec.type15NumberStyle,
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
             type15LetterBandBg: sec.type15LetterBandBg,
+            type15Seed: sec.type15Seed || type15Seed,
             type16SoundMode: sec.type16SoundMode,
             type16ChoiceCount: sec.type16ChoiceCount,
             type16Layout: sec.type16Layout,
@@ -1161,6 +1582,26 @@ export default function WorksheetGenerator() {
             type18CircleStyle: sec.type18CircleStyle,
             type18DistractorCasing: sec.type18DistractorCasing,
             type18HighlightTarget: sec.type18HighlightTarget,
+            type19MazeMode: sec.type19MazeMode,
+            type19WallColor: sec.type19WallColor,
+            type19EntranceCharacter: sec.type19EntranceCharacter,
+            type19TargetItem: sec.type19TargetItem,
+            type19SentenceStem: sec.type19SentenceStem,
+            type19CornerStyle: sec.type19CornerStyle,
+            type19WallThickness: sec.type19WallThickness,
+            type19MazeSeed: sec.type19MazeSeed,
+            type20HintMode: sec.type20HintMode || sec.type19HintMode,
+            type20GridBorder: sec.type20GridBorder || sec.type19GridBorder,
+            type20LineStyle: sec.type20LineStyle || sec.type19LineStyle,
+            type20BorderColor: sec.type20BorderColor || sec.type19BorderColor,
+            type20PuzzlesPerPage: sec.type20PuzzlesPerPage || sec.type19PuzzlesPerPage,
+            type20Casing: sec.type20Casing || sec.type19Casing,
+            type20ShowClueImage: sec.type20ShowClueImage !== false && sec.type19ShowClueImage !== false,
+            type20ShowClueNumber: sec.type20ShowClueNumber !== false && sec.type19ShowClueNumber !== false,
+            type20ShowTrace: !!sec.type20ShowTrace || !!sec.type19ShowTrace,
+            type20GridMode: sec.type20GridMode || 'connected',
+            type20HollowArrows: sec.type20HollowArrows !== false,
+            type20Seed: (sec as any).type20Seed,
             words: sec.selectedWordIndices.map((i) => allAvailableWords[i]).filter(Boolean)
           }))
         };
@@ -1183,7 +1624,7 @@ export default function WorksheetGenerator() {
 
     // Single mode
     const effectiveType = typeToUse !== undefined ? typeToUse : worksheetType;
-    const activeWords = wordsToUse || getActiveWords();
+    const activeWords = (wordsToUse && wordsToUse.length > 0) ? wordsToUse : (getActiveWords().length > 0 ? getActiveWords() : DEFAULT_SAMPLE_WORDS);
     if (effectiveType !== 18 && activeWords.length === 0) {
       setErrorMessage('Vui lòng chọn ít nhất 1 từ vựng trong danh sách.');
       return;
@@ -1222,12 +1663,15 @@ export default function WorksheetGenerator() {
         wordsearchGridSize: customOptions?.wordsearchGridSize ?? wordsearchGridSize,
         wordsearchGridBorder: customOptions?.wordsearchGridBorder ?? wordsearchGridBorder,
         wordsearchCase: customOptions?.wordsearchCase ?? wordsearchCase,
+        wordsearchSeed: customOptions?.wordsearchSeed ?? wordsearchSeed,
+        type9Seed: customOptions?.type9Seed ?? type9Seed,
         targetLetter: customOptions?.targetLetter !== undefined ? customOptions.targetLetter : targetLetter,
         showWordLabels: customOptions?.showWordLabels !== undefined ? customOptions.showWordLabels : showWordLabels,
         sentenceScramble: customOptions?.sentenceScramble !== undefined ? customOptions.sentenceScramble : sentenceScramble,
         sentenceSeparator: customOptions?.sentenceSeparator !== undefined ? customOptions.sentenceSeparator : sentenceSeparator,
         sentenceHintStyle: customOptions?.sentenceHintStyle !== undefined ? customOptions.sentenceHintStyle : sentenceHintStyle,
         sentenceTraceFontSize: customOptions?.sentenceTraceFontSize !== undefined ? customOptions.sentenceTraceFontSize : sentenceTraceFontSize,
+        sentenceWordsFont: customOptions?.sentenceWordsFont !== undefined ? customOptions.sentenceWordsFont : sentenceWordsFont,
         type4LayoutMode: customOptions?.type4LayoutMode !== undefined ? customOptions.type4LayoutMode : type4LayoutMode,
         type4ColumnMode: customOptions?.type4ColumnMode !== undefined ? customOptions.type4ColumnMode : type4ColumnMode,
         type4TraceFontSize: customOptions?.type4TraceFontSize !== undefined ? customOptions.type4TraceFontSize : type4TraceFontSize,
@@ -1236,6 +1680,7 @@ export default function WorksheetGenerator() {
         type15Border: customOptions?.type15Border !== undefined ? customOptions.type15Border : type15Border,
         type15ChoiceMode: customOptions?.type15ChoiceMode !== undefined ? customOptions.type15ChoiceMode : type15ChoiceMode,
         type15LetterBandBg: customOptions?.type15LetterBandBg !== undefined ? customOptions.type15LetterBandBg : type15LetterBandBg,
+        type15Seed: customOptions?.type15Seed ?? type15Seed,
         type16SoundMode: customOptions?.type16SoundMode !== undefined ? customOptions.type16SoundMode : type16SoundMode,
         type16ChoiceCount: customOptions?.type16ChoiceCount !== undefined ? customOptions.type16ChoiceCount : type16ChoiceCount,
         type16Layout: customOptions?.type16Layout !== undefined ? customOptions.type16Layout : type16Layout,
@@ -1258,6 +1703,35 @@ export default function WorksheetGenerator() {
         type18CircleStyle: customOptions?.type18CircleStyle !== undefined ? customOptions.type18CircleStyle : type18CircleStyle,
         type18DistractorCasing: customOptions?.type18DistractorCasing !== undefined ? customOptions.type18DistractorCasing : type18DistractorCasing,
         type18HighlightTarget: customOptions?.type18HighlightTarget !== undefined ? customOptions.type18HighlightTarget : type18HighlightTarget,
+        type19MazeMode: customOptions?.type19MazeMode !== undefined ? customOptions.type19MazeMode : type19MazeMode,
+        type19WallColor: customOptions?.type19WallColor !== undefined ? customOptions.type19WallColor : type19WallColor,
+        type19EntranceCharacter: customOptions?.type19EntranceCharacter !== undefined ? customOptions.type19EntranceCharacter : type19EntranceCharacter,
+        type19TargetItem: customOptions?.type19TargetItem !== undefined ? customOptions.type19TargetItem : type19TargetItem,
+        type19SentenceStem: customOptions?.type19SentenceStem !== undefined ? customOptions.type19SentenceStem : type19SentenceStem,
+        type19CornerStyle: customOptions?.type19CornerStyle !== undefined ? customOptions.type19CornerStyle : type19CornerStyle,
+        type19WallThickness: customOptions?.type19WallThickness !== undefined ? customOptions.type19WallThickness : type19WallThickness,
+        type19MazeSeed: customOptions?.type19MazeSeed !== undefined ? customOptions.type19MazeSeed : type19MazeSeed,
+        type19HintMode: customOptions?.type19HintMode !== undefined ? customOptions.type19HintMode : type19HintMode,
+        type19GridBorder: customOptions?.type19GridBorder !== undefined ? customOptions.type19GridBorder : type19GridBorder,
+        type19LineStyle: customOptions?.type19LineStyle !== undefined ? customOptions.type19LineStyle : type19LineStyle,
+        type19BorderColor: customOptions?.type19BorderColor !== undefined ? customOptions.type19BorderColor : type19BorderColor,
+        type19PuzzlesPerPage: customOptions?.type19PuzzlesPerPage !== undefined ? customOptions.type19PuzzlesPerPage : type19PuzzlesPerPage,
+        type19Casing: customOptions?.type19Casing !== undefined ? customOptions.type19Casing : type19Casing,
+        type19ShowClueImage: customOptions?.type19ShowClueImage !== undefined ? customOptions.type19ShowClueImage : type19ShowClueImage,
+        type19ShowClueNumber: customOptions?.type19ShowClueNumber !== undefined ? customOptions.type19ShowClueNumber : type19ShowClueNumber,
+        type19ShowTrace: customOptions?.type19ShowTrace !== undefined ? customOptions.type19ShowTrace : type19ShowTrace,
+        type20HintMode: customOptions?.type20HintMode !== undefined ? customOptions.type20HintMode : type20HintMode,
+        type20GridBorder: customOptions?.type20GridBorder !== undefined ? customOptions.type20GridBorder : type20GridBorder,
+        type20LineStyle: customOptions?.type20LineStyle !== undefined ? customOptions.type20LineStyle : type20LineStyle,
+        type20BorderColor: customOptions?.type20BorderColor !== undefined ? customOptions.type20BorderColor : type20BorderColor,
+        type20PuzzlesPerPage: customOptions?.type20PuzzlesPerPage !== undefined ? customOptions.type20PuzzlesPerPage : type20PuzzlesPerPage,
+        type20Casing: customOptions?.type20Casing !== undefined ? customOptions.type20Casing : type20Casing,
+        type20ShowClueImage: customOptions?.type20ShowClueImage !== undefined ? customOptions.type20ShowClueImage : type20ShowClueImage,
+        type20ShowClueNumber: customOptions?.type20ShowClueNumber !== undefined ? customOptions.type20ShowClueNumber : type20ShowClueNumber,
+        type20ShowTrace: customOptions?.type20ShowTrace !== undefined ? customOptions.type20ShowTrace : type20ShowTrace,
+        type20GridMode: customOptions?.type20GridMode !== undefined ? customOptions.type20GridMode : type20GridMode,
+        type20HollowArrows: customOptions?.type20HollowArrows !== undefined ? customOptions.type20HollowArrows : type20HollowArrows,
+        type20Seed: (customOptions as any)?.type20Seed ?? type20Seed,
         answerMode: customOptions?.answerMode !== undefined ? customOptions.answerMode : answerMode
       });
 
@@ -1275,7 +1749,8 @@ export default function WorksheetGenerator() {
     }
   };
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = async (specificMode?: 'student' | 'answer' | 'both') => {
+    const targetMode = specificMode || answerMode;
     if (worksheetMode === 'composite') {
       if (compositeSections.length === 0) {
         setErrorMessage('Danh sách phần bài tập trống. Vui lòng thêm ít nhất 1 phần bài tập.');
@@ -1303,6 +1778,7 @@ export default function WorksheetGenerator() {
           showTableGrid,
           sourceUrl,
           allWords: words,
+          answerMode: targetMode,
           sections: compositeSections.map((sec) => ({
             id: sec.id,
             type: sec.type,
@@ -1326,12 +1802,15 @@ export default function WorksheetGenerator() {
             wordsearchGridSize: sec.wordsearchGridSize,
             wordsearchGridBorder: sec.wordsearchGridBorder || 'none',
             wordsearchCase: sec.wordsearchCase || 'lower',
+            wordsearchSeed: sec.wordsearchSeed ?? wordsearchSeed,
+            type9Seed: sec.type9Seed || type9Seed,
             targetLetter: sec.targetLetter,
             showWordLabels: sec.showWordLabels,
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
             sentenceHintStyle: sec.sentenceHintStyle,
             sentenceTraceFontSize: sec.sentenceTraceFontSize || 28,
+            sentenceWordsFont: sec.sentenceWordsFont,
             type4LayoutMode: sec.type4LayoutMode,
             type4ColumnMode: sec.type4ColumnMode,
             type4TraceFontSize: sec.type4TraceFontSize || 28,
@@ -1340,6 +1819,7 @@ export default function WorksheetGenerator() {
             type15Border: sec.type15Border,
             type15ChoiceMode: sec.type15ChoiceMode,
             type15LetterBandBg: sec.type15LetterBandBg,
+            type15Seed: sec.type15Seed || type15Seed,
             type16SoundMode: sec.type16SoundMode,
             type16ChoiceCount: sec.type16ChoiceCount,
             type16Layout: sec.type16Layout,
@@ -1350,7 +1830,7 @@ export default function WorksheetGenerator() {
             type17CardBorder: sec.type17CardBorder,
             type17LetterCase: sec.type17LetterCase,
             type17StripLength: sec.type17StripLength,
-            type17HighlightTarget: sec.type17HighlightTarget,
+            type17HighlightTarget: targetMode === 'answer' ? 'red' : targetMode === 'student' ? 'none' : sec.type17HighlightTarget,
             type17ShowExample: sec.type17ShowExample,
             type18TargetLetter: sec.type18TargetLetter,
             type18Mode: sec.type18Mode,
@@ -1362,14 +1842,37 @@ export default function WorksheetGenerator() {
             type18CircleStyle: sec.type18CircleStyle,
             type18DistractorCasing: sec.type18DistractorCasing,
             type18HighlightTarget: sec.type18HighlightTarget,
-            answerMode: sec.answerMode || 'student',
+            type19MazeMode: sec.type19MazeMode,
+            type19WallColor: sec.type19WallColor,
+            type19EntranceCharacter: sec.type19EntranceCharacter,
+            type19TargetItem: sec.type19TargetItem,
+            type19SentenceStem: sec.type19SentenceStem,
+            type19CornerStyle: sec.type19CornerStyle,
+            type19WallThickness: sec.type19WallThickness,
+            type19MazeSeed: sec.type19MazeSeed,
+            type20HintMode: sec.type20HintMode,
+            type20GridBorder: sec.type20GridBorder,
+            type20LineStyle: sec.type20LineStyle,
+            type20BorderColor: sec.type20BorderColor,
+            type20PuzzlesPerPage: sec.type20PuzzlesPerPage,
+            type20Casing: sec.type20Casing,
+            type20ShowClueImage: sec.type20ShowClueImage,
+            type20ShowClueNumber: sec.type20ShowClueNumber,
+            type20ShowTrace: sec.type20ShowTrace,
+            type20GridMode: sec.type20GridMode,
+            type20HollowArrows: sec.type20HollowArrows,
+            type20ShowClueText: sec.type20ShowClueText,
+            type20ClueColumns: sec.type20ClueColumns,
+            type20Seed: (sec as any).type20Seed,
+            answerMode: targetMode,
             words: sec.selectedWordIndices.map((i) => words[i]).filter(Boolean)
           }))
         };
 
         const doc = await generateCompositeWorksheetPDF(payload);
         const cleanTitle = (title || 'Worksheet-Tong-Hop').replace(/[/\\?%*:|"<>]/g, '-');
-        doc.save(`Worksheet-Tong-Hop - ${cleanTitle}.pdf`);
+        const suffix = targetMode === 'both' ? 'Ban Hoc Sinh va Dap An' : targetMode === 'answer' ? 'Ban Dap An' : 'Ban Hoc Sinh';
+        doc.save(`Worksheet-Tong-Hop - ${cleanTitle} - ${suffix}.pdf`);
       } catch (err: any) {
         console.error('Download Composite PDF error:', err);
         setErrorMessage(err.message || 'Lỗi khi tải PDF tổng hợp');
@@ -1420,16 +1923,20 @@ export default function WorksheetGenerator() {
         wordsearchGridSize,
         wordsearchGridBorder,
         wordsearchCase,
+        wordsearchSeed,
+        type9Seed,
         targetLetter,
         showWordLabels,
         sentenceScramble,
         sentenceSeparator,
         sentenceHintStyle,
         sentenceTraceFontSize,
+        sentenceWordsFont,
         type15NumberStyle,
         type15Border,
         type15ChoiceMode,
         type15LetterBandBg,
+        type15Seed,
         type16SoundMode,
         type16ChoiceCount,
         type16Layout,
@@ -1440,7 +1947,7 @@ export default function WorksheetGenerator() {
         type17CardBorder,
         type17LetterCase,
         type17StripLength,
-        type17HighlightTarget,
+        type17HighlightTarget: targetMode === 'answer' ? 'red' : targetMode === 'student' ? 'none' : type17HighlightTarget,
         type17ShowExample,
         type18TargetLetter,
         type18Mode,
@@ -1452,10 +1959,31 @@ export default function WorksheetGenerator() {
         type18CircleStyle,
         type18DistractorCasing,
         type18HighlightTarget,
-        answerMode
+        type19MazeMode,
+        type19WallColor,
+        type19EntranceCharacter,
+        type19TargetItem,
+        type19SentenceStem,
+        type19CornerStyle,
+        type19WallThickness,
+        type19MazeSeed,
+        type20HintMode,
+        type20GridBorder,
+        type20LineStyle,
+        type20BorderColor,
+        type20PuzzlesPerPage,
+        type20Casing,
+        type20ShowClueImage,
+        type20ShowClueNumber,
+        type20ShowTrace,
+        type20GridMode,
+        type20HollowArrows,
+        type20Seed,
+        answerMode: targetMode
       });
       const cleanTitle = (title || 'Worksheet').replace(/[/\\?%*:|"<>]/g, '-');
-      doc.save(`PDF ${worksheetType} - ${cleanTitle}.pdf`);
+      const suffix = targetMode === 'both' ? 'Ban Hoc Sinh va Dap An' : targetMode === 'answer' ? 'Ban Dap An' : 'Ban Hoc Sinh';
+      doc.save(`PDF ${worksheetType} - ${cleanTitle} - ${suffix}.pdf`);
     } catch (err: any) {
       console.error('Download PDF error:', err);
       setErrorMessage(err.message || 'Lỗi khi tải PDF');
@@ -1546,24 +2074,42 @@ export default function WorksheetGenerator() {
             <span>📑 Mẫu bài tập (Templates)</span>
           </button>
 
-          {worksheetMode === 'composite' && (
-            <button
-              type="button"
-              onClick={() => {
-                setInitialShowSaveFormInModal(true);
-                setIsTemplateModalOpen(true);
-              }}
-              data-testid="save-template-quick-btn"
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl border border-slate-200 transition-colors shadow-2xs cursor-pointer"
-              title="Lưu các phần bài tập hiện tại thành Mẫu bài tập mới"
-            >
-              <Save className="w-4 h-4 text-slate-600" />
-              <span>💾 Lưu thành Mẫu</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setInitialShowSaveFormInModal(true);
+              setIsTemplateModalOpen(true);
+            }}
+            data-testid="save-template-quick-btn"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+            title="Lưu bài tập hiện tại thành Mẫu bài tập mới"
+          >
+            <Save className="w-4 h-4 text-slate-600" />
+            <span>💾 Lưu thành Mẫu</span>
+          </button>
 
           <button
-            onClick={() => handleGeneratePreview()}
+            onClick={() => {
+              const freshSeed = Date.now() + Math.floor(Math.random() * 10000);
+              setType9Seed(freshSeed);
+              setType15Seed(freshSeed);
+              setType20Seed(freshSeed);
+              if (worksheetMode === 'composite') {
+                const nextSecs = compositeSections.map((s) =>
+                  s.type === 9
+                    ? { ...s, type9Seed: freshSeed }
+                    : s.type === 15
+                    ? { ...s, type15Seed: freshSeed }
+                    : s.type === 20
+                    ? { ...s, type20Seed: freshSeed }
+                    : s
+                );
+                setCompositeSections(nextSecs);
+                handleGeneratePreview(undefined, undefined, undefined, { type9Seed: freshSeed, type15Seed: freshSeed, type20Seed: freshSeed }, nextSecs, 'composite');
+              } else {
+                handleGeneratePreview(undefined, undefined, undefined, { type9Seed: freshSeed, type15Seed: freshSeed, type20Seed: freshSeed });
+              }
+            }}
             disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
             data-testid="generate-worksheet-btn"
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-50"
@@ -1571,14 +2117,55 @@ export default function WorksheetGenerator() {
             <RefreshCw className={`w-4 h-4 ${isGeneratingPDF ? 'animate-spin' : ''}`} />
             <span>{isGeneratingPDF ? 'Đang tạo...' : 'Tạo Worksheet'}</span>
           </button>
-          <button
-            onClick={handleDownloadPDF}
-            disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-50"
-          >
-            <Download className="w-4 h-4" />
-            <span>Tải File PDF</span>
-          </button>
+          {/* Top Download Button Group with 3 states */}
+          <div className="flex items-center rounded-xl bg-emerald-600 shadow-xs border border-emerald-700/50 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => handleDownloadPDF(answerMode)}
+              disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+              data-testid="top-download-current-btn"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+              title={`Tải file PDF hiện tại (${answerMode === 'both' ? 'Cả 2 Bản HS + Đáp Án' : answerMode === 'answer' ? 'Bản Đáp Án' : 'Bản Học Sinh'})`}
+            >
+              <Download className="w-4 h-4" />
+              <span>
+                Tải {answerMode === 'both' ? 'Cả 2 Bản (HS + ĐA)' : answerMode === 'answer' ? 'Bản Đáp Án' : 'Bản Học Sinh'}
+              </span>
+            </button>
+            <div className="h-6 w-px bg-emerald-700/60" />
+            <div className="flex items-center p-0.5 bg-emerald-700/30">
+              <button
+                type="button"
+                onClick={() => handleDownloadPDF('student')}
+                disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                data-testid="top-download-student-btn"
+                className="px-2 py-1 hover:bg-emerald-800 text-white text-xs font-bold rounded transition-colors cursor-pointer"
+                title="Tải riêng Bản Học Sinh (.pdf)"
+              >
+                📝 HS
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPDF('answer')}
+                disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                data-testid="top-download-answer-btn"
+                className="px-2 py-1 hover:bg-emerald-800 text-white text-xs font-bold rounded transition-colors cursor-pointer"
+                title="Tải riêng Bản Đáp Án (.pdf)"
+              >
+                🎯 ĐA
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPDF('both')}
+                disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                data-testid="top-download-both-btn"
+                className="px-2 py-1 hover:bg-emerald-800 text-white text-xs font-bold rounded transition-colors cursor-pointer"
+                title="Tải gộp Cả 2 Bản (Học Sinh + Đáp Án) (.pdf)"
+              >
+                📑 Cả 2
+              </button>
+            </div>
+          </div>
           <button
             onClick={handlePrintPDF}
             disabled={!pdfBlobUrl}
@@ -1789,7 +2376,8 @@ export default function WorksheetGenerator() {
                           handleGeneratePreview(undefined, newTitle, 1, {
                             sentenceScramble,
                             sentenceSeparator,
-                            sentenceHintStyle
+                            sentenceHintStyle,
+                            sentenceWordsFont
                           });
                         } else if (t.type === 8) {
                           setTitle('Look and trace');
@@ -1896,6 +2484,46 @@ export default function WorksheetGenerator() {
                             type18CircleStyle,
                             type18DistractorCasing,
                             type18HighlightTarget,
+                            showHeader: true,
+                            spacing: 0
+                          });
+                        } else if (t.type === 19) {
+                          const primaryWord = (words.find((w) => w.deckRole !== 'review') || words[0])?.term || 'goal';
+                          const charLabel = type19EntranceCharacter === 'random' ? 'our friend' : type19EntranceCharacter.charAt(0).toUpperCase() + type19EntranceCharacter.slice(1);
+                          const newTitle = type19MazeMode === 'single_goal'
+                            ? `Game: Help ${charLabel} find the ${primaryWord}. Draw a line.`
+                            : 'Game: Find and say.';
+                          setTitle(newTitle);
+                          setShowHeader(true);
+                          setSpacing(0);
+                          handleGeneratePreview(undefined, newTitle, 19, {
+                            type19MazeMode,
+                            type19WallColor,
+                            type19EntranceCharacter,
+                            type19SentenceStem,
+                            type19CornerStyle,
+                            type19WallThickness,
+                            type19MazeSeed,
+                            showHeader: true,
+                            spacing: 0
+                          });
+                        } else if (t.type === 20) {
+                          const newTitle = 'Look, read and write';
+                          setTitle(newTitle);
+                          setShowHeader(true);
+                          setSpacing(0);
+                          handleGeneratePreview(undefined, newTitle, 20, {
+                            type20HintMode,
+                            type20GridBorder,
+                            type20LineStyle,
+                            type20BorderColor,
+                            type20PuzzlesPerPage,
+                            type20Casing,
+                            type20ShowClueImage,
+                            type20ShowClueNumber,
+                            type20ShowTrace,
+                            type20GridMode,
+                            type20HollowArrows,
                             showHeader: true,
                             spacing: 0
                           });
@@ -2034,6 +2662,60 @@ export default function WorksheetGenerator() {
                     <Plus className="w-4 h-4" />
                     <span>+ Thêm phần bài tập</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddAllSections}
+                    data-testid="add-all-sections-btn"
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+                    title="Thêm tất cả các loại bài tập có trong hệ thống vào WS Tổng hợp"
+                  >
+                    <Layers className="w-4 h-4" />
+                    <span>+ Thêm tất cả các loại WS</span>
+                  </button>
+
+                  {/* Chế Độ Toàn Bộ: Bản Học sinh / Bản Đáp án / Cả 2 Bản */}
+                  <div className="flex items-center bg-amber-50 border border-amber-200/80 p-0.5 rounded-xl text-xs font-semibold shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchAnswerMode('student')}
+                      data-testid="composite-global-answermode-student-btn"
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        answerMode === 'student'
+                          ? 'bg-amber-600 text-white font-bold shadow-xs'
+                          : 'text-amber-800 hover:bg-amber-100/60'
+                      }`}
+                      title="Chuyển toàn bộ các phần bài tập sang Bản Học Sinh làm bài"
+                    >
+                      <span>📝 Bản Học sinh</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchAnswerMode('answer')}
+                      data-testid="composite-global-answermode-answer-btn"
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        answerMode === 'answer'
+                          ? 'bg-red-600 text-white font-bold shadow-xs'
+                          : 'text-red-700 hover:bg-red-100/60'
+                      }`}
+                      title="Chuyển toàn bộ các phần bài tập sang Bản Đáp Án (Mực đỏ nổi bật)"
+                    >
+                      <span>🎯 Bản Đáp án</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchAnswerMode('both')}
+                      data-testid="composite-global-answermode-both-btn"
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        answerMode === 'both'
+                          ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                          : 'text-indigo-700 hover:bg-indigo-100/60'
+                      }`}
+                      title="Chuyển toàn bộ sang Cả 2 Bản (Gộp Bản Học sinh + Bản Đáp án)"
+                    >
+                      <span>📑 Cả 2 Bản (HS + ĐA)</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2070,15 +2752,27 @@ export default function WorksheetGenerator() {
                   <p className="text-xs text-slate-500 max-w-xs mx-auto">
                     Bấm nút "+ Thêm phần bài tập" để thêm các bài tập con như Viết từ, Nối tranh, Điền chữ thiếu, Trắc nghiệm...
                   </p>
-                  <button
-                    type="button"
-                    onClick={handleAddSection}
-                    data-testid="add-section-btn"
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>+ Thêm phần bài tập</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddSection}
+                      data-testid="add-section-btn"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Thêm phần bài tập</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddAllSections}
+                      data-testid="add-all-sections-btn-empty"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                      title="Thêm tất cả các loại bài tập có trong hệ thống"
+                    >
+                      <Layers className="w-4 h-4" />
+                      <span>+ Thêm tất cả các loại WS</span>
+                    </button>
+                  </div>
                 </div>
               ) : compositeViewMode === 'tabs' ? (
                 /* --- TAB MODE: Compact, Zero Scrolling --- */
@@ -2086,8 +2780,17 @@ export default function WorksheetGenerator() {
                   <CompositeSectionTabs
                     sections={compositeSections}
                     activeTabIndex={Math.min(activeSectionTab, compositeSections.length - 1)}
-                    onSelectTab={(idx) => setActiveSectionTab(idx)}
+                    isFocusedPreview={compositePreviewScope === 'focused'}
+                    onSelectTab={(idx) => {
+                      setActiveSectionTab(idx);
+                      setFocusedSectionIndex(idx);
+                      setHighlightedSectionIndex(idx);
+                      if (compositePreviewScope === 'focused') {
+                        handleGeneratePreview(undefined, undefined, undefined, undefined, compositeSections, 'composite', 'focused', idx);
+                      }
+                    }}
                     onAddSection={handleAddSection}
+                    onAddAllSections={handleAddAllSections}
                     onMoveUp={handleMoveUpSection}
                     onMoveDown={handleMoveDownSection}
                     onDelete={handleDeleteSection}
@@ -2111,6 +2814,8 @@ export default function WorksheetGenerator() {
                       onOpenQuickAddModal={(sectionIdx) => setQuickAddSectionIndex(sectionIdx)}
                       isCollapsed={false}
                       isHighlighted={highlightedSectionIndex === Math.min(activeSectionTab, compositeSections.length - 1)}
+                      isFocused={focusedSectionIndex === Math.min(activeSectionTab, compositeSections.length - 1)}
+                      onFocus={handleFocusSection}
                     />
                   )}
                 </div>
@@ -2120,8 +2825,10 @@ export default function WorksheetGenerator() {
                   <CompositeQuickNav
                     sections={compositeSections}
                     activeSectionIndex={highlightedSectionIndex}
+                    focusedSectionIndex={focusedSectionIndex}
                     onJumpToSection={handleJumpToSection}
                     onAddSection={handleAddSection}
+                    onAddAllSections={handleAddAllSections}
                     onCollapseAll={handleCollapseAll}
                     onExpandAll={handleExpandAll}
                     focusMode={focusMode}
@@ -2146,6 +2853,8 @@ export default function WorksheetGenerator() {
                         isCollapsed={collapsedSectionIds.has(sec.id)}
                         onToggleCollapse={() => handleToggleCollapse(idx)}
                         isHighlighted={highlightedSectionIndex === idx}
+                        isFocused={focusedSectionIndex === idx}
+                        onFocus={handleFocusSection}
                       />
                     ))}
                   </div>
@@ -2479,53 +3188,59 @@ export default function WorksheetGenerator() {
                       </p>
                     </div>
 
-                    {/* Chế Độ Đáp Án (Answer Mode) for Worksheet Types 1 to 17 */}
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(worksheetType) && (
+                    {/* Chế Độ Đáp Án (Answer Mode) for Worksheet Types 1 to 20 */}
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(worksheetType) && (
                       <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2.5">
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-bold text-amber-900 flex items-center gap-1.5">
                             <span>🎯</span> Chế Độ Đáp Án (Answer Mode)
                           </label>
                           <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-100/70 text-amber-800">
-                            {answerMode === 'answer' ? 'Đáp án hoàn chỉnh' : 'Học sinh làm bài'}
+                            {answerMode === 'both' ? 'Cả 2 bản (HS + Đáp án)' : answerMode === 'answer' ? 'Đáp án hoàn chỉnh' : 'Học sinh làm bài'}
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-1.5">
                           <button
                             type="button"
-                            onClick={() => {
-                              setAnswerMode('student');
-                              setType17HighlightTarget('none');
-                              handleGeneratePreview(undefined, undefined, undefined, { answerMode: 'student', type17HighlightTarget: 'none' });
-                            }}
+                            onClick={() => handleSwitchAnswerMode('student')}
                             data-testid="answermode-student-btn"
-                            className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center ${
+                            className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all text-center cursor-pointer ${
                               answerMode === 'student'
                                 ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
                                 : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                             }`}
                           >
-                            Học sinh (Mặc định)
+                            📝 Học sinh
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setAnswerMode('answer');
-                              setType17HighlightTarget('red');
-                              handleGeneratePreview(undefined, undefined, undefined, { answerMode: 'answer', type17HighlightTarget: 'red' });
-                            }}
+                            onClick={() => handleSwitchAnswerMode('answer')}
                             data-testid="answermode-answer-btn"
-                            className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center ${
+                            className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all text-center cursor-pointer ${
                               answerMode === 'answer'
                                 ? 'bg-red-600 text-white border-red-600 shadow-xs'
                                 : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                             }`}
                           >
-                            Đáp án hoàn chỉnh
+                            🎯 Đáp án
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchAnswerMode('both')}
+                            data-testid="answermode-both-btn"
+                            className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all text-center cursor-pointer ${
+                              answerMode === 'both'
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            📑 Cả 2 Bản
                           </button>
                         </div>
                         <p className="text-[11px] text-amber-700">
-                          {answerMode === 'answer'
+                          {answerMode === 'both'
+                            ? 'Đang ở chế độ gộp cả 2 bản: Trang đầu là bài tập cho học sinh, tiếp theo là trang đáp án hoàn chỉnh cho giáo viên.'
+                            : answerMode === 'answer'
                             ? 'Đang bật hiển thị đáp án hoàn chỉnh bằng mực đỏ nổi bật cho giáo viên chấm bài.'
                             : 'Đang ở chế độ phiếu bài tập trống để học sinh tự làm bài.'}
                         </p>
@@ -3195,7 +3910,7 @@ export default function WorksheetGenerator() {
 
                 {/* Type 9 Options: Look and color Yes/No */}
                 {worksheetMode === 'single' && worksheetType === 9 && (
-                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-2 transition-all">
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3 transition-all">
                     <div className="flex items-center justify-between">
                       <label className="block text-xs font-bold text-indigo-900">
                         Tuỳ Chọn Nhìn Câu Tô Màu Yes/No (Loại 9)
@@ -3204,6 +3919,28 @@ export default function WorksheetGenerator() {
                         {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
                       </span>
                     </div>
+
+                    {/* Seed Randomizer for Yes/No answer sequence */}
+                    <div className="flex items-center justify-between p-2.5 bg-white/80 rounded-lg border border-indigo-100">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-slate-800 block">Thứ Tự Đáp Án Ngẫu Nhiên</span>
+                        <span className="text-[10px] text-slate-500 block">Mỗi lần bấm sẽ đảo vị trí Yes/No và đồng bộ đáp án</span>
+                      </div>
+                      <button
+                        type="button"
+                        data-testid="type9-randomize-seed-btn"
+                        onClick={() => {
+                          const newSeed = Date.now();
+                          setType9Seed(newSeed);
+                          handleGeneratePreview(undefined, undefined, 9, { type9Seed: newSeed });
+                        }}
+                        className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        🎲 Đổi bộ đáp án
+                      </button>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                         Chế Độ Đáp Án
@@ -3452,6 +4189,22 @@ export default function WorksheetGenerator() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Reshuffle Button: Sinh ô chữ mới đồng bộ cả Đề & Đáp Án */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSeed = Date.now();
+                          setWordsearchSeed(newSeed);
+                          handleGeneratePreview(undefined, undefined, 13, { wordsearchSeed: newSeed });
+                        }}
+                        className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Tạo bố cục ô chữ mới ngẫu nhiên (Đề học sinh và Bản đáp án sẽ luôn trùng khớp nhau 100%)"
+                      >
+                        <span>🎲</span> Đổi bảng ô chữ mới (Xáo trộn lại)
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -3582,14 +4335,65 @@ export default function WorksheetGenerator() {
 
                 {/* Type 15 Options: Read and circle */}
                 {worksheetMode === 'single' && worksheetType === 15 && (
-                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                  <div data-testid="type15-options-panel" className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
                     <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
                       <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                         <span>🔘</span> Tuỳ Chọn Đọc & Khoanh Tranh (Loại 15)
                       </label>
                       <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
-                        Khung 2 cột • Nét đứt chấm bi
+                        {answerMode === 'answer' ? 'Đáp án' : 'Học sinh'}
                       </span>
+                    </div>
+
+                    {/* Seed Randomizer for A/B & distractor answer sequence (giống Loại 9) */}
+                    <div className="flex items-center justify-between p-2.5 bg-white/80 rounded-lg border border-indigo-100">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-slate-800 block">Thứ Tự Đáp Án Ngẫu Nhiên</span>
+                        <span className="text-[10px] text-slate-500 block">Mỗi lần bấm sẽ đảo vị trí A/B & tranh nhiễu và đồng bộ đáp án</span>
+                      </div>
+                      <button
+                        type="button"
+                        data-testid="type15-randomize-seed-btn"
+                        onClick={() => {
+                          const newSeed = Date.now() + Math.floor(Math.random() * 10000);
+                          setType15Seed(newSeed);
+                          handleGeneratePreview(undefined, undefined, 15, { type15Seed: newSeed });
+                        }}
+                        className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        🎲 Đổi bộ đáp án
+                      </button>
+                    </div>
+
+                    {/* Answer Mode Toggle (giống Loại 9) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Đáp Án
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'student' as const, label: 'Học sinh' },
+                          { value: 'answer' as const, label: 'Đáp án' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAnswerMode(opt.value);
+                              handleGeneratePreview(undefined, undefined, 15, { answerMode: opt.value });
+                            }}
+                            data-testid={`single-type15-answermode-${opt.value}`}
+                            className={`py-1.5 px-2 rounded-lg border text-xs font-semibold transition-all ${
+                              answerMode === opt.value
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Choice Mode */}
@@ -4465,6 +5269,566 @@ export default function WorksheetGenerator() {
                   </div>
                 )}
 
+                {/* Type 19 Options: Mê Cung Từ Vựng (Textbook Vocabulary Maze Puzzle) */}
+                {worksheetMode === 'single' && worksheetType === 19 && (
+                  <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100/80 space-y-3.5 transition-all">
+                    <div className="flex items-center justify-between border-b border-emerald-100/80 pb-2">
+                      <label className="block text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                        <span>🌀</span> Cấu Hình Mê Cung Từ Vựng (Loại 19)
+                      </label>
+                      <span className="text-[11px] text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded font-semibold">
+                        Chuẩn SGK Tiếng Anh
+                      </span>
+                    </div>
+
+                    {/* 1. Dạng Mê Cung (Maze Variant) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Dạng Bài Tập Mê Cung (Theo Sách Giáo Khoa)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {[
+                          {
+                            value: 'single_goal',
+                            title: '🎯 Dạng 1: Tìm Đến Đích',
+                            desc: 'Đi qua từ Bộ chính để tới đích, từ Bộ ôn tập ở lối cụt.'
+                          },
+                          {
+                            value: 'multi_exit',
+                            title: '🔀 Dạng 2: Rẽ Nhánh Ra Cửa',
+                            desc: 'Find and say. Có 2-4 lối thoát, mỗi lối dẫn đến 1 đồ vật/con vật.'
+                          }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type19MazeMode;
+                              setType19MazeMode(val);
+                              let newChar = type19EntranceCharacter;
+                              if (val === 'multi_exit' && type19EntranceCharacter === 'boy') {
+                                newChar = 'girl';
+                                setType19EntranceCharacter('girl');
+                              } else if (val === 'single_goal' && type19EntranceCharacter === 'girl') {
+                                newChar = 'boy';
+                                setType19EntranceCharacter('boy');
+                              }
+                              const newWall = val === 'multi_exit' ? 'orange' : type19WallColor;
+                              if (val === 'multi_exit' && type19WallColor !== 'orange') {
+                                setType19WallColor('orange');
+                              }
+                              const primaryWord = (words.find((w) => w.deckRole !== 'review') || words[0])?.term || 'goal';
+                              const charLabel = newChar === 'random' ? 'our friend' : newChar.charAt(0).toUpperCase() + newChar.slice(1);
+                              const newTitle = val === 'single_goal'
+                                ? `Game: Help ${charLabel} find the ${primaryWord}. Draw a line.`
+                                : 'Game: Find and say.';
+                              setTitle(newTitle);
+                              handleGeneratePreview(undefined, newTitle, 19, {
+                                type19MazeMode: val,
+                                type19EntranceCharacter: newChar,
+                                type19WallColor: newWall
+                              });
+                            }}
+                            data-testid={`single-type19-mode-${opt.value}`}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${
+                              type19MazeMode === opt.value
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{opt.title}</div>
+                            <div className={`text-[10px] mt-0.5 leading-tight ${type19MazeMode === opt.value ? 'text-emerald-100' : 'text-slate-500'}`}>
+                              {opt.desc}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Nhân Vật Ở Cổng Vào & Đích Đến */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Nhân Vật Lối Vào
+                        </label>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 max-h-48 overflow-y-auto p-1 bg-white/50 rounded-lg border border-slate-200">
+                          {ALL_ENTRANCE_CHARACTERS.map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              onClick={() => {
+                                const val = c.value as Type19EntranceCharacter;
+                                setType19EntranceCharacter(val);
+                                handleGeneratePreview(undefined, undefined, 19, { type19EntranceCharacter: val });
+                              }}
+                              data-testid={`single-type19-entrance-${c.value}`}
+                              title={c.label}
+                              className={`py-1.5 px-1 rounded-lg border text-[11px] font-semibold transition-all flex flex-col items-center gap-1 ${
+                                type19EntranceCharacter === c.value
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                            >
+                              {(c as any).avatarUrl ? (
+                                <img
+                                  src={(c as any).avatarUrl}
+                                  alt={c.label}
+                                  loading="eager"
+                                  className="w-6 h-6 object-contain rounded"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-sm">{c.label.split(' ')[0]}</span>
+                              )}
+                              <span className="truncate w-full text-center text-[10px] leading-tight">
+                                {c.label.split(' ').slice(1).join(' ') || c.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {type19MazeMode === 'multi_exit' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Bóng Thoại (Gợi Ý Câu)
+                          </label>
+                          <input
+                            type="text"
+                            value={type19SentenceStem}
+                            onChange={(e) => {
+                              setType19SentenceStem(e.target.value);
+                              handleGeneratePreview(undefined, undefined, 19, { type19SentenceStem: e.target.value });
+                            }}
+                            className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                            placeholder="There's a _____."
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3. Màu Sắc & Độ Dày Tường Mê Cung */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Màu Tường Mê Cung
+                        </label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { value: 'black_white', label: 'Đen-Trắng', color: '#334155' },
+                            { value: 'orange', label: 'Cam SGK', color: '#ea580c' },
+                            { value: 'blue', label: 'Xanh Lam', color: '#0284c7' },
+                            { value: 'purple', label: 'Tím', color: '#9333ea' }
+                          ].map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              title={c.label}
+                              onClick={() => {
+                                const val = c.value as Type19WallColor;
+                                setType19WallColor(val);
+                                handleGeneratePreview(undefined, undefined, 19, { type19WallColor: val });
+                              }}
+                              data-testid={`single-type19-wall-color-${c.value}`}
+                              className={`flex flex-col items-center gap-1 p-1 rounded-lg border transition-all text-center ${
+                                type19WallColor === c.value
+                                  ? 'bg-white border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs font-bold'
+                                  : 'bg-white/70 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="text-[9px] truncate max-w-full">{c.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Độ Dày Tường
+                        </label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { value: 'thin', label: 'Mỏng' },
+                            { value: 'medium', label: 'Vừa SGK' },
+                            { value: 'thick', label: 'Đậm nét' }
+                          ].map((w) => (
+                            <button
+                              key={w.value}
+                              type="button"
+                              onClick={() => {
+                                const val = w.value as Type19WallThickness;
+                                setType19WallThickness(val);
+                                handleGeneratePreview(undefined, undefined, 19, { type19WallThickness: val });
+                              }}
+                              data-testid={`single-type19-thickness-${w.value}`}
+                              className={`py-1.5 px-1 rounded-lg border text-xs font-semibold transition-all text-center ${
+                                type19WallThickness === w.value
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {w.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Tạo Mẫu Mê Cung Mới
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSeed = Math.floor(Math.random() * 100000);
+                            setType19MazeSeed(newSeed);
+                            handleGeneratePreview(undefined, undefined, 19, { type19MazeSeed: newSeed });
+                          }}
+                          data-testid="single-type19-randomize-seed"
+                          className="w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                        >
+                          <span>🎲</span> Đổi Hình Mê Cung
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                
+                {/* Type 20 Options: Ô Chữ Giao Nhau (Textbook Criss-Cross Words) */}
+                {worksheetMode === 'single' && worksheetType === 20 && (
+                  <div data-testid="single-type20-options-panel" className="p-4 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-4 transition-all">
+                    <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                      <label className="block text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <span>🧩</span> Cấu Hình Ô Chữ Giao Nhau (Loại 20)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const freshSeed = Date.now() + Math.floor(Math.random() * 10000);
+                            setType20Seed(freshSeed);
+                            handleGeneratePreview(undefined, undefined, 20, { type20Seed: freshSeed });
+                          }}
+                          data-testid="single-type20-randomize-seed"
+                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold rounded-lg border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Sinh ngẫu nhiên cách giao nhau mới giữa các từ"
+                        >
+                          <span>🎲 Đổi Bố Cục</span>
+                        </button>
+                        <span className="text-[11px] text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded font-semibold">
+                          Chuẩn SGK Look, read and write
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 0. Kiểu Bố Cục Ô Chữ */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Kiểu Bố Cục Ô Chữ (Crossword Layout Mode)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'connected', label: '🧩 Lưới Liên Hoàn (Đa từ)', desc: 'Ghép nhiều từ liên thông như YourHomework.net' },
+                          { value: 'pairs', label: '🔲 Cặp Từ Mini (2 từ)', desc: 'Mỗi khung gồm đúng 2 từ cắt nhau' }
+                        ].map((m) => (
+                          <button
+                            key={m.value}
+                            type="button"
+                            onClick={() => {
+                              const val = m.value as Type20GridMode;
+                              setType20GridMode(val);
+                              handleGeneratePreview(undefined, undefined, 20, { type20GridMode: val });
+                            }}
+                            data-testid={`single-type20-grid-mode-${m.value}`}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${
+                              type20GridMode === m.value
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{m.label}</div>
+                            <div className={`text-[10px] mt-0.5 ${type20GridMode === m.value ? 'text-amber-100' : 'text-slate-500'}`}>
+                              {m.desc}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 1. Chế độ khuyết chữ (Hint Mode) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Chế Độ Khuyết Chữ (Hint Mode)
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { value: 'all_blank', label: '⭕ Trống toàn bộ (Chuẩn)', desc: '100% ô trống để học sinh tự viết' },
+                          { value: 'intersection_blank', label: '🎯 Khuyết ô giao nhau', desc: 'Có sẵn chữ khác, chỉ điền ô giao' },
+                          { value: 'missing_vowels', label: '🔤 Khuyết nguyên âm', desc: 'A, E, I, O, U' },
+                          { value: 'full_answer', label: '👁️ Đầy đủ chữ', desc: 'Đáp án / Mẫu đọc' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.value as Type20HintMode;
+                              setType20HintMode(val);
+                              handleGeneratePreview(undefined, undefined, 20, { type20HintMode: val });
+                            }}
+                            data-testid={`single-type20-hint-mode-${opt.value}`}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${
+                              type20HintMode === opt.value
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{opt.label}</div>
+                            <div className={`text-[10px] mt-0.5 ${type20HintMode === opt.value ? 'text-amber-100' : 'text-slate-500'}`}>
+                              {opt.desc}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Kiểu viền ô & Kiểu nét vẽ (Tham khảo Loại 13) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Kiểu Viền Ô Chữ (Tham khảo Loại 13)
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { value: 'full', label: '⏹️ Đầy đủ (Full)' },
+                            { value: 'outerOnly', label: '🔲 Chỉ viền ngoài (Loại 13)' },
+                            { value: 'none', label: '🚫 Không viền' }
+                          ].map((b) => (
+                            <button
+                              key={b.value}
+                              type="button"
+                              onClick={() => {
+                                const val = b.value as Type20GridBorder;
+                                setType20GridBorder(val);
+                                handleGeneratePreview(undefined, undefined, 20, { type20GridBorder: val });
+                              }}
+                              data-testid={`single-type20-grid-border-${b.value}`}
+                              className={`py-2 px-1 rounded-lg border text-[11px] font-semibold transition-all text-center ${
+                                type20GridBorder === b.value
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {b.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Kiểu Nét Vẽ (Line Style - Tham khảo Loại 13)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { value: 'solid', label: '➖ Nét liền SGK' },
+                            { value: 'dotted', label: '⋯ Nét đứt (Dotted - Loại 13)' }
+                          ].map((s) => (
+                            <button
+                              key={s.value}
+                              type="button"
+                              onClick={() => {
+                                const val = s.value as Type20LineStyle;
+                                setType20LineStyle(val);
+                                handleGeneratePreview(undefined, undefined, 20, { type20LineStyle: val });
+                              }}
+                              data-testid={`single-type20-line-style-${s.value}`}
+                              className={`py-2 px-2 rounded-lg border text-xs font-semibold transition-all text-center ${
+                                type20LineStyle === s.value
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Màu sắc viền & Số cặp/trang & Kiểu chữ */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Màu Sắc Viền Ô
+                        </label>
+                        <div className="grid grid-cols-5 gap-1">
+                          {[
+                            { value: 'orange', label: 'Cam', color: '#f97316' },
+                            { value: 'amber', label: 'Hổ phách', color: '#f59e0b' },
+                            { value: 'slate', label: 'Xám', color: '#94a3b8' },
+                            { value: 'blue', label: 'Lam', color: '#2563eb' },
+                            { value: 'indigo', label: 'Chàm', color: '#4f46e5' },
+                            { value: 'green', label: 'Lá', color: '#16a34a' },
+                            { value: 'emerald', label: 'Ngọc', color: '#10b981' },
+                            { value: 'purple', label: 'Tím', color: '#7c3aed' },
+                            { value: 'red', label: 'Đỏ', color: '#dc2626' }
+                          ].map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              title={c.label}
+                              onClick={() => {
+                                const val = c.value as Type20BorderColor;
+                                setType20BorderColor(val);
+                                handleGeneratePreview(undefined, undefined, 20, { type20BorderColor: val });
+                              }}
+                              data-testid={`single-type20-border-color-${c.value}`}
+                              className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-all text-center ${
+                                type20BorderColor === c.value
+                                  ? 'bg-white border-amber-600 ring-2 ring-amber-500/20 shadow-xs font-bold'
+                                  : 'bg-white/70 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="text-[10px] truncate max-w-full">{c.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {type20GridMode === 'pairs' ? (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Số Cặp Ô Chữ / Trang
+                          </label>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[
+                              { value: 'auto', label: 'Tự động' },
+                              { value: 2, label: '2 cặp' },
+                              { value: 3, label: '3 cặp' },
+                              { value: 4, label: '4 cặp' }
+                            ].map((opt) => (
+                              <button
+                                key={String(opt.value)}
+                                type="button"
+                                onClick={() => {
+                                  const val = opt.value as Type20PuzzlesPerPage;
+                                  setType20PuzzlesPerPage(val);
+                                  handleGeneratePreview(undefined, undefined, 20, { type20PuzzlesPerPage: val });
+                                }}
+                                data-testid={`single-type20-puzzles-per-page-${opt.value}`}
+                                className={`py-2 px-1 rounded-lg border text-xs font-semibold transition-all text-center ${
+                                  type20PuzzlesPerPage === opt.value
+                                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-semibold text-emerald-800 mb-1.5">
+                            Quy Mô Lưới Ô Chữ
+                          </label>
+                          <div className="py-2 px-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5">
+                            <span className="text-sm">🧩</span>
+                            <span>Ghép toàn bộ từ vựng vào 1 khung duy nhất</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Kiểu Chữ Cái
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { value: 'upper', label: 'IN HOA (ABC)' },
+                            { value: 'lower', label: 'in thường (abc)' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                const val = opt.value as Type20Casing;
+                                setType20Casing(val);
+                                handleGeneratePreview(undefined, undefined, 20, { type20Casing: val });
+                              }}
+                              data-testid={`single-type20-casing-${opt.value}`}
+                              className={`py-2 px-1.5 rounded-lg border text-xs font-semibold transition-all text-center ${
+                                type20Casing === opt.value
+                                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. Toggles hiển thị */}
+                    <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-amber-200/50">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={type20ShowClueImage}
+                          onChange={(e) => {
+                            setType20ShowClueImage(e.target.checked);
+                            handleGeneratePreview(undefined, undefined, 20, { type20ShowClueImage: e.target.checked });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                        />
+                        <span>🖼️ Hiện tranh minh họa</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={type20ShowClueNumber}
+                          onChange={(e) => {
+                            setType20ShowClueNumber(e.target.checked);
+                            handleGeneratePreview(undefined, undefined, 20, { type20ShowClueNumber: e.target.checked });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                        />
+                        <span>🔢 Đánh số thứ tự (Bỏ chọn để Bỏ đánh số)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={type20HollowArrows}
+                          onChange={(e) => {
+                            setType20HollowArrows(e.target.checked);
+                            handleGeneratePreview(undefined, undefined, 20, { type20HollowArrows: e.target.checked });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                        />
+                        <span>🏹 Mũi tên nét rỗng (Tiết kiệm mực in)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={type20ShowTrace}
+                          onChange={(e) => {
+                            setType20ShowTrace(e.target.checked);
+                            handleGeneratePreview(undefined, undefined, 20, { type20ShowTrace: e.target.checked });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                        />
+                        <span>✏️ Chữ mờ cho học sinh tập tô</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {/* Type 1 Options: Sentence Reorder / Rewrite */}
                 {worksheetMode === 'single' && worksheetType === 1 && (
                   <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
@@ -4535,6 +5899,31 @@ export default function WorksheetGenerator() {
                           Cách nhau bởi ' / '
                         </button>
                       </div>
+                    </div>
+
+                    {/* Phông Chữ Từ Gợi Ý */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Phông Chữ Từ Gợi Ý
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-medium">
+                          {sentenceWordsFont === 'Andika' ? 'Andika chuẩn tiểu học' : 'Theo bài tập'}
+                        </span>
+                      </div>
+                      <select
+                        value={sentenceWordsFont}
+                        onChange={(e) => {
+                          const val = e.target.value as 'inherit' | 'Andika';
+                          setSentenceWordsFont(val);
+                          handleGeneratePreview(undefined, undefined, 1, { sentenceWordsFont: val });
+                        }}
+                        data-testid="type1-words-font-select"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-medium text-slate-800 shadow-2xs"
+                      >
+                        <option value="inherit">Theo bài tập</option>
+                        <option value="Andika">Andika chuẩn tiểu học</option>
+                      </select>
                     </div>
 
                     {/* 3. Hint Style */}
@@ -4940,16 +6329,81 @@ export default function WorksheetGenerator() {
         {/* RIGHT COLUMN: Live PDF Preview & Download (7 cols) */}
         <div className="lg:col-span-7 sticky top-24 space-y-4">
           <div data-testid="pdf-preview-card" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2.5">
               <div className="flex items-center gap-2">
                 <Eye className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-bold text-slate-900">Xem Trước File PDF</h3>
               </div>
+
+              {/* 3-Mode Segmented Preview Selector */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold shadow-2xs" data-testid="preview-mode-selector">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchAnswerMode('student')}
+                  data-testid="preview-mode-student-btn"
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    answerMode === 'student'
+                      ? 'bg-amber-600 text-white font-bold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem trước Bản Học Sinh (để trống làm bài)"
+                >
+                  <span>📝 Bản Học Sinh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchAnswerMode('answer')}
+                  data-testid="preview-mode-answer-btn"
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    answerMode === 'answer'
+                      ? 'bg-red-600 text-white font-bold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem trước Bản Đáp Án (mực đỏ giáo viên)"
+                >
+                  <span>🎯 Bản Đáp Án</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchAnswerMode('both')}
+                  data-testid="preview-mode-both-btn"
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    answerMode === 'both'
+                      ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem trước Cả 2 Bản (Gộp Bản Học Sinh + Bản Đáp Án)"
+                >
+                  <span>📑 Cả 2 Bản (HS + Đáp Án)</span>
+                </button>
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleGeneratePreview()}
+                  onClick={() => {
+                    const freshSeed = Date.now() + Math.floor(Math.random() * 10000);
+                    setType9Seed(freshSeed);
+                    setType15Seed(freshSeed);
+                    setType20Seed(freshSeed);
+                    if (worksheetMode === 'composite') {
+                      const nextSecs = compositeSections.map((s) =>
+                        s.type === 9
+                          ? { ...s, type9Seed: freshSeed }
+                          : s.type === 15
+                          ? { ...s, type15Seed: freshSeed }
+                          : s.type === 20
+                          ? { ...s, type20Seed: freshSeed }
+                          : s
+                      );
+                      setCompositeSections(nextSecs);
+                      handleGeneratePreview(undefined, undefined, undefined, { type9Seed: freshSeed, type15Seed: freshSeed, type20Seed: freshSeed }, nextSecs, 'composite');
+                    } else {
+                      handleGeneratePreview(undefined, undefined, undefined, { type9Seed: freshSeed, type15Seed: freshSeed, type20Seed: freshSeed });
+                    }
+                  }}
                   disabled={isGeneratingPDF}
-                  className="px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1.5"
+                  data-testid="preview-refresh-btn"
+                  className="px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingPDF ? 'animate-spin' : ''}`} />
                   Làm mới
@@ -4967,6 +6421,112 @@ export default function WorksheetGenerator() {
                 )}
               </div>
             </div>
+
+            {/* Composite Mode: Dedicated Focused Section Preview Toolbar */}
+            {worksheetMode === 'composite' && compositeSections.length > 0 && (
+              <div
+                data-testid="composite-preview-focus-bar"
+                className="flex items-center justify-between flex-wrap gap-2.5 p-3 bg-gradient-to-r from-indigo-50/90 via-sky-50/80 to-purple-50/90 border border-indigo-200/90 rounded-xl text-xs shadow-2xs"
+              >
+                {/* Active Section Indicator / Title */}
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <Target className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
+                    {compositePreviewScope === 'focused' ? (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-slate-600 font-medium">Đang xem riêng:</span>
+                        <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md font-extrabold shadow-2xs">
+                          Bài #{focusedSectionIndex + 1}
+                        </span>
+                        <span
+                          className="text-indigo-950 font-bold max-w-[200px] truncate"
+                          title={compositeSections[focusedSectionIndex]?.title}
+                        >
+                          {compositeSections[focusedSectionIndex]?.title || `Loại ${compositeSections[focusedSectionIndex]?.type}`}
+                        </span>
+                        <span className="text-[10px] text-indigo-600 font-semibold bg-white/80 px-1.5 py-0.5 rounded border border-indigo-200/60 hidden sm:inline">
+                          Loại {compositeSections[focusedSectionIndex]?.type} • {compositeSections[focusedSectionIndex]?.selectedWordIndices?.length || 0} từ
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-slate-600 font-medium">Đang xem:</span>
+                        <span className="px-2 py-0.5 bg-slate-800 text-white rounded-md font-bold shadow-2xs">
+                          Toàn bộ đề
+                        </span>
+                        <span className="text-slate-600 font-medium">
+                          ({compositeSections.length} phần bài tập)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scope Toggle & Prev/Next Navigation */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Scope Selector: Focused vs All */}
+                  <div className="flex items-center bg-white/90 p-0.5 rounded-lg border border-indigo-200 shadow-2xs" data-testid="preview-scope-toggle">
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePreviewScope('focused')}
+                      data-testid="preview-scope-focused-btn"
+                      className={`px-2.5 py-1 rounded-md font-bold transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                        compositePreviewScope === 'focused'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-indigo-700 hover:bg-indigo-50'
+                      }`}
+                      title="Chỉ hiển thị phần bài tập đang sửa để theo dõi nhanh không cần cuộn trang"
+                    >
+                      <Target className="w-3.5 h-3.5" />
+                      <span>🎯 Xem Riêng Bài #{focusedSectionIndex + 1}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePreviewScope('all')}
+                      data-testid="preview-scope-all-btn"
+                      className={`px-2.5 py-1 rounded-md font-bold transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                        compositePreviewScope === 'all'
+                          ? 'bg-slate-800 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                      title="Xem toàn bộ đề gồm tất cả các trang bài tập"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>📑 Toàn Bộ Đề</span>
+                    </button>
+                  </div>
+
+                  {/* Previous / Next Section buttons (in focused mode) */}
+                  {compositePreviewScope === 'focused' && compositeSections.length > 1 && (
+                    <div className="flex items-center gap-1 bg-white/90 p-0.5 rounded-lg border border-indigo-200 shadow-2xs">
+                      <button
+                        type="button"
+                        disabled={focusedSectionIndex <= 0}
+                        onClick={() => handleNavigateFocusedSection(focusedSectionIndex - 1)}
+                        data-testid="preview-focus-prev-btn"
+                        className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                        title="Xem bài trước đó"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[11px] font-mono font-bold text-slate-700 px-1">
+                        {focusedSectionIndex + 1}/{compositeSections.length}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={focusedSectionIndex >= compositeSections.length - 1}
+                        onClick={() => handleNavigateFocusedSection(focusedSectionIndex + 1)}
+                        data-testid="preview-focus-next-btn"
+                        className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                        title="Xem bài kế tiếp"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* PDF Viewer Container */}
             <div data-testid="pdf-preview-container" className="w-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex flex-col items-center justify-center min-h-[720px] relative">
@@ -4999,7 +6559,7 @@ export default function WorksheetGenerator() {
             </div>
 
             {/* Quick Download Footer inside preview card */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-500">
               <span>
                 {worksheetMode === 'composite' ? (
                   <>
@@ -5011,14 +6571,39 @@ export default function WorksheetGenerator() {
                   </>
                 )}
               </span>
-              <button
-                onClick={handleDownloadPDF}
-                disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
-                className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Tải về máy (.pdf)
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400 font-medium mr-1">Tải về máy:</span>
+                <button
+                  onClick={() => handleDownloadPDF('student')}
+                  disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                  data-testid="footer-download-student-btn"
+                  className="px-2.5 py-1 font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200/80 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Tải riêng Bản Học Sinh (.pdf)"
+                >
+                  <Download className="w-3 h-3" />
+                  Bản Học Sinh
+                </button>
+                <button
+                  onClick={() => handleDownloadPDF('answer')}
+                  disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                  data-testid="footer-download-answer-btn"
+                  className="px-2.5 py-1 font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200/80 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Tải riêng Bản Đáp Án (.pdf)"
+                >
+                  <Download className="w-3 h-3" />
+                  Bản Đáp Án
+                </button>
+                <button
+                  onClick={() => handleDownloadPDF('both')}
+                  disabled={isGeneratingPDF || (worksheetType !== 18 && words.length === 0)}
+                  data-testid="footer-download-both-btn"
+                  className="px-2.5 py-1 font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200/80 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Tải gộp Cả 2 Bản (Học Sinh + Đáp Án) (.pdf)"
+                >
+                  <Download className="w-3 h-3" />
+                  Cả 2 Bản (Gộp)
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -5049,7 +6634,11 @@ export default function WorksheetGenerator() {
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
         onApply={handleApplyTemplate}
-        currentCompositeSections={compositeSections}
+        currentCompositeSections={
+          worksheetMode === 'single'
+            ? [getCurrentSingleAsCompositeSection()]
+            : compositeSections
+        }
         onSaveCurrentAsTemplate={handleSaveCurrentAsTemplate}
         initialShowSaveForm={initialShowSaveFormInModal}
       />

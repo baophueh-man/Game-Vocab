@@ -1,13 +1,16 @@
 import React from 'react';
-import { Plus, Minimize2, Maximize2, Sparkles, Navigation } from 'lucide-react';
+import { Plus, Layers, Minimize2, Maximize2, Sparkles, Navigation, Target } from 'lucide-react';
 import { UICompositeSection } from './CompositeSectionCard';
 import { WORKSHEET_TYPES } from '../../utils/worksheetGenerator';
+import { useWorksheetTypes } from '../../utils/worksheetTypeCustomization';
 
 interface CompositeQuickNavProps {
   sections: UICompositeSection[];
   activeSectionIndex?: number | null;
+  focusedSectionIndex?: number | null;
   onJumpToSection: (index: number) => void;
   onAddSection: () => void;
+  onAddAllSections?: () => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
   focusMode: boolean;
@@ -17,15 +20,19 @@ interface CompositeQuickNavProps {
 export default function CompositeQuickNav({
   sections,
   activeSectionIndex,
+  focusedSectionIndex,
   onJumpToSection,
   onAddSection,
+  onAddAllSections,
   onCollapseAll,
   onExpandAll,
   focusMode,
   onToggleFocusMode
 }: CompositeQuickNavProps) {
+  const { worksheetTypes } = useWorksheetTypes();
+
   const getShortTypeName = (type: number): string => {
-    const meta = WORKSHEET_TYPES.find((t) => t.type === type);
+    const meta = worksheetTypes.find((t) => t.type === type) || WORKSHEET_TYPES.find((t) => t.type === type);
     if (!meta) return `L${type}`;
     return meta.name.replace(/^Loại\s*\d+:\s*/i, '');
   };
@@ -86,6 +93,19 @@ export default function CompositeQuickNav({
             <Plus className="w-3 h-3" />
             <span>Thêm</span>
           </button>
+
+          {onAddAllSections && (
+            <button
+              type="button"
+              onClick={onAddAllSections}
+              data-testid="quick-nav-add-all-sections-btn"
+              title="Thêm tất cả các loại bài tập có trong hệ thống"
+              className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-colors shrink-0"
+            >
+              <Layers className="w-3 h-3" />
+              <span>+ Tất cả</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -93,6 +113,7 @@ export default function CompositeQuickNav({
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200">
         {sections.map((sec, idx) => {
           const isCurrent = activeSectionIndex === idx;
+          const isFocused = focusedSectionIndex === idx;
           const wordCount = sec.selectedWordIndices?.length || 0;
           const shortName = getShortTypeName(sec.type);
 
@@ -102,24 +123,27 @@ export default function CompositeQuickNav({
               type="button"
               onClick={() => onJumpToSection(idx)}
               data-testid={`quick-jump-pill-${idx}`}
-              title={`Nhảy tới Phần ${idx + 1}: ${sec.title}`}
+              title={`Nhảy tới & xem trước Phần ${idx + 1}: ${sec.title}`}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
-                isCurrent
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                isCurrent || isFocused
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-400/40'
                   : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-800'
               }`}
             >
               <span
                 className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${
-                  isCurrent ? 'bg-white text-indigo-700' : 'bg-slate-200 text-slate-700'
+                  isCurrent || isFocused ? 'bg-white text-indigo-700' : 'bg-slate-200 text-slate-700'
                 }`}
               >
                 {idx + 1}
               </span>
               <span className="max-w-[110px] truncate">{sec.title || shortName}</span>
+              {isFocused && (
+                <Target className="w-3 h-3 text-amber-300 animate-pulse shrink-0" />
+              )}
               <span
                 className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                  isCurrent ? 'bg-indigo-700 text-white' : 'bg-slate-200/80 text-slate-600'
+                  isCurrent || isFocused ? 'bg-indigo-700 text-white' : 'bg-slate-200/80 text-slate-600'
                 }`}
               >
                 {wordCount}t

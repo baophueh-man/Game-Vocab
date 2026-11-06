@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
 import { getImageFile } from '../lib/storage';
 import {
   fontAsapCondensed,
@@ -11,11 +12,56 @@ import {
   fontQuestrial
 } from './worksheetFontsData';
 import { fontKGPrimaryDots } from './worksheetFontKGPrimaryDots';
+import { fontAndikaRegular, fontAndikaBold } from './worksheetFontAndika';
+import type {
+  Type19MazeMode,
+  Type19WallColor,
+  Type19EntranceCharacter,
+  Type19TargetItem,
+  Type19CornerStyle,
+  Type19WallThickness
+} from './worksheetMazeGenerator';
+import {
+  calculateType19MazeMetrics,
+  drawType19Maze,
+  generateMazePuzzle,
+  solveMazePath
+} from './worksheetMazeGenerator';
+export {
+  calculateType19MazeMetrics,
+  drawType19Maze,
+  generateMazePuzzle,
+  solveMazePath
+};
+import {
+  generateConnectedCrossword,
+  drawConnectedCrosswordGrid,
+  CrosswordLayoutResult
+} from './worksheetCrosswordEngine';
+export {
+  generateConnectedCrossword,
+  drawConnectedCrosswordGrid
+};
+export type { CrosswordLayoutResult };
+export type {
+  Type19MazeMode,
+  Type19WallColor,
+  Type19EntranceCharacter,
+  Type19TargetItem,
+  Type19CornerStyle,
+  Type19WallThickness,
+  MazePoint,
+  MazePlacedItem,
+  MazeCell,
+  MazePuzzleResult,
+  MazeGeneratorOptions
+} from './worksheetMazeGenerator';
 
 export interface WorksheetWord {
   id?: string;
   term: string;
   definition?: string;
+  translation?: string;
   phonetic?: string;
   imageUrl?: string;
   exampleSentence?: string;
@@ -24,7 +70,32 @@ export interface WorksheetWord {
   deckRole?: 'primary' | 'review';
 }
 
-export type WorksheetType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
+export type WorksheetType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+export type Type20HintMode = 'intersection_blank' | 'first_blank' | 'random_blank' | 'all_blank' | 'full_answer' | 'missing_intersect' | 'missing_vowels' | 'random_missing' | 'blank';
+export type Type20GridBorder = 'none' | 'outerOnly' | 'full'; // Tham khảo từ Loại 13
+export type Type20LineStyle = 'solid' | 'dotted'; // Kế thừa nét đứt chấm bi Loại 13
+export type Type20BorderColor = 'orange' | 'slate' | 'blue' | 'green' | 'purple';
+export type Type20PuzzlesPerPage = 1 | 2 | 3 | 4 | 'auto';
+export type Type20Casing = 'upper' | 'lower' | 'uppercase' | 'lowercase';
+export type Type20GridMode = 'connected' | 'pairs';
+
+export type Type19HintMode = Type20HintMode;
+export type Type19GridBorder = Type20GridBorder;
+export type Type19LineStyle = Type20LineStyle;
+export type Type19BorderColor = Type20BorderColor;
+export type Type19PuzzlesPerPage = Type20PuzzlesPerPage;
+export type Type19Casing = Type20Casing;
+
+export interface CrissCrossPair {
+  wordAcross: WorksheetWord;
+  wordDown: WorksheetWord;
+  cleanAcross: string;
+  cleanDown: string;
+  intersectionAcrossIndex: number;
+  intersectionDownIndex: number;
+  char: string;
+}
+
 export type BlankMode = 'vowels' | 'random1' | 'random2' | 'random3';
 export type Type4LayoutMode = 'grid' | 'table';
 export type Type4ColumnMode = 'both_trace_first' | 'both_blank_first' | 'initial_only' | 'final_only' | 'alphabet_order' | 'vowels_only';
@@ -139,7 +210,7 @@ export interface WorksheetOptions {
   type: WorksheetType;
   title: string;
   fontSize?: number; // default: 12
-  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';
+  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots' | 'Andika';
   paperSize?: 'a5' | 'a4'; // default: 'a5'
   blankMode?: BlankMode; // default: 'vowels'
   spacing?: number; // Spacing in pt between parts like Microsoft Word (default: 0 pt)
@@ -164,12 +235,15 @@ export interface WorksheetOptions {
   wordsearchGridSize?: number | 'auto'; // for Type 13 (default: 'auto')
   wordsearchGridBorder?: WordsearchGridBorder; // for Type 13 (default: 'none')
   wordsearchCase?: WordsearchCase; // for Type 13 (default: 'lower')
+  wordsearchSeed?: number | string; // for Type 13: deterministic PRNG seed ensuring Student & Answer share 100% identical grid
+  type9Seed?: number | string; // for Type 9: deterministic PRNG seed ensuring unpredictable yet 100% synchronized Yes/No distribution
   targetLetter?: string; // for Type 14 (default: 'V v')
   showWordLabels?: boolean; // for Type 14 (default: true)
   sentenceScramble?: boolean; // for Type 1: scramble words (default: true)
   sentenceSeparator?: 'space' | 'slash'; // for Type 1: separator ('space' | 'slash', default: 'space')
   sentenceHintStyle?: 'underscores' | 'dots' | 'trace'; // for Type 1: hint style ('underscores' | 'dots' | 'trace', default: 'underscores')
   sentenceTraceFontSize?: number; // for Type 1: trace font size in pt for Grade 1 (default: 28 for A4, 26 for A5)
+  sentenceWordsFont?: 'inherit' | 'Andika'; // for Type 1: font for scrambled hint words (default: 'inherit')
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' (default) or 'table' (Look and write)
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode (default: 'both_trace_first')
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
@@ -178,6 +252,7 @@ export interface WorksheetOptions {
   type15Border?: Type15Border; // for Type 15: 'full' (default), 'outerOnly', 'none'
   type15ChoiceMode?: Type15ChoiceMode; // for Type 15: 'ab' (default), 'checkbox', 'none'
   type15LetterBandBg?: 'tint' | 'white'; // for Type 15: 'tint' (default) or 'white' (when choiceMode is 'ab')
+  type15Seed?: number | string; // for Type 15: deterministic PRNG seed ensuring unpredictable yet 100% synchronized A/B & distractor distribution
   type16SoundMode?: Type16SoundMode; // for Type 16: 'beginning' (default) or 'ending'
   type16ChoiceCount?: Type16ChoiceCount; // for Type 16: 2, 3 (default), 4
   type16Layout?: Type16Layout; // for Type 16: 'lettersLeft' (default), 'lettersRight', 'lettersBottom'
@@ -200,12 +275,47 @@ export interface WorksheetOptions {
   type18CircleStyle?: Type18CircleStyle; // for Type 18: circle border style, 'solid' (default) | 'dashed' | 'double'
   type18DistractorCasing?: Type18DistractorCasing; // for Type 18: 'upper' (default) | 'lower' | 'mixed'
   type18HighlightTarget?: Type18HighlightTarget; // for Type 18: 'none' (default for student) | 'answer_key'
-  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6, 7, 8, 9, 10: 'student' (default) or 'answer'
+  type19HintMode?: Type19HintMode; // for Type 19: 'intersection_blank' (default) | 'first_blank' | 'random_blank' | 'all_blank' | 'full_answer'
+  type19GridBorder?: Type19GridBorder; // for Type 19: 'full' (default) | 'outerOnly' | 'none' (tham khảo Loại 13)
+  type19LineStyle?: Type19LineStyle; // for Type 19: 'solid' (default) | 'dotted' (tham khảo Loại 13)
+  type19BorderColor?: Type19BorderColor; // for Type 19: 'orange' (default) | 'slate' | 'blue' | 'green' | 'purple'
+  type19PuzzlesPerPage?: Type19PuzzlesPerPage; // for Type 19: 1 | 2 (default) | 4 | 'auto'
+  type19Casing?: Type19Casing; // for Type 19: 'upper' (default) | 'lower'
+  type19ShowClueImage?: boolean; // for Type 19: default true
+  type19ShowClueNumber?: boolean; // for Type 19: default true
+  type19ShowClueText?: boolean; // for Type 19: default false
+  type19ShowTrace?: boolean; // for Type 19: default false
+  type20HintMode?: Type20HintMode;
+  type20GridBorder?: Type20GridBorder;
+  type20LineStyle?: Type20LineStyle;
+  type20BorderColor?: Type20BorderColor;
+  type20PuzzlesPerPage?: Type20PuzzlesPerPage;
+  type20Casing?: Type20Casing;
+  type20ShowClueImage?: boolean;
+  type20ShowClueNumber?: boolean;
+  type20ShowClueText?: boolean;
+  type20ShowTrace?: boolean;
+  type20GridMode?: Type20GridMode;
+  type20HollowArrows?: boolean;
+  type20Seed?: number | string;
+  type20ClueColumns?: number;
+  type19CellSize?: number; // for Type 19: custom cell size in mm
+  type19MazeMode?: Type19MazeMode;
+  type19WallColor?: Type19WallColor;
+  type19EntranceCharacter?: Type19EntranceCharacter;
+  type19TargetItem?: Type19TargetItem;
+  type19SentenceStem?: string;
+  type19CornerStyle?: Type19CornerStyle;
+  type19WallThickness?: Type19WallThickness;
+  type19MazeSeed?: number | string;
+  type19PrimaryWords?: WorksheetWord[];
+  type19ReviewWords?: WorksheetWord[];
+  answerMode?: 'student' | 'answer' | 'both'; // 'student' (default), 'answer' (red key), or 'both' (combined)
 }
 
 export interface CompositeWorksheetSection {
   id: string;
-  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18
+  type: WorksheetType; // 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19
   title: string;
   instruction?: string;
   words: WorksheetWord[];
@@ -214,7 +324,7 @@ export interface CompositeWorksheetSection {
   spacing?: number;
   imageSize?: number;
   fontSize?: number;
-  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';
+  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots' | 'Andika';
   choiceCount?: 2 | 3; // 2 or 3 choices (MTQ) for Type 6 (default: 3)
   choiceLayout?: ChoiceLayout; // for Type 6: 'vertical' (default) or 'horizontal'
   matchMode?: 'word' | 'sentence' | 'look_match_write'; // for Type 3: 'word' (default), 'sentence', or 'look_match_write'
@@ -228,12 +338,15 @@ export interface CompositeWorksheetSection {
   wordsearchGridSize?: number | 'auto'; // for Type 13
   wordsearchGridBorder?: WordsearchGridBorder; // for Type 13
   wordsearchCase?: WordsearchCase; // for Type 13
+  wordsearchSeed?: number | string; // for Type 13: deterministic PRNG seed
+  type9Seed?: number | string; // for Type 9: deterministic PRNG seed
   targetLetter?: string; // for Type 14
   showWordLabels?: boolean; // for Type 14
   sentenceScramble?: boolean; // for Type 1
   sentenceSeparator?: 'space' | 'slash'; // for Type 1
   sentenceHintStyle?: 'underscores' | 'dots' | 'trace'; // for Type 1
   sentenceTraceFontSize?: number; // for Type 1: trace font size in pt (default: 28 for A4, 26 for A5)
+  sentenceWordsFont?: 'inherit' | 'Andika'; // for Type 1: font for scrambled hint words (default: 'inherit')
   type4LayoutMode?: Type4LayoutMode; // for Type 4: 'grid' or 'table'
   type4ColumnMode?: Type4ColumnMode; // for Type 4 table mode
   type4TraceFontSize?: number; // for Type 4 table mode: trace font size in pt (default: 28)
@@ -242,6 +355,7 @@ export interface CompositeWorksheetSection {
   type15Border?: Type15Border;
   type15ChoiceMode?: Type15ChoiceMode;
   type15LetterBandBg?: 'tint' | 'white';
+  type15Seed?: number | string;
   type16SoundMode?: Type16SoundMode;
   type16ChoiceCount?: Type16ChoiceCount;
   type16Layout?: Type16Layout;
@@ -264,13 +378,46 @@ export interface CompositeWorksheetSection {
   type18CircleStyle?: Type18CircleStyle;
   type18DistractorCasing?: Type18DistractorCasing;
   type18HighlightTarget?: Type18HighlightTarget;
-  answerMode?: 'student' | 'answer'; // for Types 1, 2, 3, 4, 5, 6, 7, 8, 9, 10: 'student' (default) or 'answer'
+  type19HintMode?: Type19HintMode;
+  type19GridBorder?: Type19GridBorder;
+  type19LineStyle?: Type19LineStyle;
+  type19BorderColor?: Type19BorderColor;
+  type19PuzzlesPerPage?: Type19PuzzlesPerPage;
+  type19Casing?: Type19Casing;
+  type19ShowClueImage?: boolean;
+  type19ShowClueNumber?: boolean;
+  type19ShowClueText?: boolean;
+  type19ShowTrace?: boolean;
+  type20HintMode?: Type20HintMode;
+  type20GridBorder?: Type20GridBorder;
+  type20LineStyle?: Type20LineStyle;
+  type20BorderColor?: Type20BorderColor;
+  type20PuzzlesPerPage?: Type20PuzzlesPerPage;
+  type20Casing?: Type20Casing;
+  type20ShowClueImage?: boolean;
+  type20ShowClueNumber?: boolean;
+  type20ShowClueText?: boolean;
+  type20ShowTrace?: boolean;
+  type20GridMode?: Type20GridMode;
+  type20HollowArrows?: boolean;
+  type20Seed?: number | string;
+  type20ClueColumns?: number;
+  type19CellSize?: number;
+  type19MazeMode?: Type19MazeMode;
+  type19WallColor?: Type19WallColor;
+  type19EntranceCharacter?: Type19EntranceCharacter;
+  type19TargetItem?: Type19TargetItem;
+  type19SentenceStem?: string;
+  type19CornerStyle?: Type19CornerStyle;
+  type19WallThickness?: Type19WallThickness;
+  type19MazeSeed?: number | string;
+  answerMode?: 'student' | 'answer' | 'both'; // 'student' (default), 'answer' (red key), or 'both' (combined)
 }
 
 export interface CompositeWorksheetConfig {
   title: string;
   paperSize?: 'a5' | 'a4';
-  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';
+  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots' | 'Andika';
   fontSize?: number;
   spacing?: number;
   imageSize?: number;
@@ -282,6 +429,8 @@ export interface CompositeWorksheetConfig {
   sourceUrl?: string;
   sections: CompositeWorksheetSection[];
   allWords?: WorksheetWord[];
+  wordImagesMap?: Map<string, string | null>;
+  answerMode?: 'student' | 'answer' | 'both'; // Global answer mode override ('student' | 'answer' | 'both')
 }
 
 export interface WorksheetTypeMeta {
@@ -413,6 +562,22 @@ export const WORKSHEET_TYPES: WorksheetTypeMeta[] = [
     name: 'Loại 18: Tô màu chữ cái mục tiêu (Color the letters)',
     description: 'Tìm và tô màu các chữ cái mục tiêu (chữ hoa/thường) trong khung các hình tròn bao quanh chữ (ví dụ: Color E green and e red).',
     thumbnail: '/worksheet/types/loai-pdf-18.PNG',
+    isNew: false
+  },
+  {
+    type: 19,
+    id: 19,
+    name: 'Loại 19: Mê cung từ vựng (Vocabulary Maze Puzzle)',
+    description: 'Trò chơi mê cung SGK: Dạng 1 Tìm đích đến (Help the boy find the box) & Dạng 2 Rẽ nhánh ra nhiều cửa (Find and say), tường vector tùy biến màu, bo góc, nét dày mỏng.',
+    thumbnail: '/worksheet/types/loai-pdf-19.PNG',
+    isNew: false
+  },
+  {
+    type: 20,
+    id: 20,
+    name: 'Loại 20: Ô chữ giao nhau (Criss-Cross Words)',
+    description: 'Ô chữ giao nhau cặp từ Across & Down chuẩn SGK (kèm tranh gợi ý, số thứ tự 1-2, tùy chọn khuyết ô giao nhau, viền nét đứt Loại 13 hoặc nét liền SGK).',
+    thumbnail: '/worksheet/types/loai-pdf-20.PNG',
     isNew: true
   }
 ];
@@ -436,7 +601,8 @@ export const FONT_OPTIONS = [
   { id: 'HP001', name: 'Font 3 - HP001 (Ô ly tiểu học)', file: 'fontHP001_b4h+HP001_b4h-normal.ttf' },
   { id: 'HLHOCTRO', name: 'Font 4 - HL Học Trò', file: 'HLHOCTRO-normal.ttf' },
   { id: 'Questrial', name: 'Font 5 - Questrial (Hiện đại)', file: 'Questrial-Regular-normal.ttf' },
-  { id: 'KG Primary Dots', name: 'Font 6 - KG Primary Dots (Tập tô nét chấm)', file: 'KGPrimaryDots.ttf' }
+  { id: 'KG Primary Dots', name: 'Font 6 - KG Primary Dots (Tập tô nét chấm)', file: 'KGPrimaryDots.ttf' },
+  { id: 'Andika', name: 'Font 7 - Andika (Chuẩn tiểu học)', file: 'Andika-Regular.ttf' }
 ];
 
 export const FONT_SIZE_OPTIONS = [
@@ -461,6 +627,53 @@ export const PAPER_SIZE_OPTIONS = [
   { id: 'a4', name: 'Khổ A4 (210 x 297 mm) - Tiêu chuẩn' }
 ];
 
+export interface MergedPDFOutput {
+  output: (type?: 'blob' | 'arraybuffer' | 'dataurlstring' | string) => any;
+  save: (filename: string) => void;
+  getNumberOfPages: () => number;
+}
+
+export async function mergeJsPdfDocuments(doc1: jsPDF, doc2: jsPDF): Promise<jsPDF> {
+  const mergedPdf = await PDFDocument.create();
+  const d1 = await PDFDocument.load(doc1.output('arraybuffer'));
+  const d2 = await PDFDocument.load(doc2.output('arraybuffer'));
+  const p1 = await mergedPdf.copyPages(d1, d1.getPageIndices());
+  const p2 = await mergedPdf.copyPages(d2, d2.getPageIndices());
+  p1.forEach((page) => mergedPdf.addPage(page));
+  p2.forEach((page) => mergedPdf.addPage(page));
+  const mergedBytes = await mergedPdf.save();
+
+  return {
+    output: (type?: string) => {
+      if (type === 'blob') return new Blob([mergedBytes], { type: 'application/pdf' });
+      if (type === 'arraybuffer') return mergedBytes.buffer;
+      if (type === 'dataurlstring') {
+        let binary = '';
+        const len = mergedBytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(mergedBytes[i]);
+        }
+        return 'data:application/pdf;base64,' + btoa(binary);
+      }
+      return mergedBytes;
+    },
+    save: (filename: string) => {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const blob = new Blob([mergedBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    },
+    getNumberOfPages: () => mergedPdf.getPageCount()
+  } as unknown as jsPDF;
+}
+
 function setDocLineDash(doc: jsPDF, dashArray: number[]) {
   if (typeof (doc as any).setLineDashPattern === 'function') {
     (doc as any).setLineDashPattern(dashArray, 0);
@@ -469,16 +682,40 @@ function setDocLineDash(doc: jsPDF, dashArray: number[]) {
   }
 }
 
-function shuffleArray<T>(array: T[]): T[] {
+export function hashStringToSeed(str: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function createMulberry32(seedVal: number): () => number {
+  let s = seedVal >>> 0;
+  return function nextRandom(): number {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleArray<T>(array: T[], seed?: number | string | (() => number)): T[] {
   const arr = [...array];
+  const rng = typeof seed === 'function'
+    ? seed
+    : seed !== undefined
+    ? (typeof seed === 'number' ? createMulberry32(seed) : createMulberry32(hashStringToSeed(seed)))
+    : Math.random;
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
 
-export function punchBlanks(term: string, mode: BlankMode = 'vowels'): string {
+export function punchBlanks(term: string, mode: BlankMode = 'vowels', seed?: number | string | (() => number)): string {
   if (!term) return '';
   if (mode === 'vowels') {
     return term
@@ -499,7 +736,8 @@ export function punchBlanks(term: string, mode: BlankMode = 'vowels'): string {
   if (letterIndices.length === 0) return term;
 
   const holesToPunch = Math.min(targetHoles, Math.max(1, letterIndices.length - 1));
-  const shuffledIndices = shuffleArray(letterIndices);
+  const prngSeed = seed !== undefined ? seed : `${term}_blanks`;
+  const shuffledIndices = shuffleArray(letterIndices, prngSeed);
   const chosenIndices = new Set(shuffledIndices.slice(0, holesToPunch));
 
   const resultChars = chars.map((c, idx) => {
@@ -515,15 +753,16 @@ export function punchBlanks(term: string, mode: BlankMode = 'vowels'): string {
     .trim();
 }
 
-function scrambleString(word: string): string {
+function scrambleString(word: string, seed?: number | string | (() => number)): string {
+  const seedVal = seed !== undefined ? seed : word;
   const parts = word.split(' ');
-  const scrambledParts = parts.map((part) => {
+  const scrambledParts = parts.map((part, pIdx) => {
     if (part.length <= 1) return part;
     let chars = part.split('');
     let attempt = 0;
     let scrambled = part;
     while ((scrambled === part || attempt === 0) && attempt < 10) {
-      chars = shuffleArray(chars);
+      chars = shuffleArray(chars, `${seedVal}_${pIdx}_${attempt}`);
       scrambled = chars.join('');
       attempt++;
     }
@@ -536,17 +775,21 @@ function scrambleString(word: string): string {
  * Scramble words in a sentence for Worksheet Type 1.
  * Supports separator: 'space' (evenly/widely spaced) or 'slash' (' / ').
  */
-export function scrambleSentenceWords(sentence: string, separator: 'space' | 'slash' = 'space'): string {
+export function scrambleSentenceWords(
+  sentence: string,
+  separator: 'space' | 'slash' = 'space',
+  seed?: number | string | (() => number)
+): string {
   const trimmed = sentence.trim();
   if (!trimmed) return '';
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length <= 1) return trimmed;
 
-  // Shuffle tokens until order differs from original
+  const seedVal = seed !== undefined ? seed : trimmed;
   let shuffled = [...tokens];
   let attempts = 0;
   while (attempts < 15) {
-    shuffled = shuffleArray(tokens);
+    shuffled = shuffleArray(tokens, `${seedVal}_att_${attempts}`);
     if (shuffled.join(' ') !== tokens.join(' ')) break;
     attempts++;
   }
@@ -608,6 +851,86 @@ export function generateSentenceHint(
 }
 
 /**
+ * Splits a sentence into dialogue segments when marked by ' - ', ' – ', ' — ', or newlines.
+ * Example: "What's your name? - My name's Nam." -> ["What's your name?", "- My name's Nam."]
+ */
+export function splitSentenceDialogueSegments(sentence: string): string[] {
+  const trimmed = sentence.trim();
+  if (!trimmed) return [];
+
+  const parts: string[] = [];
+  const rawLines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  for (const rawLine of rawLines) {
+    const subParts = rawLine.split(/\s+[-–—]\s+/);
+    if (subParts.length > 1) {
+      parts.push(subParts[0].trim());
+      for (let i = 1; i < subParts.length; i++) {
+        parts.push(`- ${subParts[i].trim()}`);
+      }
+    } else {
+      parts.push(rawLine);
+    }
+  }
+
+  return parts.filter(Boolean);
+}
+
+/**
+ * Splits sentence underscore hint into lines at atomic word boundaries.
+ * Guarantees that no English word or punctuation token (e.g. "name's", "elephant")
+ * is ever split across two lines, and enforces dialogue line breaks at ' - '.
+ */
+export function splitSentenceHintToLines(
+  doc: jsPDF,
+  sentence: string,
+  maxWidth: number,
+  interWordSpacing: string = '   '
+): string[] {
+  const trimmed = sentence.trim();
+  if (!trimmed) return [];
+
+  const segments = splitSentenceDialogueSegments(trimmed);
+  const allLines: string[] = [];
+
+  for (const seg of segments) {
+    const words = seg.split(/\s+/).filter(Boolean);
+    const wordHints: string[] = words.map((w) => {
+      const chars = w.split('');
+      const charHints: string[] = [];
+      for (let i = 0; i < chars.length; i++) {
+        const ch = chars[i];
+        if (/[\p{L}\p{N}]/u.test(ch)) {
+          charHints.push('__');
+        } else {
+          charHints.push(ch);
+        }
+      }
+      return charHints.join(' ');
+    });
+
+    let currentWords: string[] = [];
+    for (const wh of wordHints) {
+      const candidateLine = currentWords.length === 0
+        ? wh
+        : currentWords.join(interWordSpacing) + interWordSpacing + wh;
+
+      if (currentWords.length === 0 || doc.getTextWidth(candidateLine) <= maxWidth) {
+        currentWords.push(wh);
+      } else {
+        allLines.push(currentWords.join(interWordSpacing));
+        currentWords = [wh];
+      }
+    }
+    if (currentWords.length > 0) {
+      allLines.push(currentWords.join(interWordSpacing));
+    }
+  }
+
+  return allLines;
+}
+
+/**
  * Extract sentence for Type 1 item:
  * - Uses word.exampleSentence if available (strips <#...#> markup if present).
  * - Fallback: short sentence "[term]." per user requirement.
@@ -630,7 +953,8 @@ export function calculateType1Metrics(
   spacingPt: number,
   imgSize: number = 12.7,
   hintStyle: 'underscores' | 'dots' | 'trace' = 'underscores',
-  traceFontSizePt?: number
+  traceFontSizePt?: number,
+  isA5?: boolean
 ) {
   const spacingMm = spacingPt * 0.352778;
   const isZero = spacingPt === 0;
@@ -766,6 +1090,53 @@ export function calculateType9Metrics(
 }
 
 /**
+ * Generates an unpredictable, balanced ~50/50 distribution of Yes (true) and No (false)
+ * answers for Type 9 exercises, seeded via Mulberry32 so that Student and Answer sheets
+ * are 100% synchronized and free of repetitive position patterns (like YES -> NO -> YES).
+ */
+export function generateType9YesNoDistribution(count: number, seed?: number | string): boolean[] {
+  if (count <= 0) return [];
+  const seedNum = seed !== undefined
+    ? (typeof seed === 'number' ? seed : hashStringToSeed(String(seed)))
+    : hashStringToSeed('type9_default_seed');
+  const rng = createMulberry32(seedNum);
+
+  // Vary yesCount naturally around 50% so students cannot deduce answers by counting
+  let yesCount = rng() < 0.5 ? Math.floor(count / 2) : Math.ceil(count / 2);
+  if (count >= 4) {
+    const delta = rng() < 0.4 ? (rng() < 0.5 ? -1 : 1) : 0;
+    yesCount = Math.max(1, Math.min(count - 1, yesCount + delta));
+  } else if (count >= 2) {
+    yesCount = Math.max(1, Math.min(count - 1, yesCount));
+  }
+  const noCount = count - yesCount;
+  const arr: boolean[] = [
+    ...Array(yesCount).fill(true),
+    ...Array(noCount).fill(false)
+  ];
+
+  // Fisher-Yates shuffle
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
+  // Explicitly prevent the legacy predictable [true, false, true] (YES -> NO -> YES) row pattern
+  for (let r = 0; r + 2 < arr.length; r += 3) {
+    if (arr[r] === true && arr[r + 1] === false && arr[r + 2] === true) {
+      // Swap middle element with either first or last element in the row
+      if (rng() < 0.5) {
+        [arr[r], arr[r + 1]] = [arr[r + 1], arr[r]];
+      } else {
+        [arr[r + 1], arr[r + 2]] = [arr[r + 2], arr[r + 1]];
+      }
+    }
+  }
+
+  return arr;
+}
+
+/**
  * Calculate geometry metrics for Type 7 exercise items (Unscramble letters - 3 columns)
  * based on fontSize, spacing, imageSize, and paper size.
  * Guarantees zero overlap at 0 pt spacing regardless of font size or descenders.
@@ -864,6 +1235,91 @@ export function getType15SentenceSpans(word: WorksheetWord): HighlightedSpan[] {
     return [{ text: cleanTerm, isHighlighted: true }];
   }
   return [{ text: '', isHighlighted: false }];
+}
+
+export interface Type15RandomItemLayout {
+  isTargetOnA: boolean;
+  distractorStep: number;
+}
+
+/**
+ * Generates an unpredictable, balanced ~50/50 distribution of A (true) and B (false)
+ * positions along with randomized distractor selection steps for Type 15 exercises,
+ * seeded via Mulberry32 so that Student and Answer sheets are 100% synchronized
+ * and free of fixed repetitive patterns (like B, B, A, A).
+ */
+export function generateType15RandomLayout(
+  count: number,
+  seed?: number | string
+): Type15RandomItemLayout[] {
+  if (count <= 0) return [];
+  const seedNum = seed !== undefined
+    ? (typeof seed === 'number' ? seed : hashStringToSeed(String(seed)))
+    : hashStringToSeed('type15_default_seed');
+  const rng = createMulberry32(seedNum);
+
+  // 1. Vary aCount naturally around 50% so students cannot deduce answers by counting
+  let aCount = rng() < 0.5 ? Math.floor(count / 2) : Math.ceil(count / 2);
+  if (count >= 4) {
+    const delta = rng() < 0.4 ? (rng() < 0.5 ? -1 : 1) : 0;
+    aCount = Math.max(1, Math.min(count - 1, aCount + delta));
+  } else if (count >= 2) {
+    aCount = Math.max(1, Math.min(count - 1, aCount));
+  }
+  const bCount = count - aCount;
+  const positions: boolean[] = [
+    ...Array(aCount).fill(true),
+    ...Array(bCount).fill(false)
+  ];
+
+  // Fisher-Yates shuffle
+  for (let i = positions.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [positions[i], positions[j]] = [positions[j], positions[i]];
+  }
+
+  // Prevent 3+ consecutive identical positions when possible
+  for (let i = 0; i + 2 < positions.length; i++) {
+    if (positions[i] === positions[i + 1] && positions[i + 1] === positions[i + 2]) {
+      const swapCandidate = positions.findIndex((val, idx) => idx > i + 2 && val !== positions[i]);
+      if (swapCandidate !== -1) {
+        [positions[i + 1], positions[swapCandidate]] = [positions[swapCandidate], positions[i + 1]];
+      }
+    }
+  }
+
+  // Explicitly break the legacy fixed [false, false, true, true] (B, B, A, A) pattern
+  for (let r = 0; r + 3 < positions.length; r += 4) {
+    if (
+      positions[r] === false &&
+      positions[r + 1] === false &&
+      positions[r + 2] === true &&
+      positions[r + 3] === true
+    ) {
+      if (rng() < 0.5) {
+        [positions[r], positions[r + 2]] = [positions[r + 2], positions[r]];
+      } else {
+        [positions[r + 1], positions[r + 2]] = [positions[r + 2], positions[r + 1]];
+      }
+    }
+  }
+
+  // 2. Generate randomized distractor steps so distractor pictures also change on each seed
+  const distractorSteps: number[] = [];
+  let prevStep = -1;
+  for (let i = 0; i < count; i++) {
+    let step = Math.floor(rng() * 9973);
+    if (step === prevStep) {
+      step = (step + 1 + Math.floor(rng() * 50)) % 9973;
+    }
+    prevStep = step;
+    distractorSteps.push(step);
+  }
+
+  return positions.map((isTargetOnA, idx) => ({
+    isTargetOnA,
+    distractorStep: distractorSteps[idx]
+  }));
 }
 /**
  * Helper to generate choices for Type 16: Look and circle sound
@@ -1251,7 +1707,8 @@ export function drawType17Item(
     const cellCenterY = cellY + cellH / 2;
 
     const isExItem = isFirstItem && showExample;
-    const shouldHighlight = cell.isTarget && (highlightTarget === 'red' || (isExItem && taskMode === 'color'));
+    const isAnswerKey = highlightTarget === 'red';
+    const shouldHighlight = cell.isTarget && (isAnswerKey || (isExItem && taskMode === 'color'));
 
     // Text color
     if (shouldHighlight) {
@@ -1264,13 +1721,22 @@ export function drawType17Item(
     doc.setFontSize(effectiveCellFontSize);
     doc.text(cell.char, cellCenterX, cellCenterY, { align: 'center', baseline: 'middle' });
 
-    // In 'cross' mode: if example on 1st item and cell is a distractor, draw diagonal slash '/'
-    if (taskMode === 'cross' && isExItem && !cell.isTarget) {
-      doc.setDrawColor(71, 85, 105); // slate-600
-      doc.setLineWidth(0.35);
-      const slashPadW = cellW * 0.18;
-      const slashPadH = cellH * 0.18;
-      doc.line(cellX + slashPadW, cellY + cellH - slashPadH, cellX + cellW - slashPadW, cellY + slashPadH);
+    // In 'cross' mode:
+    // ponytail: Red slash across all extra letters in answer mode, slate slash on student example.
+    if (taskMode === 'cross' && !cell.isTarget) {
+      if (isAnswerKey) {
+        doc.setDrawColor(220, 38, 38); // Highlight red for answer key
+        doc.setLineWidth(0.42);
+        const slashPadW = cellW * 0.18;
+        const slashPadH = cellH * 0.18;
+        doc.line(cellX + slashPadW, cellY + cellH - slashPadH, cellX + cellW - slashPadW, cellY + slashPadH);
+      } else if (isExItem) {
+        doc.setDrawColor(71, 85, 105); // slate-600 student example
+        doc.setLineWidth(0.35);
+        const slashPadW = cellW * 0.18;
+        const slashPadH = cellH * 0.18;
+        doc.line(cellX + slashPadW, cellY + cellH - slashPadH, cellX + cellW - slashPadW, cellY + slashPadH);
+      }
     }
   }
 
@@ -1660,6 +2126,496 @@ export function drawType18ContainerAndGrid(
   doc.setLineWidth(0.2);
 }
 
+// ============================================================================
+// TYPE 19: CRISS-CROSS PUZZLE / Ô CHỮ GIAO NHAU (SGK STYLE)
+// ============================================================================
+
+export function findCrissCrossPairs(words: WorksheetWord[]): CrissCrossPair[] {
+  const valid = (words || [])
+    .filter((w) => w && w.term && w.term.trim().length > 1)
+    .map((w) => ({
+      word: w,
+      clean: w.term.trim().toUpperCase().replace(/[^A-Z]/g, '')
+    }))
+    .filter((w) => w.clean.length >= 2);
+
+  const used = new Set<number>();
+  const pairs: CrissCrossPair[] = [];
+
+  for (let i = 0; i < valid.length; i++) {
+    if (used.has(i)) continue;
+    const w1 = valid[i];
+
+    let bestMatch: { j: number; idx1: number; idx2: number; char: string; score: number } | null = null;
+
+    for (let j = 0; j < valid.length; j++) {
+      if (i === j || used.has(j)) continue;
+      const w2 = valid[j];
+
+      for (let idx1 = 0; idx1 < w1.clean.length; idx1++) {
+        const c1 = w1.clean[idx1];
+        for (let idx2 = 0; idx2 < w2.clean.length; idx2++) {
+          const c2 = w2.clean[idx2];
+          if (c1 === c2) {
+            let score = 10 + Math.min(w1.clean.length, w2.clean.length);
+            if (idx1 > 0 && idx1 < w1.clean.length - 1 && idx2 > 0 && idx2 < w2.clean.length - 1) {
+              score += 6;
+            } else if (idx1 === 0 && idx2 === 0) {
+              score += 4;
+            }
+
+            if (!bestMatch || score > bestMatch.score) {
+              bestMatch = { j, idx1, idx2, char: c1, score };
+            }
+          }
+        }
+      }
+    }
+
+    if (bestMatch) {
+      used.add(i);
+      used.add(bestMatch.j);
+      pairs.push({
+        wordAcross: w1.word,
+        wordDown: valid[bestMatch.j].word,
+        cleanAcross: w1.clean,
+        cleanDown: valid[bestMatch.j].clean,
+        intersectionAcrossIndex: bestMatch.idx1,
+        intersectionDownIndex: bestMatch.idx2,
+        char: bestMatch.char
+      });
+    }
+  }
+
+  // Graceful fallback for remaining odd/unmatched words: only pair if they genuinely share a letter
+  const remaining = valid.map((_, idx) => idx).filter((idx) => !used.has(idx));
+  for (let k = 0; k < remaining.length - 1; k += 2) {
+    const i1 = remaining[k];
+    const i2 = remaining[k + 1];
+    const w1 = valid[i1];
+    const w2 = valid[i2];
+
+    let foundMatch: { idx1: number; idx2: number; char: string } | null = null;
+    for (let p1 = 0; p1 < w1.clean.length; p1++) {
+      for (let p2 = 0; p2 < w2.clean.length; p2++) {
+        if (w1.clean[p1] === w2.clean[p2]) {
+          foundMatch = { idx1: p1, idx2: p2, char: w1.clean[p1] };
+          break;
+        }
+      }
+      if (foundMatch) break;
+    }
+
+    if (foundMatch) {
+      pairs.push({
+        wordAcross: w1.word,
+        wordDown: w2.word,
+        cleanAcross: w1.clean,
+        cleanDown: w2.clean,
+        intersectionAcrossIndex: foundMatch.idx1,
+        intersectionDownIndex: foundMatch.idx2,
+        char: foundMatch.char
+      });
+    }
+  }
+
+  return pairs;
+}
+
+export function calculateType19Metrics(
+  isA5: boolean,
+  puzzlesCount: number,
+  printableWidth: number,
+  printableHeight: number,
+  customCellSize?: number
+) {
+  let cols = 1;
+  let rows = 1;
+  if (puzzlesCount >= 4) {
+    cols = 2;
+    rows = 2;
+  } else if (puzzlesCount === 2) {
+    cols = isA5 ? 1 : 2;
+    rows = isA5 ? 2 : 1;
+  }
+
+  const slotW = printableWidth / cols;
+  const slotH = printableHeight / rows;
+
+  const defaultCellSize = customCellSize || (
+    puzzlesCount === 1 ? (isA5 ? 11 : 13) :
+    puzzlesCount === 2 ? (isA5 ? 9 : 11) :
+    (isA5 ? 7.5 : 9)
+  );
+
+  const imgSize = puzzlesCount === 1 ? (isA5 ? 20 : 24) :
+                  puzzlesCount === 2 ? (isA5 ? 13 : 16) :
+                  (isA5 ? 10 : 13);
+
+  return {
+    cols,
+    rows,
+    slotW,
+    slotH,
+    cellSize: defaultCellSize,
+    imgSize
+  };
+}
+
+export function calculateType5Metrics(isA5: boolean, imgSize: number, secFontSize: number, secSpacing: number) {
+  return { rowHeight: 25 + (secSpacing || 0) * 0.352778 };
+}
+
+export function calculateType6Metrics(isA5: boolean, imgSize: number, secFontSize: number, secSpacing: number, isHorizontal: boolean, numChoices: number) {
+  const baseH = Math.max(imgSize, isHorizontal ? 14 : numChoices * 6);
+  return { rowHeight: baseH + (secSpacing || 0) * 0.352778 + 4 };
+}
+
+export function calculateType8Metrics(isA5: boolean, imgSize: number, traceFontSize: number, secSpacing: number) {
+  return { rowGap: 4 + (secSpacing || 0) * 0.352778, rowHeight: Math.max(imgSize, 12) + 4 };
+}
+
+export function calculateType11Metrics(isA5: boolean, imgSize: number, secFontSize: number, secSpacing: number, hasPrompt: boolean) {
+  return { rowHeight: Math.max(imgSize, 18) + (secSpacing || 0) * 0.352778 + 3 };
+}
+
+export function calculateType12Metrics(isA5: boolean, imgSize: number, secSpacing: number, secFontSize: number, cardWidth: number) {
+  return { rowHeight: Math.max(imgSize, 16) + (secSpacing || 0) * 0.352778 + 3 };
+}
+
+export function calculateType14Metrics(isA5: boolean, imgSize: number, secSpacing: number, secFontSize: number, cardWidth: number, showLabels: boolean) {
+  return { rowHeight: imgSize + (showLabels ? 8 : 4) + (secSpacing || 0) * 0.352778 };
+}
+
+export function calculateType15Metrics(isA5: boolean, imgSize: number, secSpacing: number, secFontSize: number, choiceMode: string) {
+  return { rowHeight: Math.max(imgSize + 8, 20) + (secSpacing || 0) * 0.352778 };
+}
+
+export function drawCrissCrossPair(
+  doc: jsPDF,
+  pair: CrissCrossPair,
+  pairIndex: number,
+  areaX: number,
+  areaY: number,
+  areaWidth: number,
+  areaHeight: number,
+  options: {
+    cellSize?: number;
+    imgSize?: number;
+    hintMode?: Type19HintMode;
+    gridBorder?: Type19GridBorder;
+    lineStyle?: Type19LineStyle;
+    borderColor?: Type19BorderColor;
+    casing?: Type19Casing;
+    showClueImage?: boolean;
+    showClueNumber?: boolean;
+    showClueText?: boolean;
+    showTrace?: boolean;
+    isAnswerMode?: boolean;
+    activeFont?: string;
+    fontSize?: number;
+    isA5?: boolean;
+    wordImagesMap?: Map<string, string | null>;
+  }
+) {
+  const {
+    cellSize = 11,
+    imgSize = 16,
+    hintMode = 'all_blank',
+    gridBorder = 'full',
+    lineStyle = 'solid',
+    borderColor = 'orange',
+    casing = 'upper',
+    showClueImage = true,
+    showClueNumber = true,
+    showClueText = false,
+    showTrace = false,
+    isAnswerMode = false,
+    activeFont = 'r0c0i Linotte',
+    fontSize = 14,
+    isA5 = false,
+    wordImagesMap
+  } = options;
+
+  const trMap: Record<string, [number, number, number]> = {
+    orange: [249, 115, 22],
+    amber: [245, 158, 11],
+    slate: [100, 116, 139],
+    blue: [37, 99, 235],
+    indigo: [79, 70, 229],
+    green: [22, 163, 74],
+    emerald: [16, 185, 129],
+    purple: [124, 58, 237],
+    red: [220, 38, 38]
+  };
+  const [tr, tg, tb] = trMap[borderColor] || [249, 115, 22];
+
+  const L_A = pair.cleanAcross.length;
+  const L_D = pair.cleanDown.length;
+  const idx_A = pair.intersectionAcrossIndex;
+  const idx_D = pair.intersectionDownIndex;
+
+  const badgeRadius = isA5 ? 2.8 : 3.2;
+
+  // Dynamically size clues and cells to fit strictly within areaWidth & areaHeight
+  const targetImgSize = Math.min(imgSize, Math.max(10, areaHeight * 0.22));
+  const leftClueWidth = (showClueImage ? targetImgSize + 3 : 0) + (showClueNumber ? badgeRadius * 2 + 3 : 0);
+  const topClueHeight = (showClueImage ? targetImgSize + 3 : 0) + (showClueNumber ? badgeRadius * 2 + 3 : 0);
+
+  const maxAvailGridW = Math.max(20, areaWidth - leftClueWidth - 6);
+  const maxAvailGridH = Math.max(20, areaHeight - topClueHeight - 6);
+
+  const dynamicCellSize = Math.min(
+    cellSize || 11,
+    Math.min(maxAvailGridW / Math.max(1, L_A), maxAvailGridH / Math.max(1, L_D))
+  );
+  const effectiveCellSize = Math.max(6.5, dynamicCellSize);
+  const cellFontSize = Math.min(fontSize, Math.max(7.5, effectiveCellSize * 1.35));
+
+  const gridW = L_A * effectiveCellSize;
+  const gridH = L_D * effectiveCellSize;
+
+  const totalBoundingW = leftClueWidth + gridW;
+  const totalBoundingH = topClueHeight + gridH;
+
+  const widgetStartX = areaX + Math.max(0, (areaWidth - totalBoundingW) / 2);
+  const widgetStartY = areaY + Math.max(0, (areaHeight - totalBoundingH) / 2);
+
+  const gridStartX = widgetStartX + leftClueWidth;
+  const gridStartY = widgetStartY + topClueHeight;
+
+  // 1. Clues for Across Word
+  const acrossRowY = gridStartY + idx_D * effectiveCellSize;
+  const badgeAcrossCX = gridStartX - badgeRadius - 2;
+  const badgeAcrossCY = acrossRowY + effectiveCellSize / 2;
+
+  if (showClueNumber) {
+    doc.setFillColor(tr, tg, tb);
+    doc.circle(badgeAcrossCX, badgeAcrossCY, badgeRadius, 'F');
+    applyFont(doc, activeFont, 'bold');
+    doc.setFontSize(isA5 ? 8 : 9.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${pairIndex * 2 + 1}`, badgeAcrossCX, badgeAcrossCY, { align: 'center', baseline: 'middle' });
+  }
+
+  if (showClueImage) {
+    const imgX = (showClueNumber ? badgeAcrossCX - badgeRadius - 2 : gridStartX - 2) - targetImgSize;
+    const imgY = badgeAcrossCY - targetImgSize / 2;
+    const imgData = pair.wordAcross.imageUrl
+      ? (wordImagesMap?.get(pair.wordAcross.imageUrl) || imageBase64Cache.get(pair.wordAcross.imageUrl) || null)
+      : null;
+    if (imgData) {
+      try {
+        const format = imgData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(imgData, format, imgX, imgY, targetImgSize, targetImgSize);
+      } catch (e) {
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX, imgY, targetImgSize, targetImgSize, 'S');
+      }
+    } else {
+      doc.setDrawColor(tr, tg, tb);
+      doc.setLineWidth(0.2);
+      applyFont(doc, activeFont, 'bold');
+      doc.setFontSize(isA5 ? 7 : 8.5);
+      doc.setTextColor(71, 85, 105);
+      const clueLabel = isAnswerMode
+        ? pair.wordAcross.term
+        : (pair.wordAcross.translation || `[Tranh ${pairIndex * 2 + 1}]`);
+      doc.text(clueLabel, imgX + targetImgSize / 2, imgY + targetImgSize / 2, { align: 'center', baseline: 'middle', maxWidth: targetImgSize - 2 });
+    }
+
+    if (showClueText && pair.wordAcross.translation) {
+      applyFont(doc, activeFont, 'normal');
+      doc.setFontSize(isA5 ? 7 : 8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(pair.wordAcross.translation, imgX + targetImgSize / 2, imgY + targetImgSize + 2.5, { align: 'center' });
+    }
+  }
+
+  // 2. Clues for Down Word
+  const downColX = gridStartX + idx_A * effectiveCellSize;
+  const badgeDownCX = downColX + effectiveCellSize / 2;
+  const badgeDownCY = gridStartY - badgeRadius - 2;
+
+  if (showClueNumber) {
+    doc.setFillColor(tr, tg, tb);
+    doc.circle(badgeDownCX, badgeDownCY, badgeRadius, 'F');
+    applyFont(doc, activeFont, 'bold');
+    doc.setFontSize(isA5 ? 8 : 9.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${pairIndex * 2 + 2}`, badgeDownCX, badgeDownCY, { align: 'center', baseline: 'middle' });
+  }
+
+  if (showClueImage) {
+    const imgX = badgeDownCX - targetImgSize / 2;
+    const imgY = (showClueNumber ? badgeDownCY - badgeRadius - 2 : gridStartY - 2) - targetImgSize;
+    const imgData = pair.wordDown.imageUrl
+      ? (wordImagesMap?.get(pair.wordDown.imageUrl) || imageBase64Cache.get(pair.wordDown.imageUrl) || null)
+      : null;
+    if (imgData) {
+      try {
+        const format = imgData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(imgData, format, imgX, imgY, targetImgSize, targetImgSize);
+      } catch (e) {
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX, imgY, targetImgSize, targetImgSize, 'S');
+      }
+    } else {
+      doc.setDrawColor(tr, tg, tb);
+      doc.setLineWidth(0.2);
+      applyFont(doc, activeFont, 'bold');
+      doc.setFontSize(isA5 ? 7 : 8.5);
+      doc.setTextColor(71, 85, 105);
+      const clueLabel = isAnswerMode
+        ? pair.wordDown.term
+        : (pair.wordDown.translation || `[Tranh ${pairIndex * 2 + 2}]`);
+      doc.text(clueLabel, imgX + targetImgSize / 2, imgY + targetImgSize / 2, { align: 'center', baseline: 'middle', maxWidth: targetImgSize - 2 });
+    }
+
+    if (showClueText && pair.wordDown.translation) {
+      applyFont(doc, activeFont, 'normal');
+      doc.setFontSize(isA5 ? 7 : 8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(pair.wordDown.translation, imgX + targetImgSize / 2, imgY - 1, { align: 'center' });
+    }
+  }
+
+  // 3. Collect Unique Cells
+  interface GridCell {
+    r: number;
+    c: number;
+    char: string;
+    isIntersection: boolean;
+  }
+  const cellMap = new Map<string, GridCell>();
+
+  for (let c = 0; c < L_A; c++) {
+    const r = idx_D;
+    const isIntersection = (c === idx_A);
+    cellMap.set(`${r}_${c}`, {
+      r,
+      c,
+      char: pair.cleanAcross[c],
+      isIntersection
+    });
+  }
+
+  for (let r = 0; r < L_D; r++) {
+    const c = idx_A;
+    const isIntersection = (r === idx_D);
+    cellMap.set(`${r}_${c}`, {
+      r,
+      c,
+      char: pair.cleanDown[r],
+      isIntersection
+    });
+  }
+
+  // 4. Render All Cells
+  cellMap.forEach((cell) => {
+    const cx = gridStartX + cell.c * effectiveCellSize;
+    const cy = gridStartY + cell.r * effectiveCellSize;
+
+    const isFirstAcross = (cell.r === idx_D && cell.c === 0);
+    const isFirstDown = (cell.c === idx_A && cell.r === 0);
+
+    let isCellBlankInStudentMode = true;
+    if (hintMode === 'intersection_blank' || hintMode === 'missing_intersect') {
+      isCellBlankInStudentMode = cell.isIntersection;
+    } else if (hintMode === 'first_blank') {
+      isCellBlankInStudentMode = (isFirstAcross || isFirstDown);
+    } else if (hintMode === 'missing_vowels') {
+      isCellBlankInStudentMode = /[AEIOUaeiou]/.test(cell.char);
+    } else if (hintMode === 'random_blank' || hintMode === 'random_missing') {
+      isCellBlankInStudentMode = cell.isIntersection || ((cell.r + cell.c) % 2 !== 0);
+    } else if (hintMode === 'full_answer') {
+      isCellBlankInStudentMode = false;
+    } else {
+      // Default / all_blank: 100% cells blank so student can solve crossword from pictures
+      isCellBlankInStudentMode = true;
+    }
+
+    if (isAnswerMode && isCellBlankInStudentMode) {
+      // Cell was blank in student mode: soft red tint in Answer Key
+      doc.setFillColor(254, 242, 242);
+      doc.rect(cx, cy, effectiveCellSize, effectiveCellSize, 'F');
+    } else if (isAnswerMode && cell.isIntersection) {
+      // Intersection cell in answer mode: soft warm amber tint
+      doc.setFillColor(254, 243, 199);
+      doc.rect(cx, cy, effectiveCellSize, effectiveCellSize, 'F');
+    } else {
+      doc.setFillColor(255, 255, 255);
+      doc.rect(cx, cy, effectiveCellSize, effectiveCellSize, 'F');
+    }
+
+    // Border line (Tham khảo Type 13 & Connected Crossword)
+    if (gridBorder === 'full') {
+      doc.setDrawColor(tr, tg, tb);
+      doc.setLineWidth(0.4);
+      if (lineStyle === 'dotted') {
+        setDocLineDash(doc, [0.4, 0.8]); // Dotted style as in Type 13
+      } else {
+        setDocLineDash(doc, []);
+      }
+      doc.rect(cx, cy, effectiveCellSize, effectiveCellSize, 'S');
+      setDocLineDash(doc, []);
+    } else if (gridBorder === 'outerOnly') {
+      doc.setDrawColor(tr, tg, tb);
+      doc.setLineWidth(0.42);
+      if (lineStyle === 'dotted') {
+        setDocLineDash(doc, [0.4, 0.8]);
+      } else {
+        setDocLineDash(doc, []);
+      }
+      const hasTop = cellMap.has(`${cell.r - 1}_${cell.c}`);
+      const hasBottom = cellMap.has(`${cell.r + 1}_${cell.c}`);
+      const hasLeft = cellMap.has(`${cell.r}_${cell.c - 1}`);
+      const hasRight = cellMap.has(`${cell.r}_${cell.c + 1}`);
+
+      if (!hasTop) doc.line(cx, cy, cx + effectiveCellSize, cy);
+      if (!hasBottom) doc.line(cx, cy + effectiveCellSize, cx + effectiveCellSize, cy + effectiveCellSize);
+      if (!hasLeft) doc.line(cx, cy, cx, cy + effectiveCellSize);
+      if (!hasRight) doc.line(cx + effectiveCellSize, cy, cx + effectiveCellSize, cy + effectiveCellSize);
+      setDocLineDash(doc, []);
+    } else if (gridBorder === 'none' && !isAnswerMode && isCellBlankInStudentMode) {
+      doc.setDrawColor(180, 190, 205);
+      doc.setLineWidth(0.3);
+      doc.line(cx + 1, cy + effectiveCellSize - 0.5, cx + effectiveCellSize - 1, cy + effectiveCellSize - 0.5);
+    }
+
+    let showChar = false;
+    if (isAnswerMode || hintMode === 'full_answer') {
+      showChar = true;
+    } else {
+      showChar = !isCellBlankInStudentMode;
+    }
+
+    if (showChar) {
+      const displayChar = casing === 'lower' ? cell.char.toLowerCase() : cell.char.toUpperCase();
+      applyFont(doc, activeFont, 'bold');
+      doc.setFontSize(cellFontSize);
+      if (isAnswerMode && isCellBlankInStudentMode) {
+        // MỰC ĐỎ GIÁO VIÊN: #dc2626
+        doc.setTextColor(220, 38, 38);
+      } else {
+        doc.setTextColor(30, 41, 59);
+      }
+      doc.text(displayChar, cx + effectiveCellSize / 2, cy + effectiveCellSize / 2, { align: 'center', baseline: 'middle' });
+    } else if (showTrace) {
+      // Chữ mờ cho học sinh tập tô (Tracer)
+      const displayChar = casing === 'lower' ? cell.char.toLowerCase() : cell.char.toUpperCase();
+      applyFont(doc, activeFont, 'bold');
+      doc.setFontSize(cellFontSize);
+      doc.setTextColor(203, 213, 225); // Màu xám nhạt tập tô
+      doc.text(displayChar, cx + effectiveCellSize / 2, cy + effectiveCellSize / 2, { align: 'center', baseline: 'middle' });
+    }
+  });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.2);
+}
+
 export interface HighlightedSpan {
   text: string;
   isHighlighted: boolean;
@@ -1794,12 +2750,19 @@ export function layoutTraceText(
 }
 
 export function applyFont(doc: jsPDF, fontFamily?: string, style: 'normal' | 'bold' = 'normal') {
+  const f = fontFamily || 'r0c0i Linotte';
+  if (f === 'Andika') {
+    doc.setFont('Andika', style === 'bold' ? 'bold' : 'normal');
+    return;
+  }
   if (style === 'bold') {
     doc.setFont('r0c0i Linotte', 'bold');
     return;
   }
-  const f = fontFamily || 'r0c0i Linotte';
   switch (f) {
+    case 'Andika':
+      doc.setFont('Andika', 'normal');
+      break;
     case 'Farsan':
       doc.setFont('Farsan', 'normal');
       break;
@@ -2369,9 +3332,55 @@ interface SentenceToken {
 }
 
 /**
+ * Splits HighlightedSpan[] into dialogue segments based on '\s+[-–—]\s+' or newlines.
+ * Preserves exact highlight status for each token/span.
+ */
+export function splitHighlightedSpansDialogueSegments(spans: HighlightedSpan[]): HighlightedSpan[][] {
+  if (!spans || spans.length === 0) return [];
+
+  const segments: HighlightedSpan[][] = [[]];
+
+  for (const span of spans) {
+    const text = span.text;
+    const lines = text.split(/\r?\n/);
+
+    for (let lIdx = 0; lIdx < lines.length; lIdx++) {
+      if (lIdx > 0) {
+        segments.push([]);
+      }
+
+      const line = lines[lIdx];
+      const subParts = line.split(/(\s+[-–—]\s+)/);
+
+      for (let pIdx = 0; pIdx < subParts.length; pIdx++) {
+        const part = subParts[pIdx];
+        if (!part) continue;
+
+        if (/^\s+[-–—]\s+$/.test(part)) {
+          segments.push([{ text: '- ', isHighlighted: false }]);
+        } else {
+          const currentSegment = segments[segments.length - 1];
+          currentSegment.push({ text: part, isHighlighted: span.isHighlighted });
+        }
+      }
+    }
+  }
+
+  return segments
+    .filter((seg) => seg.some((s) => s.text.trim().length > 0))
+    .map((seg) => {
+      if (seg.length > 0 && !seg[0].text.startsWith('- ')) {
+        seg[0] = { ...seg[0], text: seg[0].text.replace(/^\s+/, '') };
+      }
+      return seg;
+    });
+}
+
+/**
  * Helper to layout and measure highlighted sentence lines without drawing,
  * returning line tokens, linePitch, and totalHeight.
- * Includes orphan punctuation protection so ., !, ? never wrap alone.
+ * Includes orphan punctuation protection so ., !, ? never wrap alone,
+ * and dialogue segment separation at ' - '.
  */
 export function measureHighlightedSentenceLines(
   doc: jsPDF,
@@ -2383,75 +3392,79 @@ export function measureHighlightedSentenceLines(
   doc.setFontSize(fontSizePt);
   applyFont(doc, fontFamily, 'normal');
 
-  const tokens: SentenceToken[] = [];
-  for (const span of spans) {
-    const parts = span.text.split(/(\s+)/);
-    for (const part of parts) {
-      if (part.length > 0) {
-        tokens.push({ text: part, isHighlighted: span.isHighlighted });
+  const segments = splitHighlightedSpansDialogueSegments(spans);
+  const maxLineWidth = Math.max(10, boxWidth - 3);
+  const allLines: SentenceToken[][] = [];
+
+  for (const seg of segments) {
+    const tokens: SentenceToken[] = [];
+    for (const span of seg) {
+      const parts = span.text.split(/(\s+)/);
+      for (const part of parts) {
+        if (part.length > 0) {
+          tokens.push({ text: part, isHighlighted: span.isHighlighted });
+        }
       }
     }
-  }
 
-  const maxLineWidth = Math.max(10, boxWidth - 3);
-  const lines: SentenceToken[][] = [];
-  let curLine: SentenceToken[] = [];
-  let curLineWidth = 0;
+    let curLine: SentenceToken[] = [];
+    let curLineWidth = 0;
 
-  for (const token of tokens) {
-    const isSpace = /^\s+$/.test(token.text);
-    const isPunct = /^[.,!?;:]+$/.test(token.text);
-    applyFont(doc, fontFamily, token.isHighlighted ? 'bold' : 'normal');
-    const tokenW = isSpace ? doc.getTextWidth(' ') : doc.getTextWidth(token.text);
+    for (const token of tokens) {
+      const isSpace = /^\s+$/.test(token.text);
+      const isPunct = /^[.,!?;:]+$/.test(token.text);
+      applyFont(doc, fontFamily, token.isHighlighted ? 'bold' : 'normal');
+      const tokenW = isSpace ? doc.getTextWidth(' ') : doc.getTextWidth(token.text);
 
-    if (curLine.length === 0) {
-      if (!isSpace) {
-        curLine.push(token);
-        curLineWidth += tokenW;
-      }
-    } else {
-      if (curLineWidth + tokenW <= maxLineWidth || (isPunct && curLineWidth + tokenW <= maxLineWidth + 2.5) || isSpace) {
-        curLine.push(token);
-        curLineWidth += tokenW;
-      } else {
-        while (curLine.length > 0 && /^\s+$/.test(curLine[curLine.length - 1].text)) {
-          curLine.pop();
+      if (curLine.length === 0) {
+        if (!isSpace) {
+          curLine.push(token);
+          curLineWidth += tokenW;
         }
-        if (isPunct && curLine.length > 0) {
-          const lastWord = curLine.pop()!;
+      } else {
+        if (curLineWidth + tokenW <= maxLineWidth || (isPunct && curLineWidth + tokenW <= maxLineWidth + 2.5) || isSpace) {
+          curLine.push(token);
+          curLineWidth += tokenW;
+        } else {
           while (curLine.length > 0 && /^\s+$/.test(curLine[curLine.length - 1].text)) {
             curLine.pop();
           }
-          lines.push(curLine);
-          curLine = [lastWord, token];
-          applyFont(doc, fontFamily, lastWord.isHighlighted ? 'bold' : 'normal');
-          const lastWordW = doc.getTextWidth(lastWord.text);
-          curLineWidth = lastWordW + tokenW;
-        } else {
-          lines.push(curLine);
-          if (!isSpace) {
-            curLine = [token];
-            curLineWidth = tokenW;
+          if (isPunct && curLine.length > 0) {
+            const lastWord = curLine.pop()!;
+            while (curLine.length > 0 && /^\s+$/.test(curLine[curLine.length - 1].text)) {
+              curLine.pop();
+            }
+            allLines.push(curLine);
+            curLine = [lastWord, token];
+            applyFont(doc, fontFamily, lastWord.isHighlighted ? 'bold' : 'normal');
+            const lastWordW = doc.getTextWidth(lastWord.text);
+            curLineWidth = lastWordW + tokenW;
           } else {
-            curLine = [];
-            curLineWidth = 0;
+            allLines.push(curLine);
+            if (!isSpace) {
+              curLine = [token];
+              curLineWidth = tokenW;
+            } else {
+              curLine = [];
+              curLineWidth = 0;
+            }
           }
         }
       }
     }
-  }
-  if (curLine.length > 0) {
-    while (curLine.length > 0 && /^\s+$/.test(curLine[curLine.length - 1].text)) {
-      curLine.pop();
-    }
     if (curLine.length > 0) {
-      lines.push(curLine);
+      while (curLine.length > 0 && /^\s+$/.test(curLine[curLine.length - 1].text)) {
+        curLine.pop();
+      }
+      if (curLine.length > 0) {
+        allLines.push(curLine);
+      }
     }
   }
 
   const linePitch = fontSizePt * 0.352778 * 1.25;
-  const totalHeight = Math.max(1, lines.length) * linePitch;
-  return { lines, linePitch, totalHeight };
+  const totalHeight = Math.max(1, allLines.length) * linePitch;
+  return { lines: allLines, linePitch, totalHeight };
 }
 
 function drawHighlightedCenteredSentence(
@@ -2527,6 +3540,104 @@ function drawType15SentenceLine(
   baseFontSize: number,
   fontFamily?: string
 ) {
+  const segments = splitHighlightedSpansDialogueSegments(spans);
+  const maxAllowedWidth = Math.max(10, cardWidth - 1.0);
+
+  if (segments.length > 1) {
+    // Multi-line dialogue mode: Line 1 = Question (with numText), Line 2 = Answer (- ...)
+    let sentFontSize = baseFontSize;
+    const linePitch = sentFontSize * 0.352778 * 1.25;
+
+    const seg1Tokens: SentenceToken[] = [];
+    for (const span of segments[0]) {
+      const parts = span.text.split(/(\s+)/);
+      for (const part of parts) {
+        if (part.length > 0) seg1Tokens.push({ text: part, isHighlighted: span.isHighlighted });
+      }
+    }
+
+    const seg2Tokens: SentenceToken[] = [];
+    for (const span of segments[1]) {
+      const parts = span.text.split(/(\s+)/);
+      for (const part of parts) {
+        if (part.length > 0) seg2Tokens.push({ text: part, isHighlighted: span.isHighlighted });
+      }
+    }
+
+    const measureTokensWidth = (tokens: SentenceToken[], prefix: string | null, size: number) => {
+      doc.setFontSize(size);
+      let totalW = 0;
+      if (prefix) {
+        applyFont(doc, fontFamily, 'bold');
+        totalW += doc.getTextWidth(prefix) + 0.8;
+      }
+      for (const t of tokens) {
+        const isSpace = /^\s+$/.test(t.text);
+        applyFont(doc, fontFamily, t.isHighlighted ? 'bold' : 'normal');
+        totalW += isSpace ? doc.getTextWidth(' ') : doc.getTextWidth(t.text);
+      }
+      return totalW;
+    };
+
+    while (
+      (measureTokensWidth(seg1Tokens, numText, sentFontSize) > maxAllowedWidth ||
+       measureTokensWidth(seg2Tokens, null, sentFontSize) > maxAllowedWidth) &&
+      sentFontSize > 9.0
+    ) {
+      sentFontSize -= 0.5;
+    }
+
+    doc.setFontSize(sentFontSize);
+
+    // Line 1: Question
+    const y1 = textY - linePitch * 0.52;
+    let curX1 = cardX;
+    if (numText) {
+      applyFont(doc, fontFamily, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(numText, curX1, y1);
+      curX1 += doc.getTextWidth(numText) + 0.8;
+    }
+    for (const t of seg1Tokens) {
+      const isSpace = /^\s+$/.test(t.text);
+      applyFont(doc, fontFamily, t.isHighlighted ? 'bold' : 'normal');
+      if (isSpace) {
+        curX1 += doc.getTextWidth(' ');
+      } else {
+        if (t.isHighlighted) {
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setTextColor(30, 41, 59);
+        }
+        doc.text(t.text, curX1, y1);
+        curX1 += doc.getTextWidth(t.text);
+      }
+    }
+
+    // Line 2: Answer
+    const y2 = textY + linePitch * 0.58;
+    let curX2 = cardX;
+    for (const t of seg2Tokens) {
+      const isSpace = /^\s+$/.test(t.text);
+      applyFont(doc, fontFamily, t.isHighlighted ? 'bold' : 'normal');
+      if (isSpace) {
+        curX2 += doc.getTextWidth(' ');
+      } else {
+        if (t.isHighlighted) {
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setTextColor(30, 41, 59);
+        }
+        doc.text(t.text, curX2, y2);
+        curX2 += doc.getTextWidth(t.text);
+      }
+    }
+
+    doc.setTextColor(0, 0, 0);
+    applyFont(doc, fontFamily, 'normal');
+    return;
+  }
+
   // Flatten spans into tokens, separating spaces so we can preserve exact font and spacing
   const tokens: SentenceToken[] = [];
   for (const span of spans) {
@@ -2539,7 +3650,6 @@ function drawType15SentenceLine(
   }
 
   // Calculate required font size so that (numText + sentence) fits within cardWidth
-  const maxAllowedWidth = Math.max(10, cardWidth - 1.0);
   let sentFontSize = baseFontSize;
 
   const measureLineWidth = (size: number) => {
@@ -2620,7 +3730,7 @@ const COMMON_COMPOUND_WORDS: Record<string, string[]> = {
 export function formatSingleSubWord(word: string): string {
   const clean = word.trim();
   if (!clean) return '';
-  if (clean.includes('_')) return clean; // Already formatted by teacher
+  if (clean.includes('_')) return clean.replace(/ /g, '\u00A0'); // Teacher custom blanks: protect with nbsp
 
   const chars = clean.split('');
   if (chars.length <= 1) return clean;
@@ -2633,33 +3743,33 @@ export function formatSingleSubWord(word: string): string {
   if (showFirstAndLast) {
     const first = chars[0];
     const last = chars[chars.length - 1];
-    const middleBlanks = Array(chars.length - 2).fill('__').join(' ');
-    return `${first} ${middleBlanks} ${last}`;
+    const middleBlanks = Array(chars.length - 2).fill('__').join('\u00A0');
+    return `${first}\u00A0${middleBlanks}\u00A0${last}`;
   } else {
     // Show first letter, remaining are blanks
     const first = chars[0];
-    const remainingBlanks = Array(chars.length - 1).fill('__').join(' ');
-    return `${first} ${remainingBlanks}`;
+    const remainingBlanks = Array(chars.length - 1).fill('__').join('\u00A0');
+    return `${first}\u00A0${remainingBlanks}`;
   }
 }
 
 export function formatLookAndWriteTerm(term: string): string {
   const clean = (term || '').trim();
   if (!clean) return '';
-  if (clean.includes('__')) return clean; // Already custom blanks
+  if (clean.includes('__')) return clean.replace(/ /g, '\u00A0'); // Already custom blanks
 
   // If term has multiple words separated by space or hyphen (e.g. "ice cream", "yo-yo")
   if (/\s+|-/.test(clean)) {
     const separator = clean.includes('-') ? '-' : ' ';
     const parts = clean.split(separator === '-' ? '-' : /\s+/);
-    return parts.map(formatSingleSubWord).join(separator === '-' ? ' - ' : ' ');
+    return parts.map(formatSingleSubWord).join(separator === '-' ? '\u00A0-\u00A0' : '\u00A0');
   }
 
   // Check known compound words (like volleyball -> volley + ball)
   const lower = clean.toLowerCase();
   if (COMMON_COMPOUND_WORDS[lower] && COMMON_COMPOUND_WORDS[lower].length > 1) {
     const subWords = COMMON_COMPOUND_WORDS[lower];
-    return subWords.map(formatSingleSubWord).join(' ');
+    return subWords.map(formatSingleSubWord).join('\u00A0');
   }
 
   return formatSingleSubWord(clean);
@@ -2679,7 +3789,7 @@ export function getLookAndWriteSentence(word: WorksheetWord): { fullSentence: st
     const replaced = rawSentence.replace(/<#([\s\S]*?)#>/g, (_match, inner) => {
       const trimmedInner = inner.trim();
       if (trimmedInner.includes('_')) {
-        return trimmedInner; // Teacher already provided blank syntax
+        return trimmedInner.replace(/ /g, '\u00A0'); // Teacher already provided blank syntax
       }
       return formatLookAndWriteTerm(trimmedInner);
     });
@@ -2698,7 +3808,10 @@ export function getLookAndWriteSentence(word: WorksheetWord): { fullSentence: st
 
   // 3. If rawSentence doesn't contain term, check if it already has blanks
   if (rawSentence.includes('_')) {
-    return { fullSentence: rawSentence, isCustom: true };
+    const protectedSentence = rawSentence.replace(/(\S*_\S*(?:\s+\S*_\S*)+)/g, (match) => {
+      return match.replace(/ /g, '\u00A0');
+    });
+    return { fullSentence: protectedSentence, isCustom: true };
   }
 
   // 4. Otherwise, append blanked term to sentence or return as is
@@ -2715,33 +3828,65 @@ export function drawLookAndWriteSentence(
   fontSizePt: number,
   fontFamily?: string
 ) {
-  doc.setFontSize(fontSizePt);
   applyFont(doc, fontFamily, 'normal');
   doc.setTextColor(30, 41, 59);
 
-  // Split tokens by spaces to wrap lines nicely
-  const words = sentence.trim().split(/\s+/);
+  // Split sentence into dialogue segments first (question vs - answer)
+  const segments = splitSentenceDialogueSegments(sentence);
   const maxLineWidth = Math.max(10, boxWidth - 4);
-  const lines: string[] = [];
-  let curLine = '';
 
-  for (const w of words) {
-    const testLine = curLine ? `${curLine} ${w}` : w;
-    if (doc.getTextWidth(testLine) <= maxLineWidth) {
-      curLine = testLine;
-    } else {
-      if (curLine) lines.push(curLine);
-      curLine = w;
+  // ponytail: auto-fit font size down to 8pt; upgrade to per-word character truncation if 8pt still exceeds column.
+  let activeFontSize = fontSizePt;
+  let finalLines: string[] = [];
+
+  while (activeFontSize >= 8) {
+    doc.setFontSize(activeFontSize);
+    const candidateLines: string[] = [];
+    let hasOverflowWord = false;
+
+    for (const seg of segments) {
+      // Split ONLY by regular breakable whitespace; keep non-breaking spaces \u00A0 intact
+      const words = seg.trim().split(/[^\S\u00A0]+/);
+      let curLine = '';
+
+      for (const w of words) {
+        if (!w) continue;
+        if (doc.getTextWidth(w) > maxLineWidth) {
+          hasOverflowWord = true;
+        }
+        const testLine = curLine ? `${curLine} ${w}` : w;
+        if (doc.getTextWidth(testLine) <= maxLineWidth) {
+          curLine = testLine;
+        } else {
+          if (curLine) candidateLines.push(curLine);
+          curLine = w;
+        }
+      }
+      if (curLine) candidateLines.push(curLine);
     }
-  }
-  if (curLine) lines.push(curLine);
-  if (lines.length === 0) return;
 
-  const linePitch = fontSizePt * 0.352778 * 1.3;
-  const totalH = lines.length * linePitch;
+    const linePitch = activeFontSize * 0.352778 * 1.3;
+    const totalH = candidateLines.length * linePitch;
+
+    if (!hasOverflowWord && (boxHeight <= 0 || totalH <= boxHeight + 1.0)) {
+      finalLines = candidateLines;
+      break;
+    }
+
+    if (activeFontSize <= 8) {
+      finalLines = candidateLines;
+      break;
+    }
+    activeFontSize = Math.max(8, activeFontSize - 0.5);
+  }
+
+  if (finalLines.length === 0) return;
+
+  const linePitch = activeFontSize * 0.352778 * 1.3;
+  const totalH = finalLines.length * linePitch;
   const startY = boxY + (boxHeight - totalH) / 2 + linePitch * 0.75;
 
-  lines.forEach((lineText, lIdx) => {
+  finalLines.forEach((lineText, lIdx) => {
     doc.text(lineText, boxX + boxWidth / 2, startY + lIdx * linePitch, { align: 'center' });
   });
 
@@ -2755,11 +3900,64 @@ export const WORDSEARCH_DIRECTION_MAP: Record<WordsearchDirection, { dr: number;
   diagonalUp: { dr: -1, dc: 1, label: 'Xéo từ dưới lên (↗)' }
 };
 
+export interface KidWordPalette {
+  fill: [number, number, number];
+  stroke: [number, number, number];
+  text: [number, number, number];
+  name: string;
+}
+
+export const KID_WORDSEARCH_PALETTE: KidWordPalette[] = [
+  { fill: [186, 230, 253], stroke: [2, 132, 199],   text: [3, 105, 161],   name: 'sky' },     // Sky Blue (#0284c7)
+  { fill: [254, 215, 170], stroke: [234, 88, 12],   text: [194, 65, 12],   name: 'orange' },  // Vibrant Orange (#ea580c)
+  { fill: [187, 247, 208], stroke: [22, 163, 74],   text: [21, 128, 61],   name: 'green' },   // Emerald Green (#16a34a)
+  { fill: [233, 213, 255], stroke: [147, 51, 234],  text: [126, 34, 206],  name: 'purple' },  // Purple (#9333ea)
+  { fill: [254, 205, 211], stroke: [225, 29, 72],   text: [190, 18, 60],   name: 'rose' },    // Rose (#e11d48)
+  { fill: [254, 240, 138], stroke: [202, 138, 4],   text: [161, 98, 7],    name: 'amber' },   // Amber Gold (#ca8a04)
+  { fill: [204, 251, 241], stroke: [13, 148, 136],  text: [15, 118, 110],  name: 'teal' },    // Teal (#0d9488)
+  { fill: [254, 215, 226], stroke: [219, 39, 119],  text: [190, 24, 93],   name: 'pink' }     // Pink (#db2777)
+];
+
+export function drawWordsearchCapsule(
+  doc: jsPDF,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  capWidth: number,
+  borderWidth: number,
+  palette: KidWordPalette
+) {
+  const isSingleCell = Math.hypot(x1 - x0, y1 - y0) < 0.001;
+
+  if (isSingleCell) {
+    const r = capWidth / 2;
+    doc.setFillColor(...palette.fill);
+    doc.setDrawColor(...palette.stroke);
+    doc.setLineWidth(borderWidth);
+    doc.circle(x0, y0, r, 'FD');
+    return;
+  }
+
+  // 1. Outer border: Crisp stroke wrapping the entire capsule with round line cap
+  doc.setDrawColor(...palette.stroke);
+  doc.setLineWidth(capWidth + borderWidth * 2);
+  doc.setLineCap('round');
+  doc.line(x0, y0, x1, y1);
+
+  // 2. Inner fill: Cheerful pastel color filling the capsule body
+  doc.setDrawColor(...palette.fill);
+  doc.setLineWidth(capWidth);
+  doc.setLineCap('round');
+  doc.line(x0, y0, x1, y1);
+}
+
 export function generateWordsearchPuzzle(
   words: WorksheetWord[],
   allowedDirections: WordsearchDirection[] = ['horizontal', 'vertical', 'diagonalDown'],
   gridSizeOption: number | 'auto' = 'auto',
-  wordsearchCase: WordsearchCase = 'lower'
+  wordsearchCase: WordsearchCase = 'lower',
+  seed?: number | string
 ): WordsearchPuzzleResult {
   const isUpper = wordsearchCase === 'upper';
   const validWords = words
@@ -2789,6 +3987,21 @@ export function generateWordsearchPuzzle(
   const sortedWords = [...validWords].sort((a, b) => b.cleanTerm.length - a.cleanTerm.length);
   const maxWordLength = sortedWords[0].cleanTerm.length;
   const totalLetters = sortedWords.reduce((sum, item) => sum + item.cleanTerm.length, 0);
+
+  // Deterministic PRNG initialization
+  let seedNum: number;
+  if (typeof seed === 'number') {
+    seedNum = seed >>> 0;
+  } else if (typeof seed === 'string') {
+    seedNum = hashStringToSeed(seed);
+  } else {
+    const key = sortedWords.map((w) => w.cleanTerm).join('|') + '::' +
+      dirs.slice().sort().join('|') + '::' +
+      gridSizeOption + '::' +
+      wordsearchCase;
+    seedNum = hashStringToSeed(key);
+  }
+  const prng = createMulberry32(seedNum);
 
   let baseSize: number;
   if (typeof gridSizeOption === 'number' && gridSizeOption >= 4) {
@@ -2863,9 +4076,9 @@ export function generateWordsearchPuzzle(
         const minUsage = Math.min(...availableDirs.map((d) => dirCounts[d]));
         const candidateDirs = availableDirs.filter((d) => dirCounts[d] === minUsage);
 
-        const chosenDir = candidateDirs[Math.floor(Math.random() * candidateDirs.length)];
+        const chosenDir = candidateDirs[Math.floor(prng() * candidateDirs.length)];
         const candidatePlacements = placementsByDir.get(chosenDir)!;
-        const pick = candidatePlacements[Math.floor(Math.random() * candidatePlacements.length)];
+        const pick = candidatePlacements[Math.floor(prng() * candidatePlacements.length)];
 
         const { dr, dc } = WORDSEARCH_DIRECTION_MAP[pick.dir];
         for (let k = 0; k < len; k++) {
@@ -2886,7 +4099,7 @@ export function generateWordsearchPuzzle(
 
       if (allPlaced && placed.length === sortedWords.length) {
         const finalGrid: string[][] = grid.map((row) =>
-          row.map((cell) => (cell !== null ? cell : letters[Math.floor(Math.random() * letters.length)]))
+          row.map((cell) => (cell !== null ? cell : letters[Math.floor(prng() * letters.length)]))
         );
 
         return {
@@ -2900,7 +4113,7 @@ export function generateWordsearchPuzzle(
 
       if (!bestResult || placed.length > bestResult.placedWords.length) {
         const finalGrid: string[][] = grid.map((row) =>
-          row.map((cell) => (cell !== null ? cell : letters[Math.floor(Math.random() * letters.length)]))
+          row.map((cell) => (cell !== null ? cell : letters[Math.floor(prng() * letters.length)]))
         );
         const placedTerms = new Set(placed.map((p) => p.cleanTerm));
         const unplaced = sortedWords.filter((w) => !placedTerms.has(w.cleanTerm)).map((w) => w.word);
@@ -2935,18 +4148,23 @@ export function drawWordsearchGrid(
   const rows = grid.length;
   const cols = grid[0].length;
 
-  const placedCellKeys = new Set<string>();
+  // 1. In Answer Mode: Draw continuous multi-color capsules for each placed word
   if (isAnswerMode && placedWords && placedWords.length > 0) {
-    for (const pw of placedWords) {
-      const { dr, dc } = WORDSEARCH_DIRECTION_MAP[pw.direction];
-      for (let step = 0; step < pw.cleanTerm.length; step++) {
-        const r = pw.startR + step * dr;
-        const c = pw.startC + step * dc;
-        placedCellKeys.add(`${r},${c}`);
-      }
-    }
+    setDocLineDash(doc, []);
+    placedWords.forEach((pw, idx) => {
+      const palette = KID_WORDSEARCH_PALETTE[idx % KID_WORDSEARCH_PALETTE.length];
+      const x0 = startX + pw.startC * cellSize + cellSize / 2;
+      const y0 = startY + pw.startR * cellSize + cellSize / 2;
+      const x1 = startX + pw.endC * cellSize + cellSize / 2;
+      const y1 = startY + pw.endR * cellSize + cellSize / 2;
+      const capWidth = cellSize * 0.82;
+      const borderWidth = 0.45;
+
+      drawWordsearchCapsule(doc, x0, y0, x1, y1, capWidth, borderWidth, palette);
+    });
   }
 
+  // 2. Grid borders
   if (gridBorder === 'full') {
     // Both outer border and inner cell borders drawn with small dotted lines
     doc.setDrawColor(148, 163, 184); // slate-400
@@ -2983,29 +4201,17 @@ export function drawWordsearchGrid(
   }
   // gridBorder === 'none': only the matrix of letters, no grid lines
 
-  // Draw centered letters in each cell: strictly respect user-selected fontSize
+  // 3. Draw centered letters in each cell: strictly respect user-selected fontSize
+  applyFont(doc, activeFont, 'bold');
+  doc.setFontSize(fontSize);
+  doc.setTextColor(15, 23, 42); // slate-900 / dark charcoal for crisp contrast against capsules
+
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = startX + c * cellSize;
       const y = startY + r * cellSize;
       const letter = grid[r][c];
-      const isPlacedCell = isAnswerMode && placedCellKeys.has(`${r},${c}`);
 
-      if (isPlacedCell) {
-        doc.setFillColor(254, 226, 226); // soft red-100
-        doc.setDrawColor(239, 68, 68); // red-500
-        doc.setLineWidth(0.2);
-        setDocLineDash(doc, []);
-        doc.roundedRect(x + 0.3, y + 0.3, cellSize - 0.6, cellSize - 0.6, 1.0, 1.0, 'FD');
-
-        applyFont(doc, activeFont, 'bold');
-        doc.setFontSize(fontSize);
-        doc.setTextColor(220, 38, 38);
-      } else {
-        applyFont(doc, activeFont, 'bold');
-        doc.setFontSize(fontSize);
-        doc.setTextColor(30, 41, 59);
-      }
       // True 2D Centering: horizontal center (align: center) and vertical center (baseline: middle)
       doc.text(letter, x + cellSize / 2, y + cellSize / 2, { align: 'center', baseline: 'middle' });
     }
@@ -3225,7 +4431,8 @@ export async function drawWordsearchHints(
     words: PlacedWordInfo[],
     colX: number,
     colWidth: number,
-    side: 'left' | 'right'
+    side: 'left' | 'right',
+    offset: number = 0
   ) => {
     if (words.length === 0) return startY;
 
@@ -3234,13 +4441,15 @@ export async function drawWordsearchHints(
         const pw = words[i];
         const itemY = startY + i * itemPitch;
         const itemCenterY = itemY + itemPitch / 2;
+        const globalIdx = offset + i;
+        const palette = KID_WORDSEARCH_PALETTE[globalIdx % KID_WORDSEARCH_PALETTE.length];
 
         // Word text without numbering and without checkbox
         // Symmetrical alignment: Left column aligns right (towards grid); Right column aligns left (towards grid)
         applyFont(doc, activeFont, 'bold');
         doc.setFontSize(activeFontSize);
         if (options?.isAnswerMode) {
-          doc.setTextColor(220, 38, 38);
+          doc.setTextColor(palette.text[0], palette.text[1], palette.text[2]);
         } else {
           doc.setTextColor(30, 41, 59);
         }
@@ -3272,6 +4481,8 @@ export async function drawWordsearchHints(
       for (let i = 0; i < words.length; i++) {
         const pw = words[i];
         const itemY = startY + i * itemPitch;
+        const globalIdx = offset + i;
+        const palette = KID_WORDSEARCH_PALETTE[globalIdx % KID_WORDSEARCH_PALETTE.length];
 
         // Render standardized image centered in colWidth
         const imgX = colX + (colWidth - imgDim) / 2;
@@ -3287,20 +4498,36 @@ export async function drawWordsearchHints(
         if (imgData) {
           try {
             doc.addImage(imgData, 'JPEG', imgX, imgY, imgDim, imgDim);
-            if (showImageBorder) {
+            if (options?.isAnswerMode) {
+              doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+              doc.setLineWidth(0.45);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            } else if (showImageBorder) {
               doc.setDrawColor(203, 213, 225);
               doc.setLineWidth(0.2);
               doc.rect(imgX, imgY, imgDim, imgDim);
             }
           } catch {
+            if (options?.isAnswerMode) {
+              doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+              doc.setLineWidth(0.45);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            } else {
+              doc.setDrawColor(203, 213, 225);
+              doc.setLineWidth(0.2);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            }
+          }
+        } else {
+          if (options?.isAnswerMode) {
+            doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+            doc.setLineWidth(0.45);
+            doc.rect(imgX, imgY, imgDim, imgDim);
+          } else {
             doc.setDrawColor(203, 213, 225);
             doc.setLineWidth(0.2);
             doc.rect(imgX, imgY, imgDim, imgDim);
           }
-        } else {
-          doc.setDrawColor(203, 213, 225);
-          doc.setLineWidth(0.2);
-          doc.rect(imgX, imgY, imgDim, imgDim);
         }
         // Dotted underline line and numbering below image are completely eliminated as required
       }
@@ -3313,6 +4540,8 @@ export async function drawWordsearchHints(
       for (let i = 0; i < words.length; i++) {
         const pw = words[i];
         const itemY = startY + i * itemPitch;
+        const globalIdx = offset + i;
+        const palette = KID_WORDSEARCH_PALETTE[globalIdx % KID_WORDSEARCH_PALETTE.length];
 
         // Render standardized image centered in colWidth
         const imgX = colX + (colWidth - imgDim) / 2;
@@ -3328,27 +4557,43 @@ export async function drawWordsearchHints(
         if (imgData) {
           try {
             doc.addImage(imgData, 'JPEG', imgX, imgY, imgDim, imgDim);
-            if (showImageBorder) {
+            if (options?.isAnswerMode) {
+              doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+              doc.setLineWidth(0.45);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            } else if (showImageBorder) {
               doc.setDrawColor(203, 213, 225);
               doc.setLineWidth(0.2);
               doc.rect(imgX, imgY, imgDim, imgDim);
             }
           } catch {
+            if (options?.isAnswerMode) {
+              doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+              doc.setLineWidth(0.45);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            } else {
+              doc.setDrawColor(203, 213, 225);
+              doc.setLineWidth(0.2);
+              doc.rect(imgX, imgY, imgDim, imgDim);
+            }
+          }
+        } else {
+          if (options?.isAnswerMode) {
+            doc.setDrawColor(palette.stroke[0], palette.stroke[1], palette.stroke[2]);
+            doc.setLineWidth(0.45);
+            doc.rect(imgX, imgY, imgDim, imgDim);
+          } else {
             doc.setDrawColor(203, 213, 225);
             doc.setLineWidth(0.2);
             doc.rect(imgX, imgY, imgDim, imgDim);
           }
-        } else {
-          doc.setDrawColor(203, 213, 225);
-          doc.setLineWidth(0.2);
-          doc.rect(imgX, imgY, imgDim, imgDim);
         }
 
         // Under image: word label (NO numbering prefix) with strict font size and baseline: 'top'
         applyFont(doc, activeFont, 'bold');
         doc.setFontSize(activeFontSize);
         if (options?.isAnswerMode) {
-          doc.setTextColor(220, 38, 38);
+          doc.setTextColor(palette.text[0], palette.text[1], palette.text[2]);
         } else {
           doc.setTextColor(30, 41, 59);
         }
@@ -3364,8 +4609,8 @@ export async function drawWordsearchHints(
     }
   };
 
-  const leftEndY = await renderColumn(leftWords, leftColX, leftColW, 'left');
-  const rightEndY = await renderColumn(rightWords, rightColX, rightColW, 'right');
+  const leftEndY = await renderColumn(leftWords, leftColX, leftColW, 'left', 0);
+  const rightEndY = await renderColumn(rightWords, rightColX, rightColW, 'right', half);
 
   doc.setTextColor(0, 0, 0);
   return Math.max(leftEndY, rightEndY);
@@ -3401,6 +4646,25 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
       }
     }
     return null;
+  }
+
+  // Case 2.5: Running in Node.js test environment with relative URL
+  if (typeof window === 'undefined' && url.startsWith('/')) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const localPath = path.resolve(process.cwd(), 'public', url.replace(/^\//, ''));
+      if (fs.existsSync(localPath)) {
+        const buf = fs.readFileSync(localPath);
+        const ext = path.extname(localPath).replace('.', '').toLowerCase();
+        const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const base64 = `data:${mime};base64,${buf.toString('base64')}`;
+        imageBase64Cache.set(url, base64);
+        return base64;
+      }
+    } catch {
+      // fallback to fetch
+    }
   }
 
   // Case 3: HTTP / HTTPS / Relative URL
@@ -3512,10 +4776,25 @@ export function registerFonts(doc: jsPDF, activeFont: string = 'r0c0i Linotte') 
   doc.addFileToVFS('Questrial-Regular-normal.ttf', fontQuestrial);
   doc.addFont('Questrial-Regular-normal.ttf', 'Questrial', 'normal');
 
+  // Always register Andika font
+  doc.addFileToVFS('Andika-Regular.ttf', fontAndikaRegular);
+  doc.addFont('Andika-Regular.ttf', 'Andika', 'normal');
+  if (fontAndikaBold) {
+    doc.addFileToVFS('Andika-Bold.ttf', fontAndikaBold);
+    doc.addFont('Andika-Bold.ttf', 'Andika', 'bold');
+  }
+
   // Register 'fff' mapped to the activeFont for backward compatibility
   if (activeFont === 'r0c0i Linotte' || activeFont === 'Linotte' || !activeFont) {
     doc.addFont('Linotte-Regular-normal.ttf', 'fff', 'normal');
     doc.addFont('Linotte-SemiBold-normal.ttf', 'fff', 'bold');
+  } else if (activeFont === 'Andika') {
+    doc.addFont('Andika-Regular.ttf', 'fff', 'normal');
+    if (fontAndikaBold) {
+      doc.addFont('Andika-Bold.ttf', 'fff', 'bold');
+    } else {
+      doc.addFont('Linotte-SemiBold-normal.ttf', 'fff', 'bold');
+    }
   } else if (activeFont === 'Farsan') {
     doc.addFont('Farsan-Regular-normal.ttf', 'fff', 'normal');
     doc.addFont('Linotte-SemiBold-normal.ttf', 'fff', 'bold');
@@ -3538,6 +4817,12 @@ export function registerFonts(doc: jsPDF, activeFont: string = 'r0c0i Linotte') 
 }
 
 export async function generateWorksheetPDF(options: WorksheetOptions, secondaryWords?: WorksheetWord[]): Promise<jsPDF> {
+  if (options.answerMode === 'both') {
+    const docStudent = await generateWorksheetPDF({ ...options, answerMode: 'student' }, secondaryWords);
+    const docAnswer = await generateWorksheetPDF({ ...options, answerMode: 'answer' }, secondaryWords);
+    return await mergeJsPdfDocuments(docStudent, docAnswer);
+  }
+
   const {
     type,
     title,
@@ -3674,34 +4959,40 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           ? scrambleSentenceWords(targetSentence, separator)
           : targetSentence;
 
-        // Hint line preparation: strictly max 1 line for 'dots'
+        // Hint line preparation:
         let hintText = generateSentenceHint(targetSentence, hintStyle);
+        let dotsLines: string[] = [];
         if (hintStyle === 'dots') {
           const maxHintWidth = printableWidth - 4;
           applyFont(doc, activeFont, 'normal');
           doc.setFontSize(effectiveFontSize);
-          const normalized = targetSentence.trim().replace(/\s+/g, ' ');
-          let dotCount = normalized.length;
-          hintText = Array(dotCount).fill('...').join('');
-          while (dotCount > 1 && doc.getTextWidth(hintText) > maxHintWidth) {
-            dotCount--;
-            hintText = Array(dotCount).fill('...').join('');
-          }
+          const dialogSegs = splitSentenceDialogueSegments(targetSentence);
+          dotsLines = dialogSegs.map((seg) => {
+            const normalized = seg.trim().replace(/\s+/g, ' ');
+            let dotCount = normalized.length;
+            let dText = Array(dotCount).fill('...').join('');
+            while (dotCount > 1 && doc.getTextWidth(dText) > maxHintWidth) {
+              dotCount--;
+              dText = Array(dotCount).fill('...').join('');
+            }
+            return dText;
+          });
         }
 
         // 3. Middle: Words (with multi-line safety)
-        applyFont(doc, activeFont, 'normal');
+        const wordsFont = options.sentenceWordsFont === 'Andika' ? 'Andika' : activeFont;
+        applyFont(doc, wordsFont, 'normal');
         doc.setFontSize(effectiveFontSize);
         doc.setTextColor(30, 41, 59);
 
-        const wordsLines = doc.splitTextToSize(displayedText, printableWidth - 4);
+        const displayedSegments = isScramble ? [displayedText] : splitSentenceDialogueSegments(displayedText);
+        const wordsLines = displayedSegments.flatMap(seg => doc.splitTextToSize(seg, printableWidth - 4));
         const wordsLineCount = Math.max(1, Array.isArray(wordsLines) ? wordsLines.length : 1);
         const wordsLineHeight = effectiveFontSize * 0.352778 * 1.25;
 
         const wordsY = imgY + imgSize + gapImgToWords + (effectiveFontSize * 0.352778 * 0.85);
-        doc.text(displayedText, pageWidth / 2, wordsY, {
-          align: 'center',
-          maxWidth: printableWidth - 4
+        doc.text(wordsLines, pageWidth / 2, wordsY, {
+          align: 'center'
         });
 
         // 4. Bottom: Hint Line (measured from bottom of words)
@@ -3709,16 +5000,17 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         let actualHintBottom = wordsBottom;
 
         if (options.answerMode === 'answer') {
-          applyFont(doc, activeFont, 'bold');
+          const ansFont = (options.sentenceWordsFont === 'Andika' || activeFont === 'Andika') ? 'Andika' : activeFont;
+          applyFont(doc, ansFont, 'bold');
           doc.setFontSize(effectiveFontSize);
           doc.setTextColor(220, 38, 38);
-          const ansLines = doc.splitTextToSize(targetSentence, printableWidth - 4);
+          const dialogSegments = splitSentenceDialogueSegments(targetSentence);
+          const ansLines = dialogSegments.flatMap(seg => doc.splitTextToSize(seg, printableWidth - 4));
           const ansLineCount = Math.max(1, Array.isArray(ansLines) ? ansLines.length : 1);
           const ansLineHeight = effectiveFontSize * 0.352778 * 1.2;
           const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
-          doc.text(targetSentence, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: printableWidth - 4
+          doc.text(ansLines, pageWidth / 2, hintY, {
+            align: 'center'
           });
           actualHintBottom = hintY + (ansLineCount - 1) * ansLineHeight + (effectiveFontSize * 0.352778 * 0.35);
         } else if (hintStyle === 'trace') {
@@ -3729,43 +5021,44 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
           // Auto-fit protection: iteratively decrease font size down to 14pt so it fits on 1 single continuous line for kids
           const maxHintW = printableWidth - 4;
-          while (doc.getTextWidth(hintText) > maxHintW && actualTraceFontSize > 14) {
+          const dialogSegments = splitSentenceDialogueSegments(hintText);
+          while (dialogSegments.some(seg => doc.getTextWidth(seg) > maxHintW) && actualTraceFontSize > 14) {
             actualTraceFontSize--;
             doc.setFontSize(actualTraceFontSize);
           }
 
-          const traceLines = doc.splitTextToSize(hintText, maxHintW);
+          const traceLines = dialogSegments.flatMap(seg => doc.splitTextToSize(seg, maxHintW));
           const traceLineCount = Math.max(1, Array.isArray(traceLines) ? traceLines.length : 1);
           const traceLineHeight = actualTraceFontSize * 0.352778 * 1.2;
 
           const hintY = wordsBottom + gapWordsToHint + (actualTraceFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: maxHintW
+          doc.text(traceLines, pageWidth / 2, hintY, {
+            align: 'center'
           });
           actualHintBottom = hintY + (traceLineCount - 1) * traceLineHeight + (actualTraceFontSize * 0.352778 * 0.35);
         } else if (hintStyle === 'dots') {
           applyFont(doc, activeFont, 'normal');
           doc.setFontSize(effectiveFontSize);
           doc.setTextColor(51, 65, 85);
+          const dotsLineCount = Math.max(1, dotsLines.length);
+          const dotsLineHeight = effectiveFontSize * 0.352778 * 1.2;
           const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
+          doc.text(dotsLines, pageWidth / 2, hintY, {
             align: 'center'
           });
-          actualHintBottom = hintY + (effectiveFontSize * 0.352778 * 0.35);
+          actualHintBottom = hintY + (dotsLineCount - 1) * dotsLineHeight + (effectiveFontSize * 0.352778 * 0.35);
         } else {
           // underscores
           applyFont(doc, activeFont, 'normal');
           doc.setFontSize(effectiveFontSize);
           doc.setTextColor(51, 65, 85);
-          const hintLines = doc.splitTextToSize(hintText, printableWidth - 4);
-          const hintLineCount = Math.max(1, Array.isArray(hintLines) ? hintLines.length : 1);
+          const hintLines = splitSentenceHintToLines(doc, targetSentence, printableWidth - 4);
+          const hintLineCount = Math.max(1, hintLines.length);
           const hintLineHeight = effectiveFontSize * 0.352778 * 1.2;
 
           const hintY = wordsBottom + gapWordsToHint + (effectiveFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: printableWidth - 4
+          doc.text(hintLines, pageWidth / 2, hintY, {
+            align: 'center'
           });
           actualHintBottom = hintY + (hintLineCount - 1) * hintLineHeight + (effectiveFontSize * 0.352778 * 0.35);
         }
@@ -4053,13 +5346,16 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           };
         });
 
+        const pageSeed = pageWords.map((w) => w.term).join('_') + `_p${page}`;
+        const type3Prng = createMulberry32(hashStringToSeed(pageSeed));
+
         // Shuffle middle words relative to picture items so row i prefix is shuffled
-        let shuffledWordRows = shuffleArray([...rowItems]);
+        let shuffledWordRows = shuffleArray([...rowItems], type3Prng);
         if (count > 1) {
           let hasCollision = shuffledWordRows.some((item, i) => item.originalIndex === i);
           let attempts = 0;
           while (hasCollision && attempts < 10) {
-            shuffledWordRows = shuffleArray([...rowItems]);
+            shuffledWordRows = shuffleArray([...rowItems], type3Prng);
             hasCollision = shuffledWordRows.some((item, i) => item.originalIndex === i);
             attempts++;
           }
@@ -4069,12 +5365,12 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         let suffixItems: { suffix: string; word: WorksheetWord; color: [number, number, number] }[];
         if (lookMatchWriteShuffleSuffix) {
           // Shuffle suffixes independently, but keep Suffix & Trace bonded together
-          let shuffledSuffixes = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })));
+          let shuffledSuffixes = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })), type3Prng);
           if (count > 1) {
             let collision = shuffledSuffixes.some((s, idx) => s.orig === shuffledWordRows[idx].originalIndex);
             let attempts = 0;
             while (collision && attempts < 15) {
-              const res = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })));
+              const res = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })), type3Prng);
               if (!res.some((s, idx) => s.orig === shuffledWordRows[idx].originalIndex)) {
                 shuffledSuffixes = res;
                 break;
@@ -4295,15 +5591,130 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const count = pageWords.length;
         const half = Math.ceil(count / 2);
 
-        // Total vertical span of the middle items
-        const totalMiddleHeight = count * boxHeight + (count - 1) * boxGap;
-        const imgPitch = half > 1 ? Math.max(imgSize + 1, (totalMiddleHeight - imgSize) / (half - 1)) : 0;
+        // Prepare items for middle column keeping track of originalIndex, isRight, and dotColor
+        interface Type3MatchItem {
+          originalIndex: number;
+          isRight: boolean;
+          term: string;
+          color: [number, number, number];
+          sentence?: HighlightedSpan[];
+        }
 
-        // Draw pictures on left and right sides (delicate small dots matching reference)
         const dotRadius = isA5 ? 0.6 : 0.75;
         const dotImgOffset = isA5 ? 2.8 : 3.5;
         const isAnsMode = options.answerMode === 'answer';
 
+        const matchItems: Type3MatchItem[] = pageWords.map((w, idx) => {
+          const isRight = idx >= half;
+          return {
+            originalIndex: idx,
+            isRight,
+            term: w.term,
+            color: isAnsMode ? [220, 38, 38] : getType3DotColor(idx, isRight, matchHint),
+            sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
+          };
+        });
+
+        const matchPrng = createMulberry32(hashStringToSeed(pageWords.map((w) => w.term).join('_') + `_match_p${page}`));
+        const shuffledItems = shuffleArray(matchItems, matchPrng);
+
+        // Dynamic measurement for middle items
+        const itemHeights: number[] = [];
+        let activeSentenceBoxWidth = boxWidth;
+        let leftSentenceDotX = 0;
+        let rightSentenceDotX = 0;
+        let leftTextDotX = 0;
+        let rightTextDotX = 0;
+        let sFontSize = fontSize || 12;
+
+        if (isSentence) {
+          sFontSize = fontSize ? (isA5 ? Math.min(fontSize, 11) : fontSize) : (isA5 ? 10.5 : 12);
+          doc.setFontSize(sFontSize);
+
+          // Dynamic sentence width calculation based on font & font size
+          let maxHalfSentenceWidth = 14;
+          for (const item of shuffledItems) {
+            if (item.sentence) {
+              const segs = splitHighlightedSpansDialogueSegments(item.sentence);
+              for (const seg of segs) {
+                let segWidth = 0;
+                for (const span of seg) {
+                  applyFont(doc, fontFamily, span.isHighlighted ? 'bold' : 'normal');
+                  segWidth += doc.getTextWidth(span.text);
+                }
+                if (segWidth / 2 > maxHalfSentenceWidth) {
+                  maxHalfSentenceWidth = segWidth / 2;
+                }
+              }
+            }
+          }
+
+          const minHalfCol = isA5 ? 18 : 24;
+          const textPadding = isA5 ? 3.0 : 3.8;
+          // Add 3.5mm extra margin so maxLineWidth (boxWidth - 3) inside measureHighlightedSentenceLines
+          // comfortably fits the longest dialogue segment without forcing the last word to wrap
+          let centerColHalfWidth = Math.max(minHalfCol, maxHalfSentenceWidth + textPadding + 3.5);
+
+          // Safety clamp against picture dots (guarantee at least 8mm clearance from picture dots)
+          const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
+          const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
+          const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 8), (rightPictureDotX - 8) - (pageWidth / 2));
+          centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
+
+          leftSentenceDotX = (pageWidth / 2) - centerColHalfWidth;
+          rightSentenceDotX = (pageWidth / 2) + centerColHalfWidth;
+          activeSentenceBoxWidth = Math.max(20, (centerColHalfWidth - textPadding) * 2);
+
+          for (let i = 0; i < count; i++) {
+            const item = shuffledItems[i];
+            if (item.sentence) {
+              const { totalHeight: mHeight } = measureHighlightedSentenceLines(
+                doc,
+                item.sentence,
+                activeSentenceBoxWidth,
+                sFontSize,
+                fontFamily
+              );
+              const pad = isA5 ? 2.5 : 3.5;
+              itemHeights.push(Math.max(baseBoxHeight, mHeight + pad));
+            } else {
+              itemHeights.push(boxHeight);
+            }
+          }
+        } else {
+          applyFont(doc, fontFamily, 'normal');
+          doc.setFontSize(fontSize);
+
+          const maxHalfWordWidth = Math.max(...pageWords.map((w) => doc.getTextWidth(w.term) / 2));
+          const minHalfCol = isA5 ? 20 : 25;
+          const textPadding = isA5 ? 3.0 : 3.8;
+          let centerColHalfWidth = Math.max(minHalfCol, maxHalfWordWidth + textPadding);
+
+          // Safety clamp against picture dots
+          const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
+          const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
+          const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 6), (rightPictureDotX - 6) - (pageWidth / 2));
+          centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
+
+          leftTextDotX = (pageWidth / 2) - centerColHalfWidth;
+          rightTextDotX = (pageWidth / 2) + centerColHalfWidth;
+
+          for (let i = 0; i < count; i++) {
+            itemHeights.push(boxHeight);
+          }
+        }
+
+        // Calculate dynamic item Y positions and true totalMiddleHeight
+        const itemY: number[] = [];
+        let currentItemY = topStart;
+        for (let i = 0; i < count; i++) {
+          itemY.push(currentItemY);
+          currentItemY += itemHeights[i] + boxGap;
+        }
+        const totalMiddleHeight = Math.max(boxHeight, currentItemY - boxGap - topStart);
+        const imgPitch = half > 1 ? Math.max(imgSize + 1, (totalMiddleHeight - imgSize) / (half - 1)) : 0;
+
+        // Draw pictures on left and right sides
         for (let i = 0; i < count; i++) {
           const isRight = i >= half;
           const rowInCol = isRight ? i - half : i;
@@ -4331,65 +5742,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           doc.circle(imgDotX, imgCenterY, dotRadius, 'F');
         }
 
-        // Prepare items for middle column keeping track of originalIndex, isRight, and dotColor
-        interface Type3MatchItem {
-          originalIndex: number;
-          isRight: boolean;
-          term: string;
-          color: [number, number, number];
-          sentence?: HighlightedSpan[];
-        }
-
-        const matchItems: Type3MatchItem[] = pageWords.map((w, idx) => {
-          const isRight = idx >= half;
-          return {
-            originalIndex: idx,
-            isRight,
-            term: w.term,
-            color: isAnsMode ? [220, 38, 38] : getType3DotColor(idx, isRight, matchHint),
-            sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
-          };
-        });
-
-        const shuffledItems = shuffleArray(matchItems);
-
-        // Shuffled words or sentences placed in the center (without any bounding boxes)
+        // Draw middle column (sentences or words)
         if (isSentence) {
-          const sFontSize = fontSize ? (isA5 ? Math.min(fontSize, 11) : fontSize) : (isA5 ? 10.5 : 12);
-          doc.setFontSize(sFontSize);
-
-          // Dynamic sentence width calculation based on font & font size
-          let maxHalfSentenceWidth = 14;
-          for (const item of shuffledItems) {
-            if (item.sentence) {
-              let sentenceWidth = 0;
-              for (const span of item.sentence) {
-                applyFont(doc, fontFamily, span.isHighlighted ? 'bold' : 'normal');
-                sentenceWidth += doc.getTextWidth(span.text);
-              }
-              if (sentenceWidth / 2 > maxHalfSentenceWidth) {
-                maxHalfSentenceWidth = sentenceWidth / 2;
-              }
-            }
-          }
-
-          const minHalfCol = isA5 ? 18 : 24;
-          const textPadding = isA5 ? 3.0 : 3.8;
-          let centerColHalfWidth = Math.max(minHalfCol, maxHalfSentenceWidth + textPadding);
-
-          // Safety clamp against picture dots (guarantee at least 10mm clearance from picture dots)
-          const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
-          const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
-          const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 10), (rightPictureDotX - 10) - (pageWidth / 2));
-          centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
-
-          const leftSentenceDotX = (pageWidth / 2) - centerColHalfWidth;
-          const rightSentenceDotX = (pageWidth / 2) + centerColHalfWidth;
-          const activeSentenceBoxWidth = Math.max(20, (centerColHalfWidth - textPadding) * 2);
           const sentenceBoxX = (pageWidth - activeSentenceBoxWidth) / 2;
 
           for (let i = 0; i < count; i++) {
-            const centerBoxY = topStart + i * (boxHeight + boxGap);
+            const centerBoxY = itemY[i];
+            const currentItemH = itemHeights[i];
             const item = shuffledItems[i];
             if (item.sentence) {
               drawHighlightedCenteredSentence(
@@ -4398,15 +5757,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
                 sentenceBoxX,
                 centerBoxY,
                 activeSentenceBoxWidth,
-                boxHeight,
+                currentItemH,
                 sFontSize,
                 fontFamily
               );
             }
 
-            // Draw connector dot next to the sentence
+            // Draw connector dot next to the sentence (centered vertically with the actual sentence box)
             const textDotX = item.isRight ? rightSentenceDotX : leftSentenceDotX;
-            const textDotY = centerBoxY + boxHeight / 2;
+            const textDotY = centerBoxY + currentItemH / 2;
             doc.setFillColor(item.color[0], item.color[1], item.color[2]);
             doc.circle(textDotX, textDotY, dotRadius, 'F');
           }
@@ -4425,7 +5784,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
               if (targetShuffledIdx !== -1) {
                 const targetItem = shuffledItems[targetShuffledIdx];
                 const targetTextDotX = targetItem.isRight ? rightSentenceDotX : leftSentenceDotX;
-                const targetTextDotY = topStart + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                const targetTextDotY = itemY[targetShuffledIdx] + itemHeights[targetShuffledIdx] / 2;
                 doc.setDrawColor(220, 38, 38);
                 doc.setLineWidth(0.45);
                 doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
@@ -4433,35 +5792,18 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             }
           }
         } else {
-          applyFont(doc, fontFamily, 'normal');
-          doc.setFontSize(fontSize);
-
-          // Dynamic column width calculation based on font & font size
-          const maxHalfWordWidth = Math.max(...pageWords.map((w) => doc.getTextWidth(w.term) / 2));
-          const minHalfCol = isA5 ? 20 : 25;
-          const textPadding = isA5 ? 3.0 : 3.8;
-          let centerColHalfWidth = Math.max(minHalfCol, maxHalfWordWidth + textPadding);
-
-          // Safety clamp against picture dots
-          const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
-          const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
-          const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 6), (rightPictureDotX - 6) - (pageWidth / 2));
-          centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
-
-          const leftTextDotX = (pageWidth / 2) - centerColHalfWidth;
-          const rightTextDotX = (pageWidth / 2) + centerColHalfWidth;
-
           for (let i = 0; i < count; i++) {
-            const centerBoxY = topStart + i * (boxHeight + boxGap);
+            const centerBoxY = itemY[i];
+            const currentItemH = itemHeights[i];
             const item = shuffledItems[i];
 
             // Draw centered word
             doc.setTextColor(30, 41, 59);
-            doc.text(item.term, pageWidth / 2, centerBoxY + boxHeight / 2 + (isA5 ? 0.9 : 1.2), { align: 'center' });
+            doc.text(item.term, pageWidth / 2, centerBoxY + currentItemH / 2 + (isA5 ? 0.9 : 1.2), { align: 'center' });
 
             // Draw connector dot next to the word
             const textDotX = item.isRight ? rightTextDotX : leftTextDotX;
-            const textDotY = centerBoxY + boxHeight / 2;
+            const textDotY = centerBoxY + currentItemH / 2;
             doc.setFillColor(item.color[0], item.color[1], item.color[2]);
             doc.circle(textDotX, textDotY, dotRadius, 'F');
           }
@@ -4480,7 +5822,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
               if (targetShuffledIdx !== -1) {
                 const targetItem = shuffledItems[targetShuffledIdx];
                 const targetTextDotX = targetItem.isRight ? rightTextDotX : leftTextDotX;
-                const targetTextDotY = topStart + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                const targetTextDotY = itemY[targetShuffledIdx] + itemHeights[targetShuffledIdx] / 2;
                 doc.setDrawColor(220, 38, 38);
                 doc.setLineWidth(0.45);
                 doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
@@ -4828,16 +6170,17 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const img = wordImages[i];
 
         // 2 or 3 options (1 correct, 1 or 2 distractors)
+        const itemPrng = createMulberry32(hashStringToSeed(`${currentWord}_${i}_choice`));
         const otherTerms = allTerms.filter((t) => t.toLowerCase() !== currentWord.toLowerCase());
-        let distractors: string[] = (shuffleArray(otherTerms) as string[]).slice(0, numDistractors);
+        let distractors: string[] = (shuffleArray(otherTerms, itemPrng) as string[]).slice(0, numDistractors);
         if (distractors.length < numDistractors) {
           const fallbacks = ['apple', 'banana', 'cat', 'dog', 'sun', 'star', 'tree', 'book', 'ball', 'fish'];
           const extra = fallbacks.filter(
             (t) => t.toLowerCase() !== currentWord.toLowerCase() && !distractors.some((d) => d.toLowerCase() === t.toLowerCase())
           );
-          distractors = [...distractors, ...(shuffleArray(extra) as string[])].slice(0, numDistractors);
+          distractors = [...distractors, ...(shuffleArray(extra, itemPrng) as string[])].slice(0, numDistractors);
         }
-        const optionsList: string[] = shuffleArray([currentWord, ...distractors]) as string[];
+        const optionsList: string[] = shuffleArray([currentWord, ...distractors], itemPrng) as string[];
 
         // Draw picture on left (vertically centered relative to content)
         const imgX = startX + 1.5;
@@ -5252,6 +6595,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const { maxImgDim, sFontSize, gapImgToSentence, gapSentenceToYesNo, circleRadius, rowGap, baseRowHeight } = metrics;
     const circleSpacing = isA5 ? 15 : 20;
 
+    // Deterministic yet unpredictable Yes/No answer distribution synchronized via type9Seed
+    const yesNoDistribution = generateType9YesNoDistribution(validWords.length, options.type9Seed);
+
     // Pre-calculate parsed sentence spans and measured heights for each word
     const parsedWords = validWords.map((w) => {
       const spans = parseHighlightedSentence(w.exampleSentence, w.term);
@@ -5313,11 +6659,11 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
           );
           let distractorImg: string | null = null;
           if (otherImages.length > 0) {
-            const distractorIdx = (globalIdx * 7 + 3) % otherImages.length;
+            const distractorIdx = Math.abs(hashStringToSeed(`${options.type9Seed || 'type9'}_${globalIdx}`) % otherImages.length);
             distractorImg = otherImages[distractorIdx].img;
           }
 
-          let isYes = (globalIdx % 3 !== 1);
+          let isYes = yesNoDistribution[globalIdx] !== undefined ? yesNoDistribution[globalIdx] : (globalIdx % 2 === 0);
           if (!distractorImg && !isYes) {
             isYes = true;
           }
@@ -5793,13 +7139,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         if (isAnsMode) {
           if (currentWord.exampleSentence && currentWord.exampleSentence.trim().length > 0) {
             const spans = parseHighlightedSentence(currentWord.exampleSentence, currentWord.term);
-            drawType15SentenceLine(
+            drawHighlightedCenteredSentence(
               doc,
               spans,
-              null,
               cardX,
-              cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2,
+              cardY + imgBoxHeight,
               cardWidth,
+              sentenceBoxHeight,
               sFontSize,
               activeFont
             );
@@ -5828,14 +7174,16 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             );
           } else {
             const blankedTerm = formatLookAndWriteTerm(currentWord.term);
-            applyFont(doc, activeFont, 'normal');
-            doc.setFontSize(sFontSize);
-            doc.setTextColor(30, 41, 59);
-            doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-              align: 'center',
-              maxWidth: cardWidth - 4
-            });
-            doc.setTextColor(0, 0, 0);
+            drawLookAndWriteSentence(
+              doc,
+              blankedTerm,
+              cardX,
+              cardY + imgBoxHeight,
+              cardWidth,
+              sentenceBoxHeight,
+              sFontSize,
+              activeFont
+            );
           }
         }
       }
@@ -5894,8 +7242,15 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       const endIdx = Math.min((page + 1) * wordsPerPage, validWords.length);
       const pageWords = validWords.slice(startIdx, endIdx);
 
+      // Compute deterministic page seed for Wordsearch
+      const pageSeed = typeof options.wordsearchSeed === 'number'
+        ? (options.wordsearchSeed + page * 997) >>> 0
+        : typeof options.wordsearchSeed === 'string'
+        ? hashStringToSeed(`${options.wordsearchSeed}_p${page}`)
+        : undefined;
+
       // 2. Generate Wordsearch Puzzle
-      const puzzle = generateWordsearchPuzzle(pageWords, directions, gridSizePref, wordsearchCase);
+      const puzzle = generateWordsearchPuzzle(pageWords, directions, gridSizePref, wordsearchCase, pageSeed);
       const { grid, placedWords } = puzzle;
       const cols = grid[0].length;
       const rows = grid.length;
@@ -6107,7 +7462,8 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const borderStyle = options.type15Border || 'full';
     const choiceMode = options.type15ChoiceMode || 'ab';
 
-    const sentenceAreaH = effectiveFontSize * 0.352778 + (isA5 ? 4.5 : 5.5);
+    const isDialoguePresent = validWords.some((w) => splitHighlightedSpansDialogueSegments(getType15SentenceSpans(w)).length > 1);
+    const sentenceAreaH = (effectiveFontSize * 0.352778 * (isDialoguePresent ? 2.1 : 1.0)) + (isA5 ? 4.5 : 5.5);
     const imgBoxHeight = Math.max(imgSize + (isA5 ? 4.0 : 6.0), isA5 ? 18.0 : 22.0);
     const bottomAreaH = choiceMode === 'ab'
       ? Math.max(effectiveFontSize * 0.352778 + 3.0, isA5 ? 6.5 : 8.0)
@@ -6129,6 +7485,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const wordsWithImages = validWords
       .map((w, idx) => ({ word: w, img: wordImages[idx] }))
       .filter((item) => item.img !== null);
+
+    const type15Layouts = generateType15RandomLayout(validWords.length, options.type15Seed);
+    let lastDistractorTerm = '';
 
     for (let page = 0; page < totalPages; page++) {
       if (page > 0) doc.addPage();
@@ -6158,18 +7517,31 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         const targetImg = wordImages[i];
         const sentence = getType15Sentence(currentWord);
 
-        // Find distractor image from other words
+        const itemLayout = type15Layouts[i] || {
+          isTargetOnA: i % 2 === 0,
+          distractorStep: i * 7 + 3
+        };
+
+        // Find distractor image from other words (randomized & synchronized by type15Seed)
         const otherImages = wordsWithImages.filter(
           (item) => item.word.term.trim().toLowerCase() !== currentWord.term.trim().toLowerCase()
         );
         let distractorImg: string | null = null;
         if (otherImages.length > 0) {
-          const distractorIdx = (i * 7 + 3) % otherImages.length;
+          let distractorIdx = itemLayout.distractorStep % otherImages.length;
+          if (
+            otherImages.length >= 2 &&
+            lastDistractorTerm &&
+            otherImages[distractorIdx].word.term.trim().toLowerCase() === lastDistractorTerm
+          ) {
+            distractorIdx = (distractorIdx + 1) % otherImages.length;
+          }
+          lastDistractorTerm = otherImages[distractorIdx].word.term.trim().toLowerCase();
           distractorImg = otherImages[distractorIdx].img;
         }
 
-        // Balanced alternating 50-50 placement of target picture on 'a' or 'b'
-        const isTargetOnA = (i % 4 === 2 || i % 4 === 3);
+        // Seeded randomized & balanced ~50-50 placement of target picture on 'a' or 'b'
+        const isTargetOnA = itemLayout.isTargetOnA;
         const leftImg = isTargetOnA ? targetImg : distractorImg;
         const rightImg = isTargetOnA ? distractorImg : targetImg;
 
@@ -6695,7 +8067,10 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const outerBorder: Type18Border = options.type18Border || 'rounded';
     const circleStyle: Type18CircleStyle = options.type18CircleStyle || 'solid';
     const distractorCasing: Type18DistractorCasing = options.type18DistractorCasing || 'upper';
-    const highlightTarget: Type18HighlightTarget = options.type18HighlightTarget || 'none';
+    const isAnsMode = options.answerMode === 'answer' || options.type18HighlightTarget === 'answer_key';
+    const highlightTarget: Type18HighlightTarget = (options.answerMode === 'student')
+      ? 'none'
+      : (isAnsMode ? 'answer_key' : (options.type18HighlightTarget || 'none'));
 
     const effectiveFontSize = fontSize || (isA5 ? 16 : 20);
     const effectiveSpacing = spacing !== undefined ? spacing : 0;
@@ -6810,12 +8185,276 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
         }
       }
     }
+  } else if (type === 19) {
+    // -------------------------------------------------------------
+    // TYPE 19: Vocabulary Maze Puzzle (Mê cung từ vựng - SGK Style)
+    // -------------------------------------------------------------
+    const mazeMode: Type19MazeMode = options.type19MazeMode || 'single_goal';
+    const wallColor: Type19WallColor = options.type19WallColor || (mazeMode === 'multi_exit' ? 'orange' : 'black_white');
+    const entranceCharacter: Type19EntranceCharacter = options.type19EntranceCharacter || (mazeMode === 'multi_exit' ? 'girl' : 'boy');
+    const targetItem: Type19TargetItem = options.type19TargetItem || 'box';
+    const sentenceStem: string = options.type19SentenceStem || "There's a _____.";
+    const cornerStyle: Type19CornerStyle = options.type19CornerStyle || 'rounded';
+    const wallThickness: Type19WallThickness = options.type19WallThickness || 'medium';
+    const isAnswerMode = options.answerMode === 'answer' || (options as any).isAnswerKey === true;
+
+    const effectiveFontSize = fontSize || (isA5 ? 12 : 14);
+    const effectiveSpacing = spacing !== undefined ? spacing : 0;
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+    const wordsPerMaze = mazeMode === 'multi_exit' ? 4 : 8;
+    const totalPages = Math.max(1, Math.ceil(validWords.length / wordsPerMaze));
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) doc.addPage();
+      await insertBackground(doc, background, isA5);
+
+      let currentY = margin + 4;
+
+      if (showHeader && title) {
+        doc.setFont('fff', 'bold');
+        doc.setFontSize(isA5 ? 15 : 20);
+        doc.setTextColor(30, 41, 59);
+        doc.text(title, margin, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += isA5 ? 12 : 16;
+      }
+
+      currentY += (effectiveSpacing * 0.352778);
+
+      const pageWords = validWords.slice(page * wordsPerMaze, (page + 1) * wordsPerMaze);
+      const chosenWords = pageWords.length > 0 ? pageWords : validWords;
+      const primaryWords = options.type19PrimaryWords || chosenWords.filter(w => w.deckRole !== 'review');
+      const reviewWords = options.type19ReviewWords || chosenWords.filter(w => w.deckRole === 'review');
+
+      const puzzle = generateMazePuzzle({
+        mode: mazeMode,
+        words: chosenWords,
+        primaryWords: primaryWords.length > 0 ? primaryWords : chosenWords,
+        reviewWords,
+        seed: `${options.type19MazeSeed || 42}_page_${page}`,
+        targetItem,
+        entranceCharacter
+      });
+
+      const metrics = calculateType19MazeMetrics(isA5, printableWidth, mazeMode);
+      const availableH = pageHeight - margin - currentY - (showFooter ? 10 : 4);
+      const renderHeight = Math.min(metrics.cardHeight, availableH);
+
+      await drawType19Maze(
+        doc,
+        margin,
+        currentY,
+        printableWidth,
+        renderHeight,
+        puzzle,
+        {
+          mazeMode,
+          wallColor,
+          entranceCharacter,
+          targetItem,
+          sentenceStem,
+          cornerStyle,
+          wallThickness,
+          answerMode: isAnswerMode ? 'answer' : 'student',
+          isA5,
+          fontFamily: activeFont,
+          fontSize: effectiveFontSize,
+          fetchImageBase64: fetchImageAsBase64
+        }
+      );
+
+      if (showFooter) {
+        doc.setFont('fff', 'normal');
+        doc.setFontSize(isA5 ? 8 : 10);
+        if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        if (totalPages > 1) {
+          doc.text(`${page + 1}`, pageWidth - margin, pageHeight - margin + 3);
+        }
+      }
+    }
+  } else if (type === 20) {
+    // -------------------------------------------------------------
+    // TYPE 20: Criss-Cross Puzzle (Ô chữ giao nhau - SGK Style)
+    // -------------------------------------------------------------
+    const gridMode: Type20GridMode = options.type20GridMode || 'connected';
+    const hintMode: Type20HintMode = options.type20HintMode || 'all_blank';
+    const gridBorder: Type20GridBorder = options.type20GridBorder || 'full';
+    const lineStyle: Type20LineStyle = options.type20LineStyle || 'solid';
+    const borderColor: Type20BorderColor = options.type20BorderColor || 'orange';
+    const puzzlesPerPagePref: Type20PuzzlesPerPage = options.type20PuzzlesPerPage || (isA5 ? 2 : 3);
+    const casing: Type20Casing = options.type20Casing || 'upper';
+    const showClueImage = options.type20ShowClueImage !== false;
+    const showClueNumber = options.type20ShowClueNumber !== false;
+    const showClueText = options.type20ShowClueText !== false;
+    const hollowArrows = options.type20HollowArrows !== false;
+    const showTrace = options.type20ShowTrace || false;
+    const isAnswerMode = options.answerMode === 'answer' || (options as any).isAnswerKey === true;
+
+    const effectiveFontSize = fontSize || (isA5 ? 12 : 14);
+    const effectiveSpacing = spacing !== undefined ? spacing : 0;
+    const activeFont = (options.fontFamily || 'r0c0i Linotte') as string;
+
+    const wordImagesMap = new Map<string, string | null>();
+    validWords.forEach((w, idx) => {
+      if (w.imageUrl) wordImagesMap.set(w.imageUrl, wordImages[idx] || null);
+    });
+
+    if (gridMode === 'connected') {
+      const type20Seed = (options as any).type20Seed || hashStringToSeed(validWords.map(w => w.term).join('_'));
+      const crosswordLayout = generateConnectedCrossword(validWords, { showClueNumber, maxAttempts: 120, seed: type20Seed });
+      if (crosswordLayout && crosswordLayout.placedWords.length >= 2) {
+        await insertBackground(doc, background, isA5);
+
+        let currentY = margin + 4;
+        if (showHeader && title) {
+          doc.setFont('fff', 'bold');
+          doc.setFontSize(isA5 ? 15 : 20);
+          doc.setTextColor(30, 41, 59);
+          doc.text(title, margin, currentY);
+          doc.setTextColor(0, 0, 0);
+          currentY += isA5 ? 6 : 8;
+        }
+
+        currentY += (effectiveSpacing * 0.352778);
+        const availableH = pageHeight - margin - currentY - (showFooter ? 10 : 4);
+
+        drawConnectedCrosswordGrid(
+          doc,
+          crosswordLayout,
+          margin,
+          currentY,
+          printableWidth,
+          availableH,
+          {
+            gridBorder,
+            lineStyle,
+            borderColor,
+            casing,
+            showClueNumber,
+            showClueImage,
+            showClueText,
+            hollowArrows,
+            showTrace,
+            hintMode,
+            isAnswerMode,
+            activeFont,
+            fontSize: effectiveFontSize,
+            isA5,
+            wordImagesMap,
+            clueColumns: options.type20ClueColumns
+          }
+        );
+
+        if (showFooter) {
+          doc.setFont('fff', 'normal');
+          doc.setFontSize(isA5 ? 8 : 10);
+          if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        }
+        return doc;
+      }
+    }
+
+    // Fallback or explicit 'pairs' mode:
+    const pairs = findCrissCrossPairs(validWords);
+    const numPuzzlesPerPage = puzzlesPerPagePref === 'auto' ? (isA5 ? 2 : 3) : Number(puzzlesPerPagePref);
+    const totalPages = Math.max(1, Math.ceil(pairs.length / numPuzzlesPerPage));
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) doc.addPage();
+      await insertBackground(doc, background, isA5);
+
+      let currentY = margin + 4;
+
+      if (showHeader && title) {
+        doc.setFont('fff', 'bold');
+        doc.setFontSize(isA5 ? 15 : 20);
+        doc.setTextColor(30, 41, 59);
+        doc.text(title, margin, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += isA5 ? 12 : 16;
+      }
+
+      currentY += (effectiveSpacing * 0.352778);
+
+      const pagePairs = pairs.slice(page * numPuzzlesPerPage, (page + 1) * numPuzzlesPerPage);
+      const availableH = pageHeight - margin - currentY - (showFooter ? 10 : 4);
+      const slotHeight = availableH / Math.max(1, pagePairs.length);
+
+      for (let pIdx = 0; pIdx < pagePairs.length; pIdx++) {
+        const pair = pagePairs[pIdx];
+        const globalPairIndex = page * numPuzzlesPerPage + pIdx;
+        const slotY = currentY + pIdx * slotHeight;
+
+        drawCrissCrossPair(
+          doc,
+          pair,
+          globalPairIndex,
+          margin,
+          slotY,
+          printableWidth,
+          slotHeight,
+          {
+            hintMode,
+            gridBorder,
+            lineStyle,
+            borderColor,
+            casing,
+            showClueImage,
+            showClueNumber,
+            showClueText,
+            showTrace,
+            isAnswerMode,
+            activeFont,
+            fontSize: effectiveFontSize,
+            isA5,
+            wordImagesMap
+          }
+        );
+      }
+
+      if (showFooter) {
+        doc.setFont('fff', 'normal');
+        doc.setFontSize(isA5 ? 8 : 10);
+        if (sourceUrl) doc.text(`Learn: ${sourceUrl}`, pageWidth / 2, pageHeight - margin + 3, { align: 'center' });
+        if (totalPages > 1) {
+          doc.text(`${page + 1}`, pageWidth - margin, pageHeight - margin + 3);
+        }
+      }
+    }
   }
 
   return doc;
 }
 
 export async function generateCompositeWorksheetPDF(config: CompositeWorksheetConfig): Promise<jsPDF> {
+  if (config.answerMode === 'both') {
+    const studentSections = (config.sections || []).map((sec) => ({
+      ...sec,
+      answerMode: 'student' as const,
+      ...(sec.type === 17 ? { type17HighlightTarget: 'none' as const } : {}),
+      ...(sec.type === 18 ? { type18HighlightTarget: 'none' as const } : {})
+    }));
+    const answerSections = (config.sections || []).map((sec) => ({
+      ...sec,
+      answerMode: 'answer' as const,
+      ...(sec.type === 17 ? { type17HighlightTarget: 'red' as const } : {}),
+      ...(sec.type === 18 ? { type18HighlightTarget: 'answer_key' as const } : {})
+    }));
+
+    const docStudent = await generateCompositeWorksheetPDF({
+      ...config,
+      answerMode: 'student',
+      sections: studentSections
+    });
+    const docAnswer = await generateCompositeWorksheetPDF({
+      ...config,
+      answerMode: 'answer',
+      sections: answerSections
+    });
+    return await mergeJsPdfDocuments(docStudent, docAnswer);
+  }
+
   const {
     title,
     paperSize = 'a5',
@@ -6829,9 +8468,23 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
     showImageBorder = false,
     showTableGrid = false,
     sourceUrl = 'https://yourhomework.net',
-    sections = [],
-    allWords = []
+    sections: rawSections = [],
+    allWords = [],
+    answerMode: globalAnswerMode
   } = config;
+
+  const sections = globalAnswerMode
+    ? rawSections.map((sec) => ({
+        ...sec,
+        answerMode: globalAnswerMode === 'answer' ? ('answer' as const) : ('student' as const),
+        ...(sec.type === 17
+          ? { type17HighlightTarget: globalAnswerMode === 'answer' ? ('red' as const) : ('none' as const) }
+          : {}),
+        ...(sec.type === 18
+          ? { type18HighlightTarget: globalAnswerMode === 'answer' ? ('answer_key' as const) : ('none' as const) }
+          : {})
+      }))
+    : rawSections;
 
   if (!sections || sections.length === 0) {
     throw new Error('Danh sách phần bài tập trống. Vui lòng thêm ít nhất 1 phần bài tập.');
@@ -7028,7 +8681,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       minUnitH = rowHeight;
     } else if (section.type === 12) {
       const imgBoxHeight = imgSize + 2.0;
-      const sentenceBoxHeight = isA5 ? 10.0 : 12.0;
+      const sentenceBoxHeight = Math.max(isA5 ? 10.0 : 12.0, (secFontSize * 0.352778 * 1.35 * 2) + 2.0);
       const cardHeight = imgBoxHeight + sentenceBoxHeight;
       const rowGap = (secSpacing === 0 ? 1.0 : 2.0) + (secSpacing !== undefined ? secSpacing : 0) * 0.35;
       rowHeight = cardHeight + rowGap;
@@ -7100,7 +8753,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       minUnitH = 2 * rowHeight + 4;
     } else if (section.type === 15) {
       const secFontSize = section.fontSize || globalFontSize || 12;
-      const secSentenceH = secFontSize * 0.352778 + (isA5 ? 4.5 : 5.5);
+      const isDialoguePresent = secWords.some((w) => splitHighlightedSpansDialogueSegments(getType15SentenceSpans(w)).length > 1);
+      const secSentenceH = (secFontSize * 0.352778 * (isDialoguePresent ? 2.1 : 1.0)) + (isA5 ? 4.5 : 5.5);
       const secImgBoxH = Math.max(imgSize + (isA5 ? 4.0 : 6.0), isA5 ? 18.0 : 22.0);
       const choiceMode = section.type15ChoiceMode || 'ab';
       const secBottomH = choiceMode === 'ab'
@@ -7158,6 +8812,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       );
       rowHeight = metrics.cardHeight;
       minUnitH = rowHeight + 4;
+    } else if (section.type === 19) {
+      const mazeMode: Type19MazeMode = section.type19MazeMode || 'single_goal';
+      const compositeCardHeight = isA5 ? (mazeMode === 'single_goal' ? 80 : 95) : (mazeMode === 'single_goal' ? 105 : 125);
+      rowHeight = compositeCardHeight;
+      minUnitH = compositeCardHeight + 4;
+    } else if (section.type === 20) {
+      const pairSlotH = isA5 ? 65 : 75;
+      rowHeight = pairSlotH;
+      minUnitH = pairSlotH + 4;
     }
 
     // Page break evaluation before section starts
@@ -7237,50 +8900,57 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           ? scrambleSentenceWords(targetSentence, separator)
           : targetSentence;
 
-        // Hint line preparation: strictly max 1 line for 'dots'
+        // Hint line preparation:
         let hintText = generateSentenceHint(targetSentence, hintStyle);
+        let dotsLines: string[] = [];
         if (hintStyle === 'dots') {
           const maxHintWidth = printableWidth - 4;
           applyFont(doc, secFont, 'normal');
           doc.setFontSize(effectiveSecFontSize);
-          const normalized = targetSentence.trim().replace(/\s+/g, ' ');
-          let dotCount = normalized.length;
-          hintText = Array(dotCount).fill('...').join('');
-          while (dotCount > 1 && doc.getTextWidth(hintText) > maxHintWidth) {
-            dotCount--;
-            hintText = Array(dotCount).fill('...').join('');
-          }
+          const dialogSegs = splitSentenceDialogueSegments(targetSentence);
+          dotsLines = dialogSegs.map((seg) => {
+            const normalized = seg.trim().replace(/\s+/g, ' ');
+            let dotCount = normalized.length;
+            let dText = Array(dotCount).fill('...').join('');
+            while (dotCount > 1 && doc.getTextWidth(dText) > maxHintWidth) {
+              dotCount--;
+              dText = Array(dotCount).fill('...').join('');
+            }
+            return dText;
+          });
         }
 
-        applyFont(doc, secFont, 'normal');
+        const wordsFont = section.sentenceWordsFont === 'Andika' ? 'Andika' : secFont;
+        applyFont(doc, wordsFont, 'normal');
         doc.setFontSize(effectiveSecFontSize);
         doc.setTextColor(30, 41, 59);
 
-        const wordsLines = doc.splitTextToSize(displayedText, printableWidth - 4);
+        const displayedSegments = isScramble ? [displayedText] : splitSentenceDialogueSegments(displayedText);
+        const wordsLines = displayedSegments.flatMap(seg => doc.splitTextToSize(seg, printableWidth - 4));
         const wordsLineCount = Math.max(1, Array.isArray(wordsLines) ? wordsLines.length : 1);
         const wordsLineHeight = effectiveSecFontSize * 0.352778 * 1.25;
 
         const wordsY = imgY + imgSize + gapImgToWords + (effectiveSecFontSize * 0.352778 * 0.85);
-        doc.text(displayedText, pageWidth / 2, wordsY, {
-          align: 'center',
-          maxWidth: printableWidth - 4
+        doc.text(wordsLines, pageWidth / 2, wordsY, {
+          align: 'center'
         });
 
         const wordsBottom = wordsY + (wordsLineCount - 1) * wordsLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         let actualHintBottom = wordsBottom;
 
         if (section.answerMode === 'answer') {
-          applyFont(doc, secFont, 'bold');
+          const ansFont = (section.sentenceWordsFont === 'Andika' || secFont === 'Andika') ? 'Andika' : secFont;
+          applyFont(doc, ansFont, 'bold');
           doc.setFontSize(effectiveSecFontSize);
           doc.setTextColor(220, 38, 38);
-          const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
-          doc.text(targetSentence, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: printableWidth - 4
-          });
-          const ansLines = doc.splitTextToSize(targetSentence, printableWidth - 4);
+          const dialogSegments = splitSentenceDialogueSegments(targetSentence);
+          const ansLines = dialogSegments.flatMap(seg => doc.splitTextToSize(seg, printableWidth - 4));
           const ansLineCount = Math.max(1, Array.isArray(ansLines) ? ansLines.length : 1);
           const ansLineHeight = effectiveSecFontSize * 0.352778 * 1.25;
+          const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
+          doc.text(ansLines, pageWidth / 2, hintY, {
+            align: 'center'
+          });
           actualHintBottom = hintY + (ansLineCount - 1) * ansLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         } else if (hintStyle === 'trace') {
           doc.setFont('KGPrimaryDots', 'normal');
@@ -7290,43 +8960,44 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
           // Auto-fit protection: iteratively decrease font size down to 14pt so it fits on 1 single continuous line for kids
           const maxHintW = printableWidth - 4;
-          while (doc.getTextWidth(hintText) > maxHintW && actualTraceFontSize > 14) {
+          const dialogSegments = splitSentenceDialogueSegments(hintText);
+          while (dialogSegments.some(seg => doc.getTextWidth(seg) > maxHintW) && actualTraceFontSize > 14) {
             actualTraceFontSize--;
             doc.setFontSize(actualTraceFontSize);
           }
 
-          const traceLines = doc.splitTextToSize(hintText, maxHintW);
+          const traceLines = dialogSegments.flatMap(seg => doc.splitTextToSize(seg, maxHintW));
           const traceLineCount = Math.max(1, Array.isArray(traceLines) ? traceLines.length : 1);
           const traceLineHeight = actualTraceFontSize * 0.352778 * 1.2;
 
           const hintY = wordsBottom + gapWordsToHint + (actualTraceFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: maxHintW
+          doc.text(traceLines, pageWidth / 2, hintY, {
+            align: 'center'
           });
           actualHintBottom = hintY + (traceLineCount - 1) * traceLineHeight + (actualTraceFontSize * 0.352778 * 0.35);
         } else if (hintStyle === 'dots') {
           applyFont(doc, secFont, 'normal');
           doc.setFontSize(effectiveSecFontSize);
           doc.setTextColor(51, 65, 85);
+          const dotsLineCount = Math.max(1, dotsLines.length);
+          const dotsLineHeight = effectiveSecFontSize * 0.352778 * 1.2;
           const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
+          doc.text(dotsLines, pageWidth / 2, hintY, {
             align: 'center'
           });
-          actualHintBottom = hintY + (effectiveSecFontSize * 0.352778 * 0.35);
+          actualHintBottom = hintY + (dotsLineCount - 1) * dotsLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         } else {
           // underscores
           applyFont(doc, secFont, 'normal');
           doc.setFontSize(effectiveSecFontSize);
           doc.setTextColor(51, 65, 85);
-          const hintLines = doc.splitTextToSize(hintText, printableWidth - 4);
-          const hintLineCount = Math.max(1, Array.isArray(hintLines) ? hintLines.length : 1);
+          const hintLines = splitSentenceHintToLines(doc, targetSentence, printableWidth - 4);
+          const hintLineCount = Math.max(1, hintLines.length);
           const hintLineHeight = effectiveSecFontSize * 0.352778 * 1.2;
 
           const hintY = wordsBottom + gapWordsToHint + (effectiveSecFontSize * 0.352778 * 0.85);
-          doc.text(hintText, pageWidth / 2, hintY, {
-            align: 'center',
-            maxWidth: printableWidth - 4
+          doc.text(hintLines, pageWidth / 2, hintY, {
+            align: 'center'
           });
           actualHintBottom = hintY + (hintLineCount - 1) * hintLineHeight + (effectiveSecFontSize * 0.352778 * 0.35);
         }
@@ -7711,24 +9382,25 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const numDistractors = numChoices - 1;
 
           // Distractor generation: section words -> master words -> fallbacks
+          const itemPrng = createMulberry32(hashStringToSeed(`${currentWord}_${idx}_sec_choice`));
           const otherSecTerms = secTerms.filter((t) => t.toLowerCase() !== currentWord.toLowerCase());
-          let distractors = shuffleArray(otherSecTerms).slice(0, numDistractors);
+          let distractors = shuffleArray(otherSecTerms, itemPrng).slice(0, numDistractors);
 
           if (distractors.length < numDistractors) {
             const extra = masterTerms.filter(
               (t) => t.toLowerCase() !== currentWord.toLowerCase() && !distractors.some((d) => d.toLowerCase() === t.toLowerCase())
             );
-            distractors = [...distractors, ...shuffleArray(extra)].slice(0, numDistractors);
+            distractors = [...distractors, ...shuffleArray(extra, itemPrng)].slice(0, numDistractors);
           }
 
           if (distractors.length < numDistractors) {
             const extraFallbacks = fallbackTerms.filter(
               (t) => t.toLowerCase() !== currentWord.toLowerCase() && !distractors.some((d) => d.toLowerCase() === t.toLowerCase())
             );
-            distractors = [...distractors, ...shuffleArray(extraFallbacks)].slice(0, numDistractors);
+            distractors = [...distractors, ...shuffleArray(extraFallbacks, itemPrng)].slice(0, numDistractors);
           }
 
-          const optionsList = shuffleArray([currentWord, ...distractors]);
+          const optionsList = shuffleArray([currentWord, ...distractors], itemPrng);
 
           if (isHorizontal) {
             // Horizontal layout for 2 choices (side-by-side next to image)
@@ -7952,13 +9624,16 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             };
           });
 
+          const secSeed = secWords.map((w) => w.term).join('_') + `_sec_${chunkIdx}`;
+          const type3CompPrng = createMulberry32(hashStringToSeed(secSeed));
+
           // Shuffle middle words relative to picture items so row i prefix is shuffled
-          let shuffledWordRows = shuffleArray([...rowItems]);
+          let shuffledWordRows = shuffleArray([...rowItems], type3CompPrng);
           if (count > 1) {
             let hasCollision = shuffledWordRows.some((item, i) => item.originalIndex === i);
             let attempts = 0;
             while (hasCollision && attempts < 10) {
-              shuffledWordRows = shuffleArray([...rowItems]);
+              shuffledWordRows = shuffleArray([...rowItems], type3CompPrng);
               hasCollision = shuffledWordRows.some((item, i) => item.originalIndex === i);
               attempts++;
             }
@@ -7967,12 +9642,12 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           // Suffix & Trace column items (Column 2 Suffix and Column 3 Trace/Write ALWAYS belong to the same word!)
           let suffixItems: { suffix: string; word: WorksheetWord; color: [number, number, number] }[];
           if (section.lookMatchWriteShuffleSuffix) {
-            let shuffledSuffixes = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })));
+            let shuffledSuffixes = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })), type3CompPrng);
             if (count > 1) {
               let collision = shuffledSuffixes.some((s, idx) => s.orig === shuffledWordRows[idx].originalIndex);
               let attempts = 0;
               while (collision && attempts < 15) {
-                const res = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })));
+                const res = shuffleArray(rowItems.map(item => ({ suffix: item.suffix, word: item.word, color: item.color, orig: item.originalIndex })), type3CompPrng);
                 if (!res.some((s, idx) => s.orig === shuffledWordRows[idx].originalIndex)) {
                   shuffledSuffixes = res;
                   break;
@@ -8168,11 +9843,139 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const chunk = chunks[chunkIdx];
           const count = chunk.length;
           const half = Math.ceil(count / 2);
-          const totalMiddleHeight = count * boxHeight + (count - 1) * boxGap;
+
+          // Prepare items for middle column keeping track of originalIndex, isRight, and dotColor
+          interface Type3ChunkMatchItem {
+            originalIndex: number;
+            isRight: boolean;
+            term: string;
+            color: [number, number, number];
+            sentence?: HighlightedSpan[];
+          }
+
+          const dotRadius = isA5 ? 0.6 : 0.75;
+          const dotImgOffset = isA5 ? 2.8 : 3.5;
+          const secHint = section.matchHint || 'none';
+
+          const matchItems: Type3ChunkMatchItem[] = chunk.map((w, idx) => {
+            const isRight = idx >= half;
+            return {
+              originalIndex: idx,
+              isRight,
+              term: w.term,
+              color: getType3DotColor(idx, isRight, secHint),
+              sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
+            };
+          });
+
+          const matchCompPrng = createMulberry32(hashStringToSeed(secWords.map((w) => w.term).join('_') + `_sec_match_${chunkIdx}`));
+          const shuffledItems = shuffleArray(matchItems, matchCompPrng);
+
+          // Dynamic measurement for middle items
+          const itemHeights: number[] = [];
+          let activeSentenceBoxWidth = boxWidth;
+          let leftSentenceDotX = 0;
+          let rightSentenceDotX = 0;
+          let leftTextDotX = 0;
+          let rightTextDotX = 0;
+          let sFontSize = secFontSize;
+
+          if (isSentence) {
+            sFontSize = secFontSize ? (isA5 ? Math.min(secFontSize, 11) : secFontSize) : (isA5 ? 10.5 : 12);
+            doc.setFontSize(sFontSize);
+
+            // Dynamic sentence width calculation based on font & font size
+            let maxHalfSentenceWidth = 14;
+            for (const item of shuffledItems) {
+              if (item.sentence) {
+                const segs = splitHighlightedSpansDialogueSegments(item.sentence);
+                for (const seg of segs) {
+                  let segWidth = 0;
+                  for (const span of seg) {
+                    applyFont(doc, secFont, span.isHighlighted ? 'bold' : 'normal');
+                    segWidth += doc.getTextWidth(span.text);
+                  }
+                  if (segWidth / 2 > maxHalfSentenceWidth) {
+                    maxHalfSentenceWidth = segWidth / 2;
+                  }
+                }
+              }
+            }
+
+            const minHalfCol = isA5 ? 18 : 24;
+            const textPadding = isA5 ? 3.0 : 3.8;
+            // Add 3.5mm extra margin so maxLineWidth (boxWidth - 3) inside measureHighlightedSentenceLines
+            // comfortably fits the longest dialogue segment without forcing the last word to wrap
+            let centerColHalfWidth = Math.max(minHalfCol, maxHalfSentenceWidth + textPadding + 3.5);
+
+            // Safety clamp against picture dots (guarantee at least 8mm clearance from picture dots)
+            const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
+            const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
+            const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 8), (rightPictureDotX - 8) - (pageWidth / 2));
+            centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
+
+            leftSentenceDotX = (pageWidth / 2) - centerColHalfWidth;
+            rightSentenceDotX = (pageWidth / 2) + centerColHalfWidth;
+            activeSentenceBoxWidth = Math.max(20, (centerColHalfWidth - textPadding) * 2);
+
+            for (let i = 0; i < count; i++) {
+              const item = shuffledItems[i];
+              if (item.sentence) {
+                const { totalHeight: mHeight } = measureHighlightedSentenceLines(
+                  doc,
+                  item.sentence,
+                  activeSentenceBoxWidth,
+                  sFontSize,
+                  secFont
+                );
+                const pad = isA5 ? 2.5 : 3.5;
+                itemHeights.push(Math.max(baseBoxHeight, mHeight + pad));
+              } else {
+                itemHeights.push(boxHeight);
+              }
+            }
+          } else {
+            applyFont(doc, secFont, 'normal');
+            doc.setFontSize(secFontSize);
+
+            const maxHalfWordWidth = Math.max(...chunk.map((w) => doc.getTextWidth(w.term) / 2));
+            const minHalfCol = isA5 ? 20 : 25;
+            const textPadding = isA5 ? 3.0 : 3.8;
+            let centerColHalfWidth = Math.max(minHalfCol, maxHalfWordWidth + textPadding);
+
+            // Safety clamp against picture dots
+            const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
+            const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
+            const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 6), (rightPictureDotX - 6) - (pageWidth / 2));
+            centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
+
+            leftTextDotX = (pageWidth / 2) - centerColHalfWidth;
+            rightTextDotX = (pageWidth / 2) + centerColHalfWidth;
+
+            for (let i = 0; i < count; i++) {
+              itemHeights.push(boxHeight);
+            }
+          }
+
+          // Calculate dynamic item Y positions and true totalMiddleHeight
+          let currentChunkMiddleH = 0;
+          for (let i = 0; i < count; i++) {
+            currentChunkMiddleH += itemHeights[i];
+          }
+          currentChunkMiddleH += (count - 1) * boxGap;
+
+          const totalMiddleHeight = Math.max(boxHeight, currentChunkMiddleH);
           const chunkHeight = Math.max(half * (imgSize + 3), totalMiddleHeight) + 4;
 
           if (currentY + chunkHeight > maxContentY && !isAtTopOfPage) {
             await addNewPage();
+          }
+
+          const itemY: number[] = [];
+          let currentItemY = currentY;
+          for (let i = 0; i < count; i++) {
+            itemY.push(currentItemY);
+            currentItemY += itemHeights[i] + boxGap;
           }
 
           const imgPitch = half > 1 ? Math.max(imgSize + 1, (totalMiddleHeight - imgSize) / (half - 1)) : 0;
@@ -8180,10 +9983,6 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           doc.setFontSize(secFontSize);
           doc.setDrawColor(60, 60, 60);
           doc.setLineWidth(0.2);
-
-          const dotRadius = isA5 ? 0.6 : 0.75;
-          const dotImgOffset = isA5 ? 2.8 : 3.5;
-          const secHint = section.matchHint || 'none';
 
           for (let i = 0; i < count; i++) {
             const isRight = i >= half;
@@ -8215,65 +10014,13 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
             doc.circle(imgDotX, imgCenterY, dotRadius, 'F');
           }
 
-          // Prepare items for middle column keeping track of originalIndex, isRight, and dotColor
-          interface Type3ChunkMatchItem {
-            originalIndex: number;
-            isRight: boolean;
-            term: string;
-            color: [number, number, number];
-            sentence?: HighlightedSpan[];
-          }
-
-          const matchItems: Type3ChunkMatchItem[] = chunk.map((w, idx) => {
-            const isRight = idx >= half;
-            return {
-              originalIndex: idx,
-              isRight,
-              term: w.term,
-              color: getType3DotColor(idx, isRight, secHint),
-              sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
-            };
-          });
-
-          const shuffledItems = shuffleArray(matchItems);
-
           // Shuffled words or sentences placed in the center (without any bounding boxes)
           if (isSentence) {
-            const sFontSize = secFontSize ? (isA5 ? Math.min(secFontSize, 11) : secFontSize) : (isA5 ? 10.5 : 12);
-            doc.setFontSize(sFontSize);
-
-            // Dynamic sentence width calculation based on font & font size
-            let maxHalfSentenceWidth = 14;
-            for (const item of shuffledItems) {
-              if (item.sentence) {
-                let sentenceWidth = 0;
-                for (const span of item.sentence) {
-                  applyFont(doc, secFont, span.isHighlighted ? 'bold' : 'normal');
-                  sentenceWidth += doc.getTextWidth(span.text);
-                }
-                if (sentenceWidth / 2 > maxHalfSentenceWidth) {
-                  maxHalfSentenceWidth = sentenceWidth / 2;
-                }
-              }
-            }
-
-            const minHalfCol = isA5 ? 18 : 24;
-            const textPadding = isA5 ? 3.0 : 3.8;
-            let centerColHalfWidth = Math.max(minHalfCol, maxHalfSentenceWidth + textPadding);
-
-            // Safety clamp against picture dots (guarantee at least 10mm clearance from picture dots)
-            const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
-            const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
-            const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 10), (rightPictureDotX - 10) - (pageWidth / 2));
-            centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
-
-            const leftSentenceDotX = (pageWidth / 2) - centerColHalfWidth;
-            const rightSentenceDotX = (pageWidth / 2) + centerColHalfWidth;
-            const activeSentenceBoxWidth = Math.max(20, (centerColHalfWidth - textPadding) * 2);
             const sentenceBoxX = (pageWidth - activeSentenceBoxWidth) / 2;
 
             for (let i = 0; i < count; i++) {
-              const centerBoxY = currentY + i * (boxHeight + boxGap);
+              const centerBoxY = itemY[i];
+              const currentItemH = itemHeights[i];
               const item = shuffledItems[i];
               if (item.sentence) {
                 drawHighlightedCenteredSentence(
@@ -8282,15 +10029,15 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
                   sentenceBoxX,
                   centerBoxY,
                   activeSentenceBoxWidth,
-                  boxHeight,
+                  currentItemH,
                   sFontSize,
                   secFont
                 );
               }
 
-              // Draw connector dot next to the sentence
+              // Draw connector dot next to the sentence (centered vertically with actual sentence box)
               const textDotX = item.isRight ? rightSentenceDotX : leftSentenceDotX;
-              const textDotY = centerBoxY + boxHeight / 2;
+              const textDotY = centerBoxY + currentItemH / 2;
               doc.setFillColor(item.color[0], item.color[1], item.color[2]);
               doc.circle(textDotX, textDotY, dotRadius, 'F');
             }
@@ -8309,7 +10056,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
                 if (targetShuffledIdx !== -1) {
                   const targetItem = shuffledItems[targetShuffledIdx];
                   const targetTextDotX = targetItem.isRight ? rightSentenceDotX : leftSentenceDotX;
-                  const targetTextDotY = currentY + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                  const targetTextDotY = itemY[targetShuffledIdx] + itemHeights[targetShuffledIdx] / 2;
                   doc.setDrawColor(220, 38, 38);
                   doc.setLineWidth(0.45);
                   doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
@@ -8317,35 +10064,18 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               }
             }
           } else {
-            applyFont(doc, secFont, 'normal');
-            doc.setFontSize(secFontSize);
-
-            // Dynamic column width calculation based on font & font size
-            const maxHalfWordWidth = Math.max(...chunk.map((w) => doc.getTextWidth(w.term) / 2));
-            const minHalfCol = isA5 ? 20 : 25;
-            const textPadding = isA5 ? 3.0 : 3.8;
-            let centerColHalfWidth = Math.max(minHalfCol, maxHalfWordWidth + textPadding);
-
-            // Safety clamp against picture dots
-            const leftPictureDotX = margin + 2 + imgSize + dotImgOffset;
-            const rightPictureDotX = (pageWidth - margin - imgSize - 2) - dotImgOffset;
-            const maxSafeHalfWidth = Math.min((pageWidth / 2) - (leftPictureDotX + 6), (rightPictureDotX - 6) - (pageWidth / 2));
-            centerColHalfWidth = Math.min(centerColHalfWidth, maxSafeHalfWidth);
-
-            const leftTextDotX = (pageWidth / 2) - centerColHalfWidth;
-            const rightTextDotX = (pageWidth / 2) + centerColHalfWidth;
-
             for (let i = 0; i < count; i++) {
-              const centerBoxY = currentY + i * (boxHeight + boxGap);
+              const centerBoxY = itemY[i];
+              const currentItemH = itemHeights[i];
               const item = shuffledItems[i];
 
               // Draw centered word
               doc.setTextColor(30, 41, 59);
-              doc.text(item.term, pageWidth / 2, centerBoxY + boxHeight / 2 + (isA5 ? 0.9 : 1.2), { align: 'center' });
+              doc.text(item.term, pageWidth / 2, centerBoxY + currentItemH / 2 + (isA5 ? 0.9 : 1.2), { align: 'center' });
 
               // Draw connector dot next to the word
               const textDotX = item.isRight ? rightTextDotX : leftTextDotX;
-              const textDotY = centerBoxY + boxHeight / 2;
+              const textDotY = centerBoxY + currentItemH / 2;
               doc.setFillColor(item.color[0], item.color[1], item.color[2]);
               doc.circle(textDotX, textDotY, dotRadius, 'F');
             }
@@ -8364,7 +10094,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
                 if (targetShuffledIdx !== -1) {
                   const targetItem = shuffledItems[targetShuffledIdx];
                   const targetTextDotX = targetItem.isRight ? rightTextDotX : leftTextDotX;
-                  const targetTextDotY = currentY + targetShuffledIdx * (boxHeight + boxGap) + boxHeight / 2;
+                  const targetTextDotY = itemY[targetShuffledIdx] + itemHeights[targetShuffledIdx] / 2;
                   doc.setDrawColor(220, 38, 38);
                   doc.setLineWidth(0.45);
                   doc.line(imgDotX, imgCenterY, targetTextDotX, targetTextDotY);
@@ -8501,6 +10231,9 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const { maxImgDim, sFontSize, gapImgToSentence, gapSentenceToYesNo, circleRadius, rowGap } = secMetrics;
       const circleSpacing = isA5 ? 15 : 20;
 
+      // Deterministic yet unpredictable Yes/No answer distribution synchronized via type9Seed
+      const secYesNoDistribution = generateType9YesNoDistribution(secWords.length, section.type9Seed);
+
       // Pre-calculate spans and heights for each word in this section
       const parsedSecWords = secWords.map((w) => {
         const spans = parseHighlightedSentence(w.exampleSentence, w.term);
@@ -8541,12 +10274,12 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           );
           let distractorImg: string | null = null;
           if (otherPool.length > 0) {
-            const distractorIdx = (idx * 7 + 3) % otherPool.length;
+            const distractorIdx = Math.abs(hashStringToSeed(`${section.type9Seed || 'type9'}_${idx}`) % otherPool.length);
             distractorImg = await fetchImageAsBase64(otherPool[distractorIdx].imageUrl!);
           }
 
-          // Deterministic Yes/No pattern
-          let isYes = (idx % 3 !== 1);
+          // Deterministic Yes/No pattern synchronized with Answer mode
+          let isYes = secYesNoDistribution[idx] !== undefined ? secYesNoDistribution[idx] : (idx % 2 === 0);
           if (!distractorImg && !isYes) {
             isYes = true;
           }
@@ -8926,13 +10659,13 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           if (isAnsMode) {
             if (word.exampleSentence && word.exampleSentence.trim().length > 0) {
               const spans = parseHighlightedSentence(word.exampleSentence, word.term);
-              drawType15SentenceLine(
+              drawHighlightedCenteredSentence(
                 doc,
                 spans,
-                null,
                 cardX,
-                cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2,
+                cardY + imgBoxHeight,
                 cardWidth,
+                sentenceBoxHeight,
                 sFontSize,
                 secFont
               );
@@ -8961,14 +10694,16 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               );
             } else {
               const blankedTerm = formatLookAndWriteTerm(word.term);
-              applyFont(doc, secFont, 'normal');
-              doc.setFontSize(sFontSize);
-              doc.setTextColor(30, 41, 59);
-              doc.text(blankedTerm, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-                align: 'center',
-                maxWidth: cardWidth - 4
-              });
-              doc.setTextColor(0, 0, 0);
+              drawLookAndWriteSentence(
+                doc,
+                blankedTerm,
+                cardX,
+                cardY + imgBoxHeight,
+                cardWidth,
+                sentenceBoxHeight,
+                sFontSize,
+                secFont
+              );
             }
           }
         }
@@ -8987,7 +10722,13 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const gridBorder = section.wordsearchGridBorder || 'none';
       const wordsearchCase = section.wordsearchCase || 'lower';
 
-      const puzzle = generateWordsearchPuzzle(secWords, directions, gridSizePref, wordsearchCase);
+      const secSeed = typeof section.wordsearchSeed === 'number'
+        ? section.wordsearchSeed
+        : typeof section.wordsearchSeed === 'string'
+        ? hashStringToSeed(section.wordsearchSeed)
+        : undefined;
+
+      const puzzle = generateWordsearchPuzzle(secWords, directions, gridSizePref, wordsearchCase, secSeed);
       const { grid, placedWords } = puzzle;
       const cols = grid[0].length;
       const rows = grid.length;
@@ -9159,7 +10900,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const borderStyle = section.type15Border || 'full';
       const choiceMode = section.type15ChoiceMode || 'ab';
 
-      const secSentenceH = secFontSize * 0.352778 + (isA5 ? 4.5 : 5.5);
+      const isDialoguePresent = secWords.some((w) => splitHighlightedSpansDialogueSegments(getType15SentenceSpans(w)).length > 1);
+      const secSentenceH = (secFontSize * 0.352778 * (isDialoguePresent ? 2.1 : 1.0)) + (isA5 ? 4.5 : 5.5);
       const secImgBoxH = Math.max(imgSize + (isA5 ? 4.0 : 6.0), isA5 ? 18.0 : 22.0);
       const secBottomH = choiceMode === 'ab'
         ? Math.max(secFontSize * 0.352778 + 3.0, isA5 ? 6.5 : 8.0)
@@ -9173,6 +10915,8 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
       const totalRows = Math.ceil(secWords.length / cols);
       const poolWithImages = masterWordPool.filter((w) => w.imageUrl && w.imageUrl.trim().length > 0);
+      const type15Layouts = generateType15RandomLayout(secWords.length, section.type15Seed);
+      let lastDistractorTerm = '';
 
       for (let r = 0; r < totalRows; r++) {
         if (!isAtTopOfPage && currentY + rowHeight > maxContentY) {
@@ -9189,6 +10933,11 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           const currentWord = secWords[i];
           const sentence = getType15Sentence(currentWord);
 
+          const itemLayout = type15Layouts[i] || {
+            isTargetOnA: i % 2 === 0,
+            distractorStep: i * 7 + 3
+          };
+
           const targetImg = currentWord.imageUrl ? await fetchImageAsBase64(currentWord.imageUrl) : null;
 
           const otherPool = poolWithImages.filter(
@@ -9196,11 +10945,19 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           );
           let distractorImg: string | null = null;
           if (otherPool.length > 0) {
-            const distractorIdx = (i * 7 + 3) % otherPool.length;
+            let distractorIdx = itemLayout.distractorStep % otherPool.length;
+            if (
+              otherPool.length >= 2 &&
+              lastDistractorTerm &&
+              otherPool[distractorIdx].term.trim().toLowerCase() === lastDistractorTerm
+            ) {
+              distractorIdx = (distractorIdx + 1) % otherPool.length;
+            }
+            lastDistractorTerm = otherPool[distractorIdx].term.trim().toLowerCase();
             distractorImg = await fetchImageAsBase64(otherPool[distractorIdx].imageUrl!);
           }
 
-          const isTargetOnA = (i % 4 === 2 || i % 4 === 3);
+          const isTargetOnA = itemLayout.isTargetOnA;
           const leftImg = isTargetOnA ? targetImg : distractorImg;
           const rightImg = isTargetOnA ? distractorImg : targetImg;
 
@@ -9654,7 +11411,10 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const outerBorder: Type18Border = section.type18Border || 'rounded';
       const circleStyle: Type18CircleStyle = section.type18CircleStyle || 'solid';
       const distractorCasing: Type18DistractorCasing = section.type18DistractorCasing || 'upper';
-      const highlightTarget: Type18HighlightTarget = section.type18HighlightTarget || 'none';
+      const isAnsMode = section.answerMode === 'answer' || section.type18HighlightTarget === 'answer_key' || globalAnswerMode === 'answer';
+      const highlightTarget: Type18HighlightTarget = (section.answerMode === 'student')
+        ? 'none'
+        : (isAnsMode ? 'answer_key' : (section.type18HighlightTarget || 'none'));
 
       const metrics = calculateType18Metrics(
         secFontSize,
@@ -9699,6 +11459,215 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
       currentY += metrics.cardHeight;
       isAtTopOfPage = false;
+    } else if (section.type === 19) {
+      // -------------------------------------------------------------
+      // TYPE 19: Vocabulary Maze Puzzle in Composite Mode
+      // -------------------------------------------------------------
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 12 : 14);
+      const secSpacing = section.spacing !== undefined ? section.spacing : (globalSpacing !== undefined ? globalSpacing : 0);
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
+
+      const mazeMode: Type19MazeMode = section.type19MazeMode || 'single_goal';
+      const wallColor: Type19WallColor = section.type19WallColor || (mazeMode === 'multi_exit' ? 'orange' : 'black_white');
+      const entranceCharacter: Type19EntranceCharacter = section.type19EntranceCharacter || (mazeMode === 'multi_exit' ? 'girl' : 'boy');
+      const targetItem: Type19TargetItem = section.type19TargetItem || 'box';
+      const sentenceStem: string = section.type19SentenceStem || "There's a _____.";
+      const cornerStyle: Type19CornerStyle = section.type19CornerStyle || 'rounded';
+      const wallThickness: Type19WallThickness = section.type19WallThickness || 'medium';
+      const isAnsMode = section.answerMode === 'answer';
+
+      const primaryWords = secWords.filter(w => w.deckRole !== 'review');
+      const reviewWords = secWords.filter(w => w.deckRole === 'review');
+
+      const puzzle = generateMazePuzzle({
+        mode: mazeMode,
+        words: secWords,
+        primaryWords: primaryWords.length > 0 ? primaryWords : secWords,
+        reviewWords,
+        seed: section.type19MazeSeed || 42,
+        targetItem,
+        entranceCharacter
+      });
+
+      const compositeCardHeight = isA5 ? (mazeMode === 'single_goal' ? 80 : 95) : (mazeMode === 'single_goal' ? 105 : 125);
+
+      if (!isAtTopOfPage && currentY + compositeCardHeight > maxContentY) {
+        await addNewPage();
+      }
+
+      await drawType19Maze(
+        doc,
+        margin,
+        currentY,
+        printableWidth,
+        compositeCardHeight,
+        puzzle,
+        {
+          mazeMode,
+          wallColor,
+          entranceCharacter,
+          targetItem,
+          sentenceStem,
+          cornerStyle,
+          wallThickness,
+          answerMode: isAnsMode ? 'answer' : 'student',
+          isA5,
+          fontFamily: secFont,
+          fontSize: secFontSize,
+          fetchImageBase64: fetchImageAsBase64
+        }
+      );
+
+      currentY += compositeCardHeight;
+      isAtTopOfPage = false;
+    } else if (section.type === 20) {
+      // -------------------------------------------------------------
+      // TYPE 20: Criss-Cross Words in Composite Mode
+      // -------------------------------------------------------------
+      const secFontSize = section.fontSize || globalFontSize || (isA5 ? 12 : 14);
+      const secSpacing = section.spacing !== undefined ? section.spacing : (globalSpacing !== undefined ? globalSpacing : 0);
+      const secFont = (section.fontFamily || fontFamily || 'r0c0i Linotte') as string;
+
+      const gridMode: Type20GridMode = section.type20GridMode || (secWords.length >= 4 ? 'connected' : 'pairs');
+      const hintMode: Type20HintMode = section.type20HintMode || 'all_blank';
+      const gridBorder: Type20GridBorder = section.type20GridBorder || 'full';
+      const lineStyle: Type20LineStyle = section.type20LineStyle || 'solid';
+      const borderColor: Type20BorderColor = section.type20BorderColor || 'orange';
+      const casing: Type20Casing = section.type20Casing || 'upper';
+      const showClueImage = section.type20ShowClueImage !== false;
+      const showClueNumber = section.type20ShowClueNumber !== false;
+      const showClueText = section.type20ShowClueText !== false;
+      const hollowArrows = section.type20HollowArrows !== false;
+      const showTrace = section.type20ShowTrace || false;
+      const isAnsMode = section.answerMode === 'answer' || config.answerMode === 'answer';
+
+      const secWordImagesMap = new Map<string, string | null>();
+      secWords.forEach((w) => {
+        if (w.imageUrl) {
+          const cached = config.wordImagesMap?.get(w.imageUrl) || imageBase64Cache.get(w.imageUrl) || null;
+          secWordImagesMap.set(w.imageUrl, cached);
+        }
+      });
+
+      if (gridMode === 'connected') {
+        const type20Seed = (section as any).type20Seed || hashStringToSeed(secWords.map(w => w.term).join('_'));
+        const crosswordLayout = generateConnectedCrossword(secWords, { showClueNumber, maxAttempts: 120, seed: type20Seed });
+        if (crosswordLayout && crosswordLayout.placedWords.length >= 2) {
+          const cardH = isA5 ? 80 : 105;
+          if (!isAtTopOfPage && currentY + cardH > maxContentY) {
+            await addNewPage();
+          }
+
+          drawConnectedCrosswordGrid(
+            doc,
+            crosswordLayout,
+            margin,
+            currentY,
+            printableWidth,
+            cardH,
+            {
+              gridBorder,
+              lineStyle,
+              borderColor,
+              casing,
+              showClueNumber,
+              showClueImage,
+              showClueText,
+              hollowArrows,
+              showTrace,
+              hintMode,
+              isAnswerMode: isAnsMode,
+              activeFont: secFont,
+              fontSize: secFontSize,
+              isA5,
+              wordImagesMap: secWordImagesMap,
+              clueColumns: section.type20ClueColumns
+            }
+          );
+
+          currentY += cardH;
+          isAtTopOfPage = false;
+        } else {
+          // Fallback to pairs
+          const pairs = findCrissCrossPairs(secWords);
+          const pairSlotH = isA5 ? 65 : 75;
+
+          for (let pIdx = 0; pIdx < pairs.length; pIdx++) {
+            const pair = pairs[pIdx];
+            if (!isAtTopOfPage && currentY + pairSlotH > maxContentY) {
+              await addNewPage();
+            }
+
+            drawCrissCrossPair(
+              doc,
+              pair,
+              pIdx,
+              margin,
+              currentY,
+              printableWidth,
+              pairSlotH,
+              {
+                hintMode,
+                gridBorder,
+                lineStyle,
+                borderColor,
+                casing,
+                showClueImage,
+                showClueNumber,
+                showClueText,
+                showTrace,
+                isAnswerMode: isAnsMode,
+                activeFont: secFont,
+                fontSize: secFontSize,
+                isA5,
+                wordImagesMap: secWordImagesMap
+              }
+            );
+
+            currentY += pairSlotH;
+            isAtTopOfPage = false;
+          }
+        }
+      } else {
+        const pairs = findCrissCrossPairs(secWords);
+        const pairSlotH = isA5 ? 65 : 75;
+
+        for (let pIdx = 0; pIdx < pairs.length; pIdx++) {
+          const pair = pairs[pIdx];
+          if (!isAtTopOfPage && currentY + pairSlotH > maxContentY) {
+            await addNewPage();
+          }
+
+          drawCrissCrossPair(
+            doc,
+            pair,
+            pIdx,
+            margin,
+            currentY,
+            printableWidth,
+            pairSlotH,
+            {
+              hintMode,
+              gridBorder,
+              lineStyle,
+              borderColor,
+              casing,
+              showClueImage,
+              showClueNumber,
+              showClueText,
+              showTrace,
+              isAnswerMode: isAnsMode,
+              activeFont: secFont,
+              fontSize: secFontSize,
+              isA5,
+              wordImagesMap: secWordImagesMap
+            }
+          );
+
+          currentY += pairSlotH;
+          isAtTopOfPage = false;
+        }
+      }
     }
 
     // Inter-section vertical separation (Word standard pt converted to mm)
@@ -9731,3 +11700,4 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
   return doc;
 }
 
+export const generateWorksheetPdf = generateWorksheetPDF;

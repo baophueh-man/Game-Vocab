@@ -1,6 +1,8 @@
 import { collection, doc, setDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { WordSet } from '../types';
+import { L3_U5_SET, L3_U5_IMAGES } from '../data/l3_u5';
+import { L3_U6_SET, L3_U6_IMAGES } from '../data/l3_u6';
 import {
   idbSaveSet,
   idbGetSet,
@@ -96,6 +98,14 @@ export const getSets = async (): Promise<WordSet[]> => {
   const deletedSetIds = getDeletedSetIds();
   const setMap = new Map<string, WordSet>();
 
+  // Default Unit set: L3 - U5 (available immediately without waiting for network)
+  if (!deletedSetIds.has(L3_U5_SET.id)) {
+    setMap.set(L3_U5_SET.id, L3_U5_SET);
+  }
+  if (!deletedSetIds.has(L3_U6_SET.id)) {
+    setMap.set(L3_U6_SET.id, L3_U6_SET);
+  }
+
   // 1. Fetch all sets from IndexedDB (fast, persistent, unlimited quota)
   try {
     const idbSets = await idbGetAllSets();
@@ -116,9 +126,11 @@ export const getSets = async (): Promise<WordSet[]> => {
     }
   });
 
-  // 3. Fetch all sets from Firestore
+  // 3. Fetch all sets from Firestore (with 1s timeout to keep UI snappy)
   try {
-    const querySnapshot = await getDocs(collection(db, 'wordSets'));
+    const fsPromise = getDocs(collection(db, 'wordSets'));
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 1000));
+    const querySnapshot = await Promise.race([fsPromise, timeoutPromise]);
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data() as WordSet;
       if (data && data.id && Array.isArray(data.words) && !deletedSetIds.has(data.id)) {
@@ -130,6 +142,8 @@ export const getSets = async (): Promise<WordSet[]> => {
   } catch (error) {
     console.warn('Firestore fetch failed (offline or guest mode), using local sets:', error);
   }
+
+
 
   // Convert map to array and sort by createdAt descending
   const allSets = Array.from(setMap.values());
@@ -167,6 +181,13 @@ export const getSetById = async (id: string): Promise<WordSet | undefined> => {
     }
   } catch (error) {
     console.warn(`Firestore getSetById failed for id ${id}:`, error);
+  }
+
+  if (id === L3_U5_SET.id && !deletedSetIds.has(id)) {
+    return L3_U5_SET;
+  }
+  if (id === L3_U6_SET.id && !deletedSetIds.has(id)) {
+    return L3_U6_SET;
   }
 
   return undefined;
@@ -310,6 +331,12 @@ export const saveImageFile = async (base64Data: string): Promise<string> => {
 };
 
 export const getImageFile = async (id: string): Promise<string | null> => {
+  if (L3_U5_IMAGES[id]) {
+    return L3_U5_IMAGES[id];
+  }
+  if (L3_U6_IMAGES[id]) {
+    return L3_U6_IMAGES[id];
+  }
   // 1. Check IndexedDB first
   try {
     const idbCached = await idbGetImage(id);
@@ -334,4 +361,144 @@ export const getImageFile = async (id: string): Promise<string | null> => {
 
   return null;
 };
+
+// ==========================================
+// WORKSHEET GENERATOR DRAFT LOCAL STORAGE
+// ==========================================
+
+export const WORKSHEET_DRAFT_STORAGE_KEY = 'vocagame_worksheet_draft';
+
+export interface WorksheetDraftState {
+  version: 1;
+  savedAt: number;
+  worksheetMode: 'single' | 'composite';
+  title: string;
+  sourceMode?: 'library' | 'link' | 'custom' | 'excel';
+  selectedSetId?: string | null;
+  paperSize?: 'a5' | 'a4';
+  fontFamily?: 'r0c0i Linotte' | 'Farsan' | 'HP001' | 'HLHOCTRO' | 'Questrial' | 'KG Primary Dots';
+  fontSize?: number;
+  spacing?: number;
+  imageSize?: number;
+  background?: string;
+  showHeader?: boolean;
+  showFooter?: boolean;
+  showImageBorder?: boolean;
+  showTableGrid?: boolean;
+  words: any[];
+  compositeSections: any[];
+  activeSectionTab?: number;
+  worksheetType?: number;
+}
+
+let memoryDraftFallback: string | null = null;
+
+function getSafeLocalStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+    if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+      return (globalThis as any).localStorage;
+    }
+  } catch {
+    // Access denied or private mode
+  }
+  return null;
+}
+
+/**
+ * Saves current worksheet editor state into LocalStorage.
+ * Strips heavy base64 (> 5KB) from word image/audio URLs to guarantee zero quota overflows.
+ */
+export function saveWorksheetDraft(draft: WorksheetDraftState): void {
+  try {
+    const sanitizedWords = Array.isArray(draft.words)
+      ? draft.words.map((w) => {
+          if (!w || typeof w !== 'object') return w;
+          const cloned = { ...w };
+          if (cloned.imageUrl && cloned.imageUrl.startsWith('data:image') && cloned.imageUrl.length > 5000) {
+            delete cloned.imageUrl;
+          }
+          if (cloned.audioUrl && cloned.audioUrl.startsWith('data:audio') && cloned.audioUrl.length > 5000) {
+            delete cloned.audioUrl;
+          }
+          if (cloned.viAudioUrl && cloned.viAudioUrl.startsWith('data:audio') && cloned.viAudioUrl.length > 5000) {
+            delete cloned.viAudioUrl;
+          }
+          return cloned;
+        })
+      : [];
+
+    const payload: WorksheetDraftState = {
+      ...draft,
+      version: 1,
+      savedAt: Date.now(),
+      words: sanitizedWords
+    };
+
+    const json = JSON.stringify(payload);
+    const storage = getSafeLocalStorage();
+    if (storage) {
+      try {
+        storage.setItem(WORKSHEET_DRAFT_STORAGE_KEY, json);
+      } catch (quotaErr) {
+        console.warn('[storage] LocalStorage saveWorksheetDraft quota warning, attempting cleanup:', quotaErr);
+        purgeLocalStorageCaches();
+        try {
+          storage.setItem(WORKSHEET_DRAFT_STORAGE_KEY, json);
+        } catch (retryErr) {
+          console.warn('[storage] LocalStorage retry failed:', retryErr);
+        }
+      }
+    }
+    memoryDraftFallback = json;
+  } catch (err) {
+    console.error('[storage] Failed to save worksheet draft:', err);
+  }
+}
+
+/**
+ * Retrieves saved worksheet draft state from LocalStorage.
+ */
+export function getWorksheetDraft(): WorksheetDraftState | null {
+  let raw: string | null = null;
+  const storage = getSafeLocalStorage();
+  if (storage) {
+    try {
+      raw = storage.getItem(WORKSHEET_DRAFT_STORAGE_KEY);
+    } catch (err) {
+      console.warn('[storage] Failed to read draft from localStorage:', err);
+    }
+  }
+  if (!raw) {
+    raw = memoryDraftFallback;
+  }
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.words) && Array.isArray(parsed.compositeSections)) {
+      return parsed as WorksheetDraftState;
+    }
+  } catch (err) {
+    console.warn('[storage] Corrupted worksheet draft JSON in localStorage:', err);
+  }
+  return null;
+}
+
+/**
+ * Clears saved worksheet draft from LocalStorage.
+ */
+export function clearWorksheetDraft(): void {
+  const storage = getSafeLocalStorage();
+  if (storage) {
+    try {
+      storage.removeItem(WORKSHEET_DRAFT_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  memoryDraftFallback = null;
+}
 
