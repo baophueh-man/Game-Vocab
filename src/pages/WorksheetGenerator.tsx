@@ -26,7 +26,10 @@ import {
   ListFilter,
   Target,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowUpDown,
+  Shuffle,
+  RotateCcw
 } from 'lucide-react';
 import { getSets, saveSet, getImageFile } from '../lib/storage';
 import { WordSet } from '../types';
@@ -52,7 +55,11 @@ import {
   normalizeTerm,
   mergeSectionWords,
   reallocateWordsForSections,
-  applyTemplateToSections
+  applyTemplateToSections,
+  reorderIndices,
+  sortIndicesAlphabetically,
+  shuffleWordIndices,
+  resetIndicesToOriginal
 } from '../utils/worksheetVocabEngine';
 import { DEFAULT_SAMPLE_WORDS } from '../utils/worksheetSampleData';
 import {
@@ -241,6 +248,7 @@ export default function WorksheetGenerator() {
   const [sourceUrl, setSourceUrl] = useState<string>('https://yourhomework.net');
   const [words, setWords] = useState<WorksheetWord[]>(DEFAULT_SAMPLE_WORDS);
   const [selectedWordIndices, setSelectedWordIndices] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5]));
+  const [singleWordOrder, setSingleWordOrder] = useState<number[]>([0, 1, 2, 3, 4, 5]);
 
   // Worksheet Configuration
   const [worksheetType, setWorksheetType] = useState<WorksheetType>(4);
@@ -943,6 +951,7 @@ export default function WorksheetGenerator() {
       if (firstSec.title) setTitle(firstSec.title);
       if (firstSec.selectedWordIndices && firstSec.selectedWordIndices.length > 0) {
         setSelectedWordIndices(new Set(firstSec.selectedWordIndices));
+        setSingleWordOrder([...firstSec.selectedWordIndices]);
       }
       if (firstSec.blankMode) setBlankMode(firstSec.blankMode);
       if (firstSec.choiceCount) setChoiceCount(firstSec.choiceCount);
@@ -1143,6 +1152,7 @@ export default function WorksheetGenerator() {
 
     setWords(mapped);
     setSelectedWordIndices(new Set(mapped.map((_, i) => i)));
+    setSingleWordOrder(mapped.map((_, i) => i));
 
     // Preserve composite sections and reallocate word slots if composite mode is active
     let finalSecs: UICompositeSection[];
@@ -1182,6 +1192,7 @@ export default function WorksheetGenerator() {
       setSourceUrl(window.location.origin + '/worksheet');
       setWords(uniqueWords);
       setSelectedWordIndices(new Set(uniqueWords.map((_, i) => i)));
+      setSingleWordOrder(uniqueWords.map((_, i) => i));
       setLastLoadedMultiCount(selectedSets.length);
 
       let finalSecs: UICompositeSection[];
@@ -1297,6 +1308,7 @@ export default function WorksheetGenerator() {
       }));
       setWords(fetchedWords);
       setSelectedWordIndices(new Set(fetchedWords.map((_, i) => i)));
+      setSingleWordOrder(fetchedWords.map((_, i) => i));
 
       let finalSecs: UICompositeSection[];
       if (worksheetMode === 'composite' && compositeSections.length > 0) {
@@ -1326,22 +1338,69 @@ export default function WorksheetGenerator() {
     const next = new Set(selectedWordIndices);
     if (next.has(idx)) {
       next.delete(idx);
+      setSingleWordOrder((prev) => prev.filter((i) => i !== idx));
     } else {
       next.add(idx);
+      setSingleWordOrder((prev) => [...prev.filter((i) => i !== idx), idx]);
     }
     setSelectedWordIndices(next);
   };
 
   const handleSelectAll = () => {
     setSelectedWordIndices(new Set(words.map((_, i) => i)));
+    setSingleWordOrder(words.map((_, i) => i));
   };
 
   const handleDeselectAll = () => {
     setSelectedWordIndices(new Set());
+    setSingleWordOrder([]);
   };
 
   const getActiveWords = (): WorksheetWord[] => {
+    if (singleWordOrder.length > 0) {
+      return singleWordOrder
+        .filter((idx) => selectedWordIndices.has(idx))
+        .map((idx) => words[idx])
+        .filter(Boolean);
+    }
     return words.filter((_, idx) => selectedWordIndices.has(idx));
+  };
+
+  const handleSingleSortAsc = () => {
+    const current = singleWordOrder.length > 0 ? singleWordOrder : Array.from(selectedWordIndices);
+    const sorted = sortIndicesAlphabetically(current, words, 'asc');
+    setSingleWordOrder(sorted);
+    handleGeneratePreview(sorted.filter((i) => selectedWordIndices.has(i)).map((i) => words[i]).filter(Boolean));
+  };
+
+  const handleSingleSortDesc = () => {
+    const current = singleWordOrder.length > 0 ? singleWordOrder : Array.from(selectedWordIndices);
+    const sorted = sortIndicesAlphabetically(current, words, 'desc');
+    setSingleWordOrder(sorted);
+    handleGeneratePreview(sorted.filter((i) => selectedWordIndices.has(i)).map((i) => words[i]).filter(Boolean));
+  };
+
+  const handleSingleShuffleOrder = () => {
+    const current = singleWordOrder.length > 0 ? singleWordOrder : Array.from(selectedWordIndices);
+    const shuffled = shuffleWordIndices(current);
+    setSingleWordOrder(shuffled);
+    handleGeneratePreview(shuffled.filter((i) => selectedWordIndices.has(i)).map((i) => words[i]).filter(Boolean));
+  };
+
+  const handleSingleResetOrder = () => {
+    const current = singleWordOrder.length > 0 ? singleWordOrder : Array.from(selectedWordIndices);
+    const original = resetIndicesToOriginal(current);
+    setSingleWordOrder(original);
+    handleGeneratePreview(original.filter((i) => selectedWordIndices.has(i)).map((i) => words[i]).filter(Boolean));
+  };
+
+  const handleSingleMoveWord = (currentPos: number, direction: 'prev' | 'next') => {
+    const current = singleWordOrder.filter((i) => selectedWordIndices.has(i));
+    const targetPos = direction === 'prev' ? currentPos - 1 : currentPos + 1;
+    if (targetPos < 0 || targetPos >= current.length) return;
+    const reordered = reorderIndices(current, currentPos, targetPos);
+    setSingleWordOrder(reordered);
+    handleGeneratePreview(reordered.map((i) => words[i]).filter(Boolean));
   };
 
   const handleSwitchAnswerMode = (newMode: 'student' | 'answer' | 'both') => {
@@ -6264,6 +6323,117 @@ export default function WorksheetGenerator() {
                   </button>
                 </div>
               </div>
+
+              {/* Quick Order Actions Toolbar */}
+              <div className="flex items-center justify-between gap-2 p-2.5 bg-indigo-50/70 rounded-xl border border-indigo-100 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600" /> Thứ tự in PDF:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSingleSortAsc}
+                    disabled={selectedWordIndices.size <= 1}
+                    data-testid="single-sort-asc-btn"
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 disabled:opacity-40 text-indigo-700 text-xs font-bold border border-indigo-200 transition-all shadow-2xs cursor-pointer active:scale-95"
+                    title="Sắp xếp theo bảng chữ cái A-Z"
+                  >
+                    A → Z
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSingleSortDesc}
+                    disabled={selectedWordIndices.size <= 1}
+                    data-testid="single-sort-desc-btn"
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 disabled:opacity-40 text-indigo-700 text-xs font-bold border border-indigo-200 transition-all shadow-2xs cursor-pointer active:scale-95"
+                    title="Sắp xếp ngược Z-A"
+                  >
+                    Z → A
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSingleShuffleOrder}
+                    disabled={selectedWordIndices.size <= 1}
+                    data-testid="single-shuffle-order-btn"
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 disabled:opacity-40 text-indigo-700 text-xs font-bold border border-indigo-200 transition-all shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
+                    title="Xáo trộn ngẫu nhiên thứ tự các từ đã chọn"
+                  >
+                    <Shuffle className="w-3.5 h-3.5 text-indigo-600" /> Xáo trộn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSingleResetOrder}
+                    disabled={selectedWordIndices.size <= 1}
+                    data-testid="single-reset-order-btn"
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 disabled:opacity-40 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
+                    title="Trả về thứ tự gốc ban đầu của bộ từ"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-500" /> Thứ tự gốc
+                  </button>
+                </div>
+                <span className="text-xs text-indigo-700 font-semibold">
+                  Đã chọn: {selectedWordIndices.size} từ
+                </span>
+              </div>
+
+              {/* Selected Sequence Preview Chips with Reorder Buttons */}
+              {selectedWordIndices.size > 0 && (
+                <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span>Thứ tự từ sẽ xuất hiện trên bài tập PDF:</span>
+                    <span className="text-[11px] text-slate-400">Bấm ◀ ▶ để đổi chỗ từng từ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap max-h-40 overflow-y-auto pr-1">
+                    {singleWordOrder.filter((i) => selectedWordIndices.has(i)).map((wIdx, pos, arr) => {
+                      const wordItem = words[wIdx];
+                      if (!wordItem) return null;
+                      return (
+                        <div
+                          key={`single-selected-chip-${wIdx}-${pos}`}
+                          className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs font-semibold text-indigo-900 shadow-2xs"
+                        >
+                          <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {pos + 1}
+                          </span>
+                          <span className="truncate max-w-[120px]" title={wordItem.term}>
+                            {wordItem.term}
+                          </span>
+                          <div className="flex items-center ml-0.5 gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSingleMoveWord(pos, 'prev')}
+                              disabled={pos === 0}
+                              data-testid={`single-word-prev-${pos}`}
+                              className="w-4 h-4 flex items-center justify-center rounded bg-white/70 text-slate-500 hover:text-indigo-700 hover:bg-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px]"
+                              title="Đưa từ này lên trước"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSingleMoveWord(pos, 'next')}
+                              disabled={pos === arr.length - 1}
+                              data-testid={`single-word-next-${pos}`}
+                              className="w-4 h-4 flex items-center justify-center rounded bg-white/70 text-slate-500 hover:text-indigo-700 hover:bg-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px]"
+                              title="Đưa từ này về sau"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleWord(wIdx)}
+                              className="w-4 h-4 flex items-center justify-center rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer ml-0.5 text-[10px]"
+                              title="Bỏ từ này"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto border border-slate-100 rounded-xl">
                 {words.length === 0 ? (

@@ -604,3 +604,58 @@ export function applyTemplateToSections(
   });
 }
 
+/**
+ * Reorders an array by shifting an item from fromIndex to toIndex.
+ * Pure non-mutating function.
+ */
+export function reorderIndices(indices: number[], fromIndex: number, toIndex: number): number[] {
+  if (!indices || fromIndex < 0 || toIndex < 0 || fromIndex >= indices.length || toIndex >= indices.length || fromIndex === toIndex) {
+    return indices || [];
+  }
+  const result = [...indices];
+  const [removed] = result.splice(fromIndex, 1);
+  result.splice(toIndex, 0, removed);
+  return result;
+}
+
+/**
+ * Sorts an array of word indices alphabetically based on the underlying words' terms.
+ * Pure non-mutating function.
+ */
+export function sortIndicesAlphabetically(
+  indices: number[],
+  words: WorksheetWord[],
+  direction: 'asc' | 'desc' = 'asc'
+): number[] {
+  if (!indices || indices.length === 0 || !words || words.length === 0) return indices || [];
+  const result = [...indices];
+  return result.sort((a, b) => {
+    const termA = normalizeTerm(words[a]?.term || '');
+    const termB = normalizeTerm(words[b]?.term || '');
+    return direction === 'asc' ? termA.localeCompare(termB) : termB.localeCompare(termA);
+  });
+}
+
+/**
+ * Shuffles an array of word indices randomly (Fisher-Yates).
+ * Pure non-mutating function.
+ */
+export function shuffleWordIndices(indices: number[]): number[] {
+  if (!indices || indices.length <= 1) return [...(indices || [])];
+  const pool = [...indices];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
+}
+
+/**
+ * Resets word indices back to the original index order (numeric ascending).
+ * Pure non-mutating function.
+ */
+export function resetIndicesToOriginal(indices: number[]): number[] {
+  if (!indices) return [];
+  return [...indices].sort((a, b) => a - b);
+}
+

@@ -701,13 +701,31 @@ export function createMulberry32(seedVal: number): () => number {
   };
 }
 
-function shuffleArray<T>(array: T[], seed?: number | string | (() => number)): T[] {
+export function shuffleArray<T>(array: T[], seed?: number | string | (() => number)): T[] {
   const arr = [...array];
-  const rng = typeof seed === 'function'
-    ? seed
-    : seed !== undefined
-    ? (typeof seed === 'number' ? createMulberry32(seed) : createMulberry32(hashStringToSeed(seed)))
-    : Math.random;
+  let rng: () => number;
+  if (typeof seed === 'function') {
+    rng = seed;
+  } else if (seed !== undefined) {
+    rng = typeof seed === 'number' ? createMulberry32(seed) : createMulberry32(hashStringToSeed(seed));
+  } else {
+    // Deterministic auto-seed derived from elements to guarantee Student and Answer match 1:1
+    const key = array
+      .map((item) => {
+        if (item === null || item === undefined) return '';
+        if (typeof item === 'object') {
+          return (
+            (item as any).term ||
+            (item as any).word?.term ||
+            (item as any).cleanTerm ||
+            ((item as any).originalIndex !== undefined ? String((item as any).originalIndex) : JSON.stringify(item))
+          );
+        }
+        return String(item);
+      })
+      .join('|');
+    rng = createMulberry32(hashStringToSeed(key || '42'));
+  }
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
