@@ -21,10 +21,11 @@ import WordPathMaze from '../components/games/WordPathMaze';
 import GauntletReviewGame from '../components/games/GauntletReviewGame';
 import PenaltyShootoutQuiz from '../components/games/PenaltyShootoutQuiz';
 import WordTugOfWar from '../components/games/WordTugOfWar';
+import MagicWorkshopMtq from '../components/games/MagicWorkshopMtq';
 import VoiceSettings from '../components/ui/VoiceSettings';
-import { ArrowLeft, BrainCircuit, Layers, Shuffle, Type, MousePointer2, Target, Volume2, CircleDashed, Package, Palette, Lock, Unlock, Headphones, CheckCheck, CloudRain, Footprints, Swords, Zap } from 'lucide-react';
+import { ArrowLeft, BrainCircuit, Layers, Shuffle, Type, MousePointer2, Target, Volume2, CircleDashed, Package, Palette, Lock, Unlock, Headphones, CheckCheck, CloudRain, Footprints, Swords, Zap, Sparkles } from 'lucide-react';
 
-type GameMode = 'menu' | 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'tapToHear' | 'listenMtq' | 'trueFalse' | 'wordRain' | 'wordPathMaze' | 'gauntlet' | 'penaltyQuiz' | 'tugOfWar';
+type GameMode = 'menu' | 'quiz' | 'match' | 'flip' | 'unscramble' | 'matchUp' | 'findMatch' | 'speakingCards' | 'spinWheel' | 'openBox' | 'tapToHear' | 'listenMtq' | 'trueFalse' | 'wordRain' | 'wordPathMaze' | 'gauntlet' | 'penaltyQuiz' | 'tugOfWar' | 'magicWorkshop';
 
 const THEMES = [
   { id: 'default', name: 'Classic Light', bgImage: '', bgOverlay: 'bg-slate-50' },
@@ -127,12 +128,13 @@ export default function GamePlayer() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <GameCard title="Thế Giới Phép Thuật MTQ" description="Nghe phát âm chọn hình chuẩn gu Listen MTQ! Pha Trà Sữa 🧋, Ấp Trứng Rồng 🐲, Xây Lâu Đài 🏰 & Câu Cá Kho Báu 🐠. Chế độ Vô Tận siêu nhẹ!" icon={Sparkles} color="bg-pink-600" onClick={() => setMode('magicWorkshop')} />
+                <GameCard title="Listen MTQ" description="Nghe phát âm chọn hình. Nuôi linh vật Heo Ú hoặc Cây Thần mập mạp, chế độ Vô Tận!" icon={Headphones} color="bg-rose-500" onClick={() => setMode('listenMtq')} />
                 <GameCard title="Đấu Kéo Co Từ Vựng" description="Trò chơi đối kháng kéo co siêu kịch tính! Kéo dây thừng thi đấu với AI hoặc 2 người cùng máy. Siêu nhẹ, mượt mà 60 FPS!" icon={Zap} color="bg-indigo-600" onClick={() => setMode('tugOfWar')} />
                 <GameCard title="Sút Phạt Penalty" description="Đánh banh trắc nghiệm! Nghe phát âm chọn hình. Sút tung lưới ghi bàn ⚽ hoặc bị thủ môn bắt dính 🧤!" icon={Target} color="bg-emerald-600" onClick={() => setMode('penaltyQuiz')} />
                 <GameCard title="Kiểm Tra Bài Cũ" description="Chế độ Liên Hoàn 4 Ải (Đúng/Sai ➜ Nghe ➜ Chính tả ➜ Tốc độ). Bảng điểm tổng kết, xếp hạng S/A/B/C & thống kê từ cần ôn!" icon={Swords} color="bg-amber-600" onClick={() => setMode('gauntlet')} />
                 <GameCard title="Word Path Maze" description="Mê Cung Từ Vựng siêu nhẹ! Bước từng ô gạch đúng đến đích, không giật lag, cực kỳ dễ chơi." icon={Footprints} color="bg-emerald-600" onClick={() => setMode('wordPathMaze')} />
                 <GameCard title="Word Rain / Balloons" description="Mưa từ vựng & Bắn bong bóng cực vui! Luyện phản xạ nhanh, nghe âm thanh hoặc nhìn nghĩa." icon={CloudRain} color="bg-sky-500" onClick={() => setMode('wordRain')} />
-                <GameCard title="Listen MTQ" description="Nghe phát âm chọn hình. Nuôi linh vật Heo Ú hoặc Cây Thần mập mạp, chế độ Vô Tận!" icon={Headphones} color="bg-rose-500" onClick={() => setMode('listenMtq')} />
                 <GameCard title="True or False" description="Đúng hay Sai? Bấm nút to rõ ràng hoặc quẹt thẻ phản xạ tốc độ cao!" icon={CheckCheck} color="bg-emerald-500" onClick={() => setMode('trueFalse')} />
                 <GameCard title="Tap to Hear" description="Picture dictionary. Tap pictures to hear the words." icon={Volume2} color="bg-teal-500" onClick={() => setMode('tapToHear')} />
                 <GameCard title="Anagram" description="Spell the word correctly from scrambled letters." icon={Type} color="bg-orange-500" onClick={() => setMode('unscramble')} />
@@ -204,6 +206,7 @@ export default function GamePlayer() {
                 {mode === 'gauntlet' && <GauntletReviewGame words={set.words} onExit={() => setMode('menu')} />}
                 {mode === 'penaltyQuiz' && <PenaltyShootoutQuiz words={set.words} onExit={() => setMode('menu')} />}
                 {mode === 'tugOfWar' && <WordTugOfWar words={set.words} onExit={() => setMode('menu')} />}
+                {mode === 'magicWorkshop' && <MagicWorkshopMtq words={set.words} onExit={() => setMode('menu')} />}
               </div>
             </div>
           </>

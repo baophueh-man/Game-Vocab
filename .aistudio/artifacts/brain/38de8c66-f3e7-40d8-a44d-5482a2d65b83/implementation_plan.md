@@ -1,131 +1,113 @@
-# Chế Độ Game Trắc Nghiệm Sút Bóng: Penalty Shootout Quiz
+# Thế Giới Phép Thuật MTQ: Magic Workshop & Evolution (Chuẩn Cơ Chế Listen MTQ)
 
-Xây dựng chế độ trò chơi trắc nghiệm tương tác đề tài sút phạt luân lưu (Penalty Shootout). Người chơi lắng nghe phát âm tiếng Anh, quan sát các thẻ hình ảnh bên dưới và chọn đáp án chính xác. Nếu trả lời đúng, quả bóng sẽ bay xoáy thẳng vào góc chết khung thành (GOAL!). Nếu trả lời sai, thủ môn sẽ bay người bắt dính bóng hoặc cản phá ngoạn mục (SAVED!).
+Xây dựng chế độ trò chơi mới dựa trên đúng "công thức gây nghiện tích cực" của **Listen MTQ**: **Nghe phát âm chọn hình và nghĩa** kết hợp với **phản hồi nhân quả Đúng/Sai tức thì, hài hước**, **Chế độ Vô Tận (Infinite) lên cấp không giới hạn**, và được tối ưu hóa **siêu nhẹ 60 FPS cho máy cấu hình yếu**.
 
 ---
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Toàn bộ các lựa chọn đã được người dùng xác nhận thông qua câu hỏi khảo sát ở Phase 1:
-> - **Dạng câu hỏi**: Nghe phát âm tiếng Anh, chọn thẻ hình ảnh đúng (kèm nghĩa/từ vựng hỗ trợ).
-> - **Cơ chế sút bóng**: Bấm chọn thẻ đáp án ở hàng điều khiển bên dưới; ngay lập tức bóng sẽ được sút tự động về phía khung thành với quỹ đạo tương ứng (vào lưới nếu Đúng, bị thủ môn chụp nếu Sai).
-> - **Thể thức thi đấu & Tính điểm**: Loạt sút luân lưu tiêu chuẩn 5 quả hoặc 10 quả (có nút chọn chuyển đổi nhanh 5 quả / 10 quả), bảng điểm điện tử ghi nhận từng quả (⚽ bàn thắng / ❌ cản phá), tổng kết có cúp vàng vô địch, hiệu ứng confetti và danh sách từ vựng cần ôn lại.
-> - **Nguyên tắc an toàn (Zero Regression)**: Không sửa đổi hoặc can thiệp vào bất kỳ logic hay code cũ nào của các game khác. Chế độ mới được đóng gói độc lập trong `src/components/games/PenaltyShootoutQuiz.tsx` và chỉ đăng ký thêm 1 mode vào `GamePlayer.tsx`.
+> **Giải đáp câu hỏi: "Các game này có phù hợp cho máy cấu hình yếu không?"**
+> **Câu trả lời là: Phù hợp 100% và nhẹ ngang ngửa với Listen MTQ!**
+> * **Vì sao máy yếu chơi cực mượt?** Game **không** sử dụng thư viện 3D (WebGL), không dùng vòng lặp vật lý (Physics loop) hay hoạt ảnh rơi liên tục gây nóng máy. Toàn bộ nhân vật, ly trà sữa, trứng rồng, tòa tháp và thủy cung đều được vẽ bằng **Vector SVG nhẹ hoàn toàn tĩnh**, chỉ kích hoạt hiệu ứng co giãn (`transform: scale/translate`) trong 0.5 giây khi học sinh bấm chọn đáp án.
+> * **Hỗ trợ chế độ Máy Siêu Yếu (`reduceMotion`)**: Tự động đồng bộ với cài đặt giảm chuyển động của ứng dụng để tắt các hiệu ứng phụ nếu chạy trên điện thoại/máy tính đời cũ.
+
+- **Quyết định đã xác nhận 1 (Cơ chế câu hỏi)**: Tập trung vào **Nghe phát âm tiếng Anh ➔ Chọn thẻ Hình Ảnh & Nghĩa đúng** giống hệt trải nghiệm quen thuộc của Listen MTQ, kèm nút bật/tắt gợi ý chữ tiếng Anh linh hoạt.
+- **Quyết định đã xác nhận 2 (Giữ chân học sinh chơi lâu)**: Tích hợp **Chế độ Vô Tận (Infinite Mode)** kết hợp **Lên Cấp (Level Up) không giới hạn**, không có đồng hồ đếm ngược gây áp lực, không bị xử thua (No Game Over).
+- **Quyết định mở rộng (4 Chủ Đề Trong 1 Game)**: Thay vì chỉ bó hẹp 1 chủ đề, tương tự như thanh chọn 5 linh vật của Listen MTQ, học sinh có thể chuyển đổi linh hoạt giữa **4 Góc Chơi Nhân Quả** ngay trên thanh công cụ:
+  1. 🧋 **Tiệm Trà Sữa & Bánh Kem (Boba & Bakery)**: Làm trà sữa trân châu & bánh ngọt phục vụ khách thú cưng.
+  2. 🥚 **Đảo Ấp Trứng Rồng (Dragon Hatchery)**: Chiếu tia phép thuật ấp trứng nở thành Rồng Con và tiến hóa.
+  3. 🏰 **Xây Lâu Đài Trên Mây (Sky Tower)**: Xếp các tầng lâu đài phép thuật cao vút lên tận vũ trụ.
+  4. 🐠 **Thủy Cung Kho Báu (Deep Sea Aquarium)**: Câu cá quý hiếm & rương kim cương thả vào thủy cung.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **Tên trò chơi**: Penalty Shootout Quiz (Sút Luân Lưu Tiếng Anh).
-- **Mục tiêu**: Vừa rèn luyện khả năng nghe phản xạ nhận diện từ vựng qua hình ảnh, vừa tạo cảm xúc kịch tính như đang bước vào loạt sút 11m quyết định tại một trận chung kết bóng đá.
-- **Đối tượng**: Học sinh, trẻ em, và người học tiếng Anh ở mọi lứa tuổi yêu thích bóng đá và trò chơi vận động trực quan.
-- **Giá trị cốt lõi**:
-  - Tăng hứng thú luyện nghe từ vựng gấp nhiều lần so với bài tập trắc nghiệm thông thường.
-  - Phản hồi thị giác tức thì (kinh điển: tiếng sút bóng sút vào lưới rung lên vs. tiếng thủ môn bắt bóng).
-  - Tùy chọn 5 hoặc 10 lượt sút tạo nhịp chơi ngắn gọn, dễ chinh phục cúp vàng và chơi lại nhiều lần.
+- **What It Does**: Học sinh lắng nghe phát âm từ vựng tiếng Anh và chọn 1 trong 4 thẻ hình ảnh/nghĩa bên dưới. Mỗi lần chọn **Đúng**, một hành động thưởng vui nhộn diễn ra ngay trước mắt (topping bay vào ly trà sữa, trứng rồng nứt nở và lớn lên, tầng lâu đài mới ghép xuống, hoặc kéo lên cá vàng kho báu). Mỗi lần chọn **Sai**, một phản ứng hài hước không gây phạt xuất hiện (bỏ nhầm ớt cay làm khách phun khói, trứng bị đóng băng nhẹ, tầng gạch rung lắc, hoặc câu trúng chiếc ủng cũ), đồng thời làm nổi bật đáp án đúng để học sinh ghi nhớ từ ngay lập tức.
+- **Target Audience / Persona**: Học sinh tiểu học, THCS và người học từ vựng yêu thích sự phản hồi thị giác sinh động, hài hước như Listen MTQ, chơi trên mọi thiết bị từ điện thoại cấu hình thấp, máy tính bảng đến máy tính phòng máy trường học.
+- **Key Value**: Tạo động lực tự giác nghe đi nghe lại hàng trăm từ vựng trong thời gian dài nhờ vòng lặp "Nghe chuẩn ➔ Nhận thưởng tức thì ➔ Nâng cấp Cửa Tiệm / Tiến Hóa Cấp Độ" mà không sợ bị thua cuộc.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### 2.1. Không Gian & Giao Diện Sân Cỏ (Stadium Arena)
-- **Sân vận động chân thực**:
-  - Nửa trên màn hình là góc nhìn tiền đạo nhìn về khung thành 11m (Penalty Spot View): nền cỏ xanh kẻ sọc chuẩn giải đấu quốc tế, khung thành màu trắng với lưới mắt cáo 3D, vạch 16m50 và chấm phạt đền màu trắng.
-  - Phía sau khung thành là khán đài đông nghẹt cổ động viên với cờ và ánh đèn pha sân vận động rực sáng.
-- **Nhân vật & Quả bóng**:
-  - Thủ môn hoạt hình linh hoạt: đứng nhún nhảy ở giữa khung thành trước khi sút. Khi người chơi chọn đáp án, thủ môn sẽ phản xạ:
-    - *Nếu Đúng*: Thủ môn đoán sai hướng hoặc bay người với tay không tới, bóng găm thẳng vào góc lưới! Lưới rung lên, chữ "GOAL! ⚽" bùng nổ hoành tráng cùng âm thanh còi vang và tiếng reo hò cuồng nhiệt.
-    - *Nếu Sai*: Thủ môn bay người ôm gọn trái bóng hoặc đấm bóng ra ngoài! Hiệu ứng "SAVED! 🧤" xuất hiện với âm thanh tiếc nuối và tiếng vỗ tay khích lệ.
-  - Trái bóng da đen trắng cổ điển (Telstar-style) đặt ngay chấm phạt đền, có hiệu ứng xoay (rotate) và phóng to/thu nhỏ (scale) theo độ sâu 3D khi sút về phía khung thành.
+### Key User Flows
+1. **Vào Bàn Chơi Ngay Lập Tức (Zero-Friction Start)**:
+   - Không cần qua màn hình chờ phức tạp, vào game là nghe phát âm từ đầu tiên ngay giống Listen MTQ.
+   - Thanh điều khiển phía trên cho phép chọn nhanh 1 trong 4 Góc Chơi (🧋 *Trà Sữa*, 🥚 *Ấp Rồng*, 🏰 *Lâu Đài*, 🐠 *Thủy Cung*) và chế độ *Vô Tận (Infinite)* hoặc *Theo Bộ Từ*.
+2. **Phản Hồi Chọn Đúng (Immediate Positive Feedback)**:
+   - Phát âm thanh chiến thắng vui tai, vật phẩm thưởng bay vào khung cảnh trung tâm.
+   - Thanh Tiến Độ Nâng Cấp tăng vọt (+20%). Khi đầy 100%, kích hoạt **Level Up (Thăng Cấp)**: cửa tiệm/rồng thần/lâu đài/thủy cung biến hình sang cấp độ rực rỡ hơn kèm pháo hoa chúc mừng.
+   - Bong bóng lời thoại hiển thị câu khen ngợi ngộ nghĩnh (VD: *"Trân châu đường đen dẻo tuyệt cú mèo! Quán lên cấp rồi!"*, *"Rồng con mọc thêm đôi cánh lửa siêu ngầu!"*).
+3. **Phản Hồi Chọn Sai (Clear & Encouraging Correction)**:
+   - Thẻ chọn sai rung nhẹ và hiện dấu `❌`, đồng thời **thẻ Đáp Án Đúng tự động sáng viền xanh lá `✅`** kèm đọc lại phát âm chuẩn để học sinh nhìn và nhớ ngay.
+   - Khung cảnh trung tâm diễn hoạt ảnh hài hước (khách hàng lè lưỡi vì cay 🌶️, rồng con hắt xì hơi 🤧, cần cẩu làm rơi viên gạch nhựa 🧱, hoặc câu trúng chiếc giày rách 🥾) kèm lời động viên ấm áp (*"Ái chà, nhầm vị ớt cay rồi! Nhìn thẻ màu xanh để nhớ từ đúng nha!"*).
+   - Tự động chuyển sang câu tiếp theo sau 1.5 giây hoặc bấm nút *"Câu tiếp theo"*.
 
-### 2.2. Khu Vực Điều Khiển & Thẻ Hình Ảnh (Bottom Control Zone)
-- **Bảng tỷ số điện tử trên cao (Stadium Scoreboard)**:
-  - Hiển thị số quả sút hiện tại (Ví dụ: `Lượt 3/5` hoặc `Lượt 7/10`).
-  - Dãy chấm penalty tracker trực quan: các biểu tượng ⚽ (vào) và ❌ (hỏng) cho từng lượt sút.
-  - Nút chuyển nhanh giữa thể thức **5 Quả** và **10 Quả**.
-- **Khu vực phát âm & gợi ý**:
-  - Nút loa phát âm to rõ ràng ở giữa: bấm vào để nghe lại từ tiếng Anh bất cứ lúc nào.
-  - Thanh sóng âm equalizer nhảy múa khi giọng đọc đang phát.
-  - Nút bật/tắt hiển thị phiên âm hoặc gợi ý từ vựng (cho người mới bắt đầu).
-- **Hàng 4 thẻ đáp án (4 Option Cards)**:
-  - 4 thẻ hình ảnh trực quan tương ứng với 4 hướng sút (Góc cao trái, Góc thấp trái, Góc cao phải, Góc thấp phải).
-  - Mỗi thẻ hiển thị hình ảnh minh họa chất lượng cao (`SmartImage`), tên nghĩa tiếng Việt rõ ràng.
-  - Khi hover/touch: thẻ nâng nhẹ, viền phát sáng màu cỏ sân vận động.
-  - Khi bấm chọn: thẻ khóa lại, bóng lao về hướng sút tương ứng ngay tức thì.
-
-### 2.3. Màn Hình Vinh Danh & Trao Cúp (Celebration & Victory Modal)
-- Khi kết thúc 5 hoặc 10 lượt sút:
-  - **Tỷ số tổng kết**: Ví dụ `4/5 Bàn Thắng (80%)` hoặc `10/10 Perfect Hat-trick!`.
-  - **Danh hiệu bóng đá**:
-    - 100%: 🏆 Siêu Tiền Đạo Vàng (Golden Striker)
-    - 80% - 99%: 🥇 Chân Sút Xuất Sắc (Master Finisher)
-    - 60% - 79%: 🥈 Cầu Thủ Triển Vọng (Rising Star)
-    - < 60%: 🥉 Tiếp Tục Rèn Luyện (Keep Training!)
-  - Bắn pháo hoa rực rỡ (Confetti) khi đạt tỷ lệ cao.
-  - Danh sách từ vựng đã nghe kèm nút nghe lại từng từ để ôn tập sau trận đấu.
-  - Nút **"Đá Lượt Mới (Replay)"** và **"Quay Về Menu"**.
+### Visual Identity & Theme
+- **Aesthetic Direction**: Toybox Playful & Tactile Vector UI — Tươi sáng, sắc nét, bo góc mềm mại (`rounded-3xl`), tương phản cao giúp nhìn rõ hình ảnh từ vựng.
+- **Color Palette & Mood**:
+  - Nền tảng sáng sủa (`bg-amber-50/70`, `bg-sky-50/70` chuyển màu nhẹ theo góc chơi).
+  - Phản hồi Đúng: Xanh ngọc lục bảo (`emerald-500`) kết hợp Vàng kim (`amber-400`).
+  - Phản hồi Sai: Đỏ hồng cam (`rose-500`) nhưng giữ sắc thái vui tươi, không gây cảm giác nặng nề.
+- **Typography & Hierarchy**:
+  - Lời thoại nhân vật và cấp độ dùng chữ đậm (`font-extrabold`), kích thước rõ ràng.
+  - Thẻ đáp án ưu tiên diện tích cho hình ảnh minh họa (`SmartImage`) và nghĩa tiếng Việt rõ nét.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Quyết định 1: Hoạt ảnh Canvas/SVG vs. CSS Transitions**:
-  - *Lựa chọn*: Kết hợp SVG sân vận động/khung thành độ phân giải cao + Framer Motion (`motion/react`) cho quả bóng và thủ môn.
-  - *Lý do*: Đảm bảo độ mượt mà 60fps tuyệt đối trên cả điện thoại di động lẫn máy tính bàn, không gây tải nặng CPU, không xung đột với canvas WebGL khác trong app.
-- **Quyết định 2: Hỗ trợ trường hợp từ vựng chưa có ảnh (`imageUrl`)**:
-  - *Lựa chọn*: Tích hợp fallback tự động với icon minh họa và nghĩa tiếng Việt định dạng thẻ bóng đá bắt mắt, không bao giờ để xảy ra tình trạng vỡ layout hoặc ảnh rỗng.
-- **Quyết định 3: Tách biệt hoàn toàn mã nguồn (Zero Regression)**:
-  - *Lựa chọn*: Viết mới hoàn toàn `src/components/games/PenaltyShootoutQuiz.tsx`.
-  - *Trong `GamePlayer.tsx`*: Chỉ thêm 1 dòng import, bổ sung `'penaltyQuiz'` vào `GameMode` union, thêm 1 thẻ game card ở menu và 1 dòng render `{mode === 'penaltyQuiz' && <PenaltyShootoutQuiz words={set.words} onExit={() => setMode('menu')} />}`. Toàn bộ code cũ của các game khác giữ nguyên 100%.
+- **Decision 1: Kiến trúc Đồ họa SVG Tĩnh + CSS Transform cho Máy Cấu Hình Yếu**
+  - *Chosen Approach*: Sử dụng hình vẽ SVG nội tuyến (Inline SVG) kết hợp chuyển động ngắn hạn qua thuộc tính `transform` và `opacity` khi có sự kiện trả lời.
+  - *Why*: Không tốn bộ nhớ RAM tải ảnh động nặng, không chạy `requestAnimationFrame` liên tục nền, đảm bảo 0% giật lag trên máy tính/điện thoại yếu.
+  - *Alternatives Considered*: Dùng Canvas 2D vẽ liên tục 60 khung hình/giây hoặc ảnh GIF nặng — bị loại bỏ vì làm hao pin và giật lag trên máy yếu.
+- **Decision 2: Cả 4 Góc Chơi (Trà Sữa, Ấp Rồng, Xây Tháp, Câu Cá) Tích Hợp Chung**
+  - *Chosen Approach*: Cho phép học sinh bấm đổi qua lại giữa 4 góc chơi ngay trên thanh Header mà **không bị mất điểm số hay cấp độ (Level) đang tích lũy**.
+  - *Why*: Học sinh chơi 50 câu ở Tiệm Trà Sữa xong có thể bấm sang Đảo Ấp Rồng hoặc Thủy Cung Kho Báu để đổi gió mà vẫn giữ nguyên Level 10 của mình, giúp kéo dài thời gian học gấp nhiều lần.
+- **Decision 3: Bảo Toàn Nguyên Vẹn 100% Code Cũ**
+  - *Chosen Approach*: Tạo module hoàn toàn độc lập và chỉ gắn thêm 1 thẻ mở game trong danh sách menu.
+  - *Why*: Đảm bảo tuyệt đối không ảnh hưởng đến Listen MTQ hay bất kỳ tính năng hiện có nào của giáo viên và học sinh.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-### 4.1. Kiến Trúc Luồng Dữ Liệu & Thành Phần
+### Architecture & Component Diagram
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        GamePlayer.tsx                                  │
-│  - Chế độ chọn game: thêm 'penaltyQuiz' (Sút Phạt Trắc Nghiệm)        │
-│  - Truyền words: WordSet['words'] và callback onExit()                 │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                             GamePlayer View                             │
+│  (Menu Grid Card: "Thế Giới Phép Thuật MTQ" ➔ mode === 'magicWorkshop') │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │ props: { words, onExit }
                                     ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                 PenaltyShootoutQuiz.tsx (Component Mới)                 │
-├────────────────────────────────────────────────────────────────────────┤
-│  [Trạng Thái Trò Chơi - Game State Machine]                            │
-│  - matchLength: 5 | 10 (Số lượt sút)                                  │
-│  - currentShotIndex: number (Quả thứ mấy)                              │
-│  - penaltyHistory: ('goal' | 'miss')[] (Lịch sử loạt sút)             │
-│  - currentTarget: Word (Từ vựng cần nghe & đoán)                       │
-│  - options: Word[] (4 đáp án trắc nghiệm)                              │
-│  - ballState: 'ready' | 'shooting' | 'scored' | 'saved'                │
-│  - shotDirection: 'top-left' | 'bottom-left' | 'top-right' | ...       │
-│  - keeperAction: 'idle' | 'dive-left' | 'dive-right' | 'dive-center'   │
-├────────────────────────────────────────────────────────────────────────┤
-│  [Visual Elements]                                                     │
-│  1. Header HUD: Bảng điểm điện tử sân cỏ, tỷ số, nút 5/10 quả, loa     │
-│  2. Stadium Arena: Sân cỏ 3D, khung thành, thủ môn di động, quả bóng   │
-│  3. Interactive Deck: 4 thẻ tranh trắc nghiệm ở chân màn hình          │
-│  4. Victory Modal: Trao cúp vàng, tổng kết kết quả, danh sách từ ôn tập│
-└────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    MagicWorkshopMtq (Standalone Game)                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. Top Control Bar                                                     │
+│     ├─ Theme Switcher: [🧋 Trà Sữa] [🥚 Ấp Rồng] [🏰 Lâu Đài] [🐠 Thủy Cung]│
+│     ├─ Mode Toggle: [∞ Vô Tận] / [Theo Lượt] & [Nút Gợi Ý Từ]           │
+│     └─ Stats Pills: Score | Streak 🔥 | Level 👑                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  2. Interactive Stage & Audio Prompt Panel                              │
+│     ├─ Dynamic SVG Stage (Boba Cup / Dragon Egg / Sky Tower / Aquarium) │
+│     ├─ Funny Reaction Overlay (Treat Fly-in vs. Spicy/Splash Bloopers)  │
+│     ├─ Speech Bubble (Lời khen ngợi hài hước / Lời nhắc nhở ấm áp)       │
+│     ├─ Level & XP Progress Bar (0% ➔ 100% ➔ Level Up + Confetti)        │
+│     └─ Giant Audio Speaker Button (Tự động đọc & bấm nghe lại từ vựng)  │
+├─────────────────────────────────────────────────────────────────────────┤
+│  3. 4-Card Visual Answer Grid (SmartImage + Meaning)                    │
+│     ├─ Card State: Idle ➔ Correct (Green Glow ✅) / Wrong (Red Shake ❌)│
+│     └─ Auto-Highlight Correct Answer on Mistake + Auto-Advance Timer    │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2. Trạng Thái Hoạt Ảnh Sút Bóng (Ball & Keeper Animation Trajectory)
-- Khi người chơi chạm vào 1 thẻ:
-  1. `ballState` chuyển sang `'shooting'`, bóng tính toán tọa độ vector bay từ chấm 11m `(x: 50%, y: 85%)` tới góc khung thành mục tiêu `(x: targetX, y: targetY)`, đồng thời xoay 720 độ và thu nhỏ kích thước (tạo hiệu ứng xa dần).
-  2. Thủ môn phản xạ:
-     - Nếu câu trả lời **Đúng**: Thủ môn bay sang góc ngược lại hoặc phản xạ chậm hơn một nhịp; bóng tung lưới; lưới rung lắc; phát âm thanh `correct` và tiếng còi; bảng điểm cập nhật quả bóng vàng ⚽.
-     - Nếu câu trả lời **Sai**: Thủ môn bay chính xác vào góc bóng bay tới, chặn đứng quả bóng; bóng bật ngược ra; phát âm thanh `incorrect` và hiệu ứng "SAVED 🧤"; bảng điểm cập nhật dấu ❌.
-  3. Sau 1.5 giây ăn mừng/tiếc nuối, tự động chuyển sang lượt sút tiếp theo và phát âm từ vựng mới.
-
----
-
-## 5. Kế Hoạch Các Bước Thực Hiện (Execution Steps)
-
-1. **Bước 1**: Tạo file component `src/components/games/PenaltyShootoutQuiz.tsx` với đầy đủ logic phát âm (`useSettings().speakEn`), hiệu ứng đồ họa khung thành, thủ môn SVG hoạt họa, trái bóng sút 3D, 4 thẻ hình ảnh đáp án, bảng tỷ số sút luân lưu 5/10 quả, và màn hình trao cúp chiến thắng.
-2. **Bước 2**: Đăng ký chế độ `penaltyQuiz` vào `src/pages/GamePlayer.tsx` một cách tối giản nhất (thêm kiểu `GameMode`, thêm thẻ GameCard thể thao sút bóng và nhánh render). Tuyệt đối không thay đổi bất kỳ dòng code cũ nào khác.
-3. **Bước 3**: Kiểm tra biên dịch qua `compile_applet` và rà soát cú pháp qua `lint_applet` để đảm bảo hệ thống hoạt động hoàn hảo, không có lỗi runtime.
+### Interactive Component & State Mapping
+- **Quản lý Câu hỏi & Âm thanh (`prepareNextQuestion`, `playCurrentWordAudio`)**:
+  - Tự động chọn từ ngẫu nhiên trong danh sách `words` (ưu tiên không lặp lại ngay từ vừa hỏi) và trộn 3 phương án nhiễu.
+  - Tự động phát âm tiếng Anh qua `speakEn` của `SettingsContext` ngay khi câu hỏi xuất hiện.
+- **Xử lý Đúng / Sai (`handleSelectOption`)**:
+  - Khi chọn **Đúng**: Tăng `score`, `streak`, cộng `+20` vào `progress`. Khi `progress >= 100`, tăng `level + 1`, mở khóa danh hiệu cấp độ mới và bắn pháo hoa `fireConfetti`.
+  - Khi chọn **Sai**: Đặt `stageMood = 'blooper'` (hiển thị hoạt ảnh hài hước như trái ớt cay 🌶️ / đóng băng ❄️ / chiếc ủng rách 🥾), giữ nguyên cấp độ hiện tại (chỉ giảm nhẹ thanh tiến độ một chút), làm sáng thẻ đáp án đúng và tự động chuyển câu sau 1.5 giây.
