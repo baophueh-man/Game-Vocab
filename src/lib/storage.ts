@@ -198,6 +198,7 @@ export const saveSet = async (set: WordSet) => {
       id: set.id,
       title: set.title || 'Untitled Set',
       description: set.description || '',
+      ...(set.folder ? { folder: set.folder } : {}),
       words: set.words.map((w) => ({
         id: w.id,
         term: w.term || '',

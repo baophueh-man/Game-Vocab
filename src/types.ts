@@ -11,6 +11,7 @@ export interface WordSet {
   id: string;
   title: string;
   description?: string;
+  folder?: string;
   words: Word[];
   createdAt: number;
   userId: string;

@@ -1,6 +1,6 @@
 {
-  "summary":  "Kế hoạch triển khai chế độ game mới \"Thế Giới Phép Thuật MTQ (Magic Workshop & Pet Tycoon)\" theo đúng cơ chế gây nghiện của Listen MTQ:\n- Giải đáp chi tiết vì sao game chạy siêu mượt 60 FPS trên máy cấu hình yếu (dùng SVG tĩnh & CSS GPU transform, tích hợp sẵn chế độ Giảm chuyển động).\n- Cơ chế Nghe phát âm chọn hình ảnh & nghĩa chuẩn xác như Listen MTQ.\n- Tích hợp cả 4 chủ đề tương tác nhân quả rõ ràng (Tiệm Trà Sữa & Bánh Kem, Ấp Trứng Rồng Thần, Xây Tháp Chọc Trời, Thủy Cung Kho Báu) cho phép học sinh đổi chủ đề ngay trong lúc chơi.\n- Chế độ Vô Tận (Infinite Mode) & Lên Cấp (Level Up) không giới hạn, lời thoại khen ngợi/trêu đùa vui nhộn và hiển thị rõ đáp án đúng khi chọn sai.",
-  "updatedAt":  "2026-11-09T09:22:49.768392996Z",
+  "summary":  "Kế hoạch triển khai tính năng Tìm Kiếm Thông Minh & Quản Lý Thư Mục (Folder) cho các bộ Flashcard tại Menu Chính (My Library):\n- Tìm kiếm tức thì theo tên bộ, mô tả, thư mục và toàn bộ từ vựng/nghĩa bên trong (hỗ trợ gõ tiếng Việt không dấu).\n- Tạo, đổi tên, xóa Thư Mục (Folder) và gắn/chuyển bộ Flashcard vào bất kỳ Folder nào chỉ với 1 chạm để thu gọn thư viện.\n- Bộ lọc theo Thư Mục kết hợp sắp xếp nhanh (Mới nhất, Tên A-Z, Số lượng từ) và đồng bộ tự động lên Cloud/IndexedDB.",
+  "updatedAt":  "2026-11-10T06:01:44.605668059Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
