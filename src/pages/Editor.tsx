@@ -1006,7 +1006,7 @@ export default function Editor() {
           definition: item.translation || item.definition || '',
           phonetic: item.phonetic || undefined,
           imageUrl: imageUrl,
-          exampleSentence: item.exampleSentence || undefined,
+          exampleSentence: item.exampleSentence || item.sentence || item.example || item.contextSentence || undefined,
           exampleTranslation: item.exampleTranslation || undefined,
         };
       }).filter(w => w.term && w.definition);
@@ -1044,9 +1044,18 @@ export default function Editor() {
       const definition = parts[1];
       if (!term || !definition) continue;
 
-      const phonetic = parts.length >= 3 && parts[2] ? parts[2] : undefined;
-      const exampleSentence = parts.length >= 4 && parts[3] ? parts[3] : undefined;
-      const exampleTranslation = parts.length >= 5 && parts[4] ? parts[4] : undefined;
+      // [FEATURE-MAP: ID-04] Smart detection for 3-col vs 4-col Quick Add lines
+      let phonetic: string | undefined = parts.length >= 3 && parts[2] ? parts[2] : undefined;
+      let exampleSentence: string | undefined = parts.length >= 4 && parts[3] ? parts[3] : undefined;
+      const exampleTranslation: string | undefined = parts.length >= 5 && parts[4] ? parts[4] : undefined;
+
+      if ((parts.length === 3 || !parts[3]) && parts[2]) {
+        const isPhoneticWrapped = /^\/.*\/$/.test(parts[2]) || /^\[.*\]$/.test(parts[2]);
+        if (/\s/.test(parts[2]) && !isPhoneticWrapped) {
+          exampleSentence = parts[2];
+          phonetic = undefined;
+        }
+      }
 
       newWords.push({
         id: generateId(),

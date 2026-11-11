@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import fileSaver from 'file-saver';
+const saveAs = (fileSaver as any)?.saveAs || fileSaver;
 import { Word, WordSet } from '../types';
 import { generateId } from '../lib/utils';
 import { audioDataToWavBytes } from './audio';
@@ -16,6 +17,9 @@ export interface PackageManifest {
     id: string;
     term: string;
     definition: string;
+    phonetic?: string | null;
+    exampleSentence?: string | null;
+    exampleTranslation?: string | null;
     imageFileName?: string | null;
     audioFileName?: string | null;
     audioViFileName?: string | null;
@@ -148,6 +152,9 @@ export async function exportWordSetPackage(
       id: word.id,
       term: word.term,
       definition: word.definition,
+      phonetic: word.phonetic || null,
+      exampleSentence: word.exampleSentence || null,
+      exampleTranslation: word.exampleTranslation || null,
       imageFileName,
       audioFileName,
       audioViFileName,
@@ -306,6 +313,9 @@ export async function importWordSetPackage(
       id: generateId(),
       term: rawWord.term || '',
       definition: rawWord.definition || '',
+      phonetic: rawWord.phonetic || undefined,
+      exampleSentence: rawWord.exampleSentence || rawWord.sentence || rawWord.example || undefined,
+      exampleTranslation: rawWord.exampleTranslation || undefined,
       imageUrl,
       audioUrl,
       viAudioUrl,

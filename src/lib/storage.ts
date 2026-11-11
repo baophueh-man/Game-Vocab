@@ -3,6 +3,7 @@ import { db, auth } from '../firebase';
 import { WordSet } from '../types';
 import { L3_U5_SET, L3_U5_IMAGES } from '../data/l3_u5';
 import { L3_U6_SET, L3_U6_IMAGES } from '../data/l3_u6';
+import { L3_U7_SET, L3_U7_IMAGES } from '../data/l3_u7';
 import {
   idbSaveSet,
   idbGetSet,
@@ -14,6 +15,217 @@ import {
   idbGetAudio,
   purgeLocalStorageCaches,
 } from './indexedDb';
+
+export const PRESET_SETS: WordSet[] = [L3_U7_SET, L3_U5_SET, L3_U6_SET];
+const PRESET_SET_IDS = new Set(PRESET_SETS.map((s) => s.id));
+
+function wrapTermInSentence(sentence: string, term: string): string {
+  if (/<#[\s\S]*?#>/.test(sentence)) return sentence;
+  const cleanTerm = (term || '').trim();
+  if (!cleanTerm) return sentence;
+  const escaped = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const termRegex = new RegExp(`(?<=[^a-zA-Z0-9]|^)(${escaped}(?:s|es|d|ed|ing)?)(?=[^a-zA-Z0-9]|$)`, 'i');
+  let m = termRegex.exec(sentence);
+  if (!m) {
+    const stdRegex = new RegExp(`\\b(${escaped})\\b`, 'i');
+    m = stdRegex.exec(sentence);
+  }
+  if (m && m.index !== undefined) {
+    return `${sentence.substring(0, m.index)}<#${m[1]}#>${sentence.substring(m.index + m[0].length)}`;
+  }
+  return sentence;
+}
+
+export function buildSmartFallbackSentence(term: string, definition?: string): string {
+  const clean = (term || '').trim();
+  if (!clean) return '';
+  const norm = clean.toLowerCase();
+  const defNorm = (definition || '').toLowerCase();
+
+  const ADJECTIVES = new Set([
+    'red', 'blue', 'green', 'yellow', 'pink', 'brown', 'black', 'white', 'purple',
+    'big', 'small', 'tall', 'short', 'hot', 'cold', 'new', 'old', 'good', 'bad', 'happy', 'sad',
+    'fast', 'slow', 'nice', 'warm', 'cool', 'clean', 'dirty', 'sweet', 'quiet'
+  ]);
+  if (ADJECTIVES.has(norm) || (norm === 'orange' && /màu|color/.test(defNorm))) {
+    return `It is <#${clean}#>.`;
+  }
+
+  if (norm.endsWith('ing') && norm.length > 4) {
+    return `I like <#${clean}#>.`;
+  }
+
+  const isPlural = norm.length > 2 && norm.endsWith('s') && !norm.endsWith('ss') && !norm.endsWith('us') && !norm.endsWith('is');
+  if (isPlural) {
+    return `They are <#${clean}#>.`;
+  }
+
+  if (/^[aeiou]/i.test(clean)) {
+    return `It is an <#${clean}#>.`;
+  }
+
+  return `It is a <#${clean}#>.`;
+}
+
+export interface RepairResult {
+  repairedSets: WordSet[];
+  modifiedSets: WordSet[];
+}
+
+/**
+ * [FEATURE-MAP: ID-05] 3-Tier Sentence Recovery and Cross-Set Dictionary Synchronization:
+ * 1. Tier 1 (Shifted phonetic recovery): If !exampleSentence and phonetic contains spaces without /.../ or [...], restore as exampleSentence.
+ * 2. Tier 2 (Cross-Set Dictionary Recovery): Lookup term in dictionary built from presets and all active decks to restore missing sentences/translations/phonetics.
+ * 3. Tier 3 (Smart Flashcard Sentence Fallback): If still missing exampleSentence, generate elementary grammar sentence with <#term#>.
+ */
+export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
+  if (!Array.isArray(sets)) {
+    return { repairedSets: [], modifiedSets: [] };
+  }
+
+  // Step 0: Build cross-set lookup dictionary from PRESET_SETS and all input sets
+  const dictionary = new Map<string, { exampleSentence: string; exampleTranslation?: string; phonetic?: string }>();
+
+  const registerWordToDict = (w: any, isPreset = false) => {
+    if (!w || !w.term) return;
+    const key = w.term.trim().toLowerCase();
+    if (!key) return;
+
+    const rawPhonetic = (w.phonetic || '').trim();
+    const isShiftedPhonetic = Boolean(rawPhonetic && /\s/.test(rawPhonetic) && !/^\/.*\/$/.test(rawPhonetic) && !/^\[.*\]$/.test(rawPhonetic));
+    const phonetic = isShiftedPhonetic ? '' : rawPhonetic;
+
+    const sentence = (
+      w.exampleSentence ||
+      w.sentence ||
+      w.example ||
+      w.contextSentence ||
+      (isShiftedPhonetic ? rawPhonetic : '') ||
+      ''
+    ).trim();
+    const translation = (w.exampleTranslation || '').trim();
+
+    if (sentence) {
+      const existing = dictionary.get(key);
+      if (!existing || isPreset || (translation && !existing.exampleTranslation)) {
+        dictionary.set(key, {
+          exampleSentence: sentence,
+          exampleTranslation: translation || existing?.exampleTranslation,
+          phonetic: phonetic || existing?.phonetic,
+        });
+      }
+    } else if (phonetic && !dictionary.has(key)) {
+      dictionary.set(key, {
+        exampleSentence: '',
+        phonetic,
+      });
+    }
+  };
+
+  PRESET_SETS.forEach((p) => p.words?.forEach((w) => registerWordToDict(w, true)));
+  sets.forEach((s) => s.words?.forEach((w) => registerWordToDict(w, false)));
+
+  const repairedSets: WordSet[] = [];
+  const modifiedSets: WordSet[] = [];
+
+  for (const set of sets) {
+    if (!set || !Array.isArray(set.words)) {
+      repairedSets.push(set);
+      continue;
+    }
+
+    if (PRESET_SET_IDS.has(set.id)) {
+      const preset = PRESET_SETS.find((p) => p.id === set.id);
+      if (preset && (!set.words.length || set.words.some((w) => !w.exampleSentence))) {
+        repairedSets.push(preset);
+        modifiedSets.push(preset);
+        continue;
+      }
+    }
+
+    let setModified = false;
+    const repairedWords = set.words.map((w) => {
+      if (!w || typeof w !== 'object') return w;
+      const word = { ...w };
+      let wordModified = false;
+      const normTerm = (word.term || '').trim().toLowerCase();
+
+      // Tier 1: Shifted phonetic recovery
+      if ((!word.exampleSentence || !word.exampleSentence.trim()) && word.phonetic) {
+        const p = word.phonetic.trim();
+        const isPhoneticWrapped = /^\/.*\/$/.test(p) || /^\[.*\]$/.test(p);
+        if (/\s/.test(p) && !isPhoneticWrapped) {
+          word.exampleSentence = wrapTermInSentence(p, word.term);
+          delete word.phonetic;
+          wordModified = true;
+        }
+      }
+
+      // Tier 2: Cross-Set Dictionary Recovery
+      if (normTerm && dictionary.has(normTerm)) {
+        const ref = dictionary.get(normTerm)!;
+        if ((!word.exampleSentence || !word.exampleSentence.trim()) && ref.exampleSentence) {
+          word.exampleSentence = wrapTermInSentence(ref.exampleSentence, word.term);
+          wordModified = true;
+        }
+        if ((!word.exampleTranslation || !word.exampleTranslation.trim()) && ref.exampleTranslation) {
+          word.exampleTranslation = ref.exampleTranslation;
+          wordModified = true;
+        }
+        if ((!word.phonetic || !word.phonetic.trim()) && ref.phonetic) {
+          word.phonetic = ref.phonetic;
+          wordModified = true;
+        }
+      }
+
+      // Tier 3: Smart Flashcard Sentence Fallback
+      if (!word.exampleSentence || !word.exampleSentence.trim()) {
+        const fallback = buildSmartFallbackSentence(word.term, word.definition);
+        if (fallback) {
+          word.exampleSentence = fallback;
+          wordModified = true;
+        }
+      } else if (!/<#[\s\S]*?#>/.test(word.exampleSentence)) {
+        const wrapped = wrapTermInSentence(word.exampleSentence, word.term);
+        if (wrapped !== word.exampleSentence) {
+          word.exampleSentence = wrapped;
+          wordModified = true;
+        }
+      }
+
+      if (wordModified) {
+        setModified = true;
+      }
+      return word;
+    });
+
+    const repairedSet: WordSet = setModified ? { ...set, words: repairedWords } : set;
+    repairedSets.push(repairedSet);
+    if (setModified) {
+      modifiedSets.push(repairedSet);
+    }
+  }
+
+  return { repairedSets, modifiedSets };
+}
+
+export function recoverAndRepairSingleSet(
+  set: WordSet,
+  referenceSets: WordSet[] = PRESET_SETS
+): { repairedSet: WordSet; modified: boolean } {
+  if (PRESET_SET_IDS.has(set.id)) {
+    const preset = PRESET_SETS.find((p) => p.id === set.id);
+    if (preset) {
+      const isDegraded = !set.words?.length || set.words.some((w) => !w.exampleSentence);
+      return { repairedSet: preset, modified: isDegraded };
+    }
+  }
+
+  const result = recoverAndRepairWordSets([set, ...referenceSets]);
+  const repaired = result.repairedSets.find((s) => s.id === set.id) || set;
+  const isMod = result.modifiedSets.some((s) => s.id === set.id);
+  return { repairedSet: repaired, modified: isMod };
+}
 
 const LOCAL_STORAGE_KEY = 'vocagame_custom_sets';
 const LOCAL_DELETED_KEY = 'vocagame_deleted_set_ids';
@@ -98,19 +310,25 @@ export const getSets = async (): Promise<WordSet[]> => {
   const deletedSetIds = getDeletedSetIds();
   const setMap = new Map<string, WordSet>();
 
-  // Default Unit set: L3 - U5 (available immediately without waiting for network)
-  if (!deletedSetIds.has(L3_U5_SET.id)) {
-    setMap.set(L3_U5_SET.id, L3_U5_SET);
-  }
-  if (!deletedSetIds.has(L3_U6_SET.id)) {
-    setMap.set(L3_U6_SET.id, L3_U6_SET);
-  }
+  // Default Unit sets (available immediately without waiting for network)
+  PRESET_SETS.forEach((preset) => {
+    if (!deletedSetIds.has(preset.id)) {
+      setMap.set(preset.id, preset);
+    }
+  });
 
   // 1. Fetch all sets from IndexedDB (fast, persistent, unlimited quota)
   try {
     const idbSets = await idbGetAllSets();
     idbSets.forEach((s) => {
       if (s && s.id && !deletedSetIds.has(s.id)) {
+        if (PRESET_SET_IDS.has(s.id)) {
+          const canonical = PRESET_SETS.find((p) => p.id === s.id);
+          if (canonical) {
+            setMap.set(s.id, canonical);
+            return;
+          }
+        }
         setMap.set(s.id, s);
       }
     });
@@ -134,6 +352,13 @@ export const getSets = async (): Promise<WordSet[]> => {
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data() as WordSet;
       if (data && data.id && Array.isArray(data.words) && !deletedSetIds.has(data.id)) {
+        if (PRESET_SET_IDS.has(data.id)) {
+          const canonical = PRESET_SETS.find((p) => p.id === data.id);
+          if (canonical) {
+            setMap.set(data.id, canonical);
+            return;
+          }
+        }
         setMap.set(data.id, data);
         // Also cache to IndexedDB for offline fast access
         idbSaveSet(data).catch(() => {});
@@ -143,54 +368,76 @@ export const getSets = async (): Promise<WordSet[]> => {
     console.warn('Firestore fetch failed (offline or guest mode), using local sets:', error);
   }
 
-
-
-  // Convert map to array and sort by createdAt descending
+  // Convert map to array
   const allSets = Array.from(setMap.values());
-  return allSets.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  // [FEATURE-MAP: ID-05] Automated 3-tier sentence recovery across all flashcard decks
+  const { repairedSets, modifiedSets } = recoverAndRepairWordSets(allSets);
+
+  // Background persistence of repaired sets to IndexedDB, localStorage, and Firestore
+  if (modifiedSets.length > 0) {
+    modifiedSets.forEach((s) => {
+      saveSet(s).catch((err) => console.warn(`[storage] Background repair sync failed for set ${s.id}:`, err));
+    });
+  }
+
+  return repairedSets.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 
 export const getSetById = async (id: string): Promise<WordSet | undefined> => {
   const deletedSetIds = getDeletedSetIds();
   if (deletedSetIds.has(id)) return undefined;
 
+  // Preset fast-path check
+  if (PRESET_SET_IDS.has(id)) {
+    const canonical = PRESET_SETS.find((p) => p.id === id);
+    if (canonical) return canonical;
+  }
+
+  let foundSet: WordSet | undefined = undefined;
+
   // 1. Try IndexedDB first
   try {
     const idbSet = await idbGetSet(id);
     if (idbSet && !deletedSetIds.has(idbSet.id)) {
-      return idbSet;
+      foundSet = idbSet;
     }
   } catch (e) {
     console.warn('IndexedDB getSetById failed:', e);
   }
 
   // 2. Try local storage
-  const localSets = getLocalSets();
-  const localMatch = localSets.find((s) => s.id === id);
-  if (localMatch) return localMatch;
+  if (!foundSet) {
+    const localSets = getLocalSets();
+    const localMatch = localSets.find((s) => s.id === id);
+    if (localMatch) foundSet = localMatch;
+  }
 
   // 3. Try Firestore
-  try {
-    const docRef = doc(db, 'wordSets', id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data() as WordSet;
-      // Cache to IndexedDB
-      idbSaveSet(data).catch(() => {});
-      return data;
+  if (!foundSet) {
+    try {
+      const docRef = doc(db, 'wordSets', id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as WordSet;
+        idbSaveSet(data).catch(() => {});
+        foundSet = data;
+      }
+    } catch (error) {
+      console.warn(`Firestore getSetById failed for id ${id}:`, error);
     }
-  } catch (error) {
-    console.warn(`Firestore getSetById failed for id ${id}:`, error);
   }
 
-  if (id === L3_U5_SET.id && !deletedSetIds.has(id)) {
-    return L3_U5_SET;
-  }
-  if (id === L3_U6_SET.id && !deletedSetIds.has(id)) {
-    return L3_U6_SET;
+  if (!foundSet) return undefined;
+
+  // [FEATURE-MAP: ID-05] Repair single set using PRESET_SETS and local sets as dictionary reference
+  const localRefSets = getLocalSets();
+  const { repairedSet, modified } = recoverAndRepairSingleSet(foundSet, [...PRESET_SETS, ...localRefSets]);
+  if (modified) {
+    saveSet(repairedSet).catch((err) => console.warn(`[storage] Background repair sync failed for set ${repairedSet.id}:`, err));
   }
 
-  return undefined;
+  return repairedSet;
 };
 
 export const saveSet = async (set: WordSet) => {
@@ -331,6 +578,9 @@ export const saveImageFile = async (base64Data: string): Promise<string> => {
 };
 
 export const getImageFile = async (id: string): Promise<string | null> => {
+  if (L3_U7_IMAGES[id]) {
+    return L3_U7_IMAGES[id];
+  }
   if (L3_U5_IMAGES[id]) {
     return L3_U5_IMAGES[id];
   }

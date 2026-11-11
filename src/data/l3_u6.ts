@@ -16,6 +16,7 @@ export const L3_U6_SET: WordSet = {
   "title": "L3 - U6",
   "description": "Unit 6: Our school (Lớp 3)",
   "createdAt": 1793800000000,
+  "userId": "guest",
   "words": [
     {
       "id": "w_l3u6_1_computer_room",

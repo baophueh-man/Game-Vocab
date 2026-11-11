@@ -29,3 +29,10 @@ Bản đồ tính năng cốt lõi của dự án và các khóa bảo vệ an t
 - **File**: `src/pages/Editor.tsx` & `server.ts`
 - **Mô tả**: Bộ soạn thảo từ vựng, nhập/xuất Excel (`.xlsx`), JSON, Quick-Add, trích xuất dữ liệu YourHomework qua endpoint `/api/fetch-vocab`.
 - **Ranh giới an toàn**: Nhận diện thông minh cột câu ví dụ trong file Excel 3 cột hoặc 4 cột; trích xuất toàn vẹn trường câu từ YourHomework API.
+
+---
+
+### [FEATURE-MAP: ID-05] Flashcard Storage, Packaging & Automated Sentence Recovery [LOCKED - DO NOT BREAK]
+- **File**: `src/lib/storage.ts` & `src/utils/packageZip.ts`
+- **Mô tả**: Lưu trữ bộ thẻ Flashcard trên IndexedDB/localStorage/Firestore (`getSets`, `getSetById`, `saveSet`), đóng gói/giải nén `.zip` (`exportWordSetPackage`, `importWordSetPackage`) và cơ chế tự động khôi phục 3 tầng (`recoverAndRepairWordSets`, `recoverAndRepairSingleSet`).
+- **Ranh giới an toàn**: Bảo toàn 3 trường `phonetic`, `exampleSentence`, `exampleTranslation` trong ZIP và tự động khôi phục câu ví dụ cho toàn bộ thẻ thiếu câu trên cả 3 tầng lưu trữ.
