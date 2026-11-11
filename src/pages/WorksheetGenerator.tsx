@@ -123,7 +123,8 @@ import {
   Type20BorderColor,
   Type20PuzzlesPerPage,
   Type20Casing,
-  Type20GridMode
+  Type20GridMode,
+  setActiveFallbackWordPool
 } from '../utils/worksheetGenerator';
 
 // Sensible default sections generator for Composite mode
@@ -1117,6 +1118,24 @@ export default function WorksheetGenerator() {
     }
   }, []);
 
+  // [FEATURE-MAP: ID-03] Keep smart sentence fallback pool synced with active words and library decks
+  useEffect(() => {
+    const pool: WorksheetWord[] = [
+      ...words,
+      ...librarySets.flatMap((s) => s.words || []).map((w) => ({
+        term: w.term || (w as any).word || '',
+        exampleSentence: (
+          w.exampleSentence ||
+          (w as any).sentence ||
+          (w as any).example ||
+          (w as any).contextSentence ||
+          ''
+        ).trim() || undefined
+      }))
+    ];
+    setActiveFallbackWordPool(pool);
+  }, [words, librarySets]);
+
   const loadFromWordSet = async (set: WordSet) => {
     setTitle(set.title);
     setSourceUrl(window.location.origin + `/play/${set.id}`);
@@ -1136,13 +1155,21 @@ export default function WorksheetGenerator() {
             }
           }
         }
+        const rawSentence = (
+          w.exampleSentence ||
+          (w as any).sentence ||
+          (w as any).example ||
+          (w as any).contextSentence ||
+          ''
+        ).trim();
+
         return {
           id: w.id,
           term: w.term || (w as any).word || '',
           definition: w.definition || (w as any).meaning || '',
           phonetic: w.phonetic || '',
           imageUrl: img,
-          exampleSentence: w.exampleSentence,
+          exampleSentence: rawSentence || undefined,
           sourceDeckId: set.id,
           sourceDeckTitle: set.title,
           deckRole: 'primary'
@@ -1227,14 +1254,47 @@ export default function WorksheetGenerator() {
     // 1. Merge section words using deduplication logic
     const finalSecWords = mergeSectionWords(currentSecWords, wordsToApply, mode);
 
-    // 2. Ensure all finalSecWords exist in master words pool
+    // 2. Ensure all finalSecWords exist in master words pool and merge missing fields
+    // [FEATURE-MAP: ID-03] Quick Add Words - merge missing exampleSentence / imageUrl into updatedMasterWords
     const updatedMasterWords = [...words];
     for (const tw of finalSecWords) {
-      const exists = updatedMasterWords.some(
+      const foundIdx = updatedMasterWords.findIndex(
         (mw) => normalizeTerm(mw.term) === normalizeTerm(tw.term)
       );
-      if (!exists) {
+      if (foundIdx === -1) {
         updatedMasterWords.push(tw);
+      } else {
+        const existing = updatedMasterWords[foundIdx];
+        const incomingSentence = (tw.exampleSentence || (tw as any).sentence || (tw as any).example || (tw as any).contextSentence || '').trim();
+        const existingSentence = (existing.exampleSentence || '').trim();
+        const mergedSentence = existingSentence || incomingSentence || undefined;
+
+        const incomingImage = (tw.imageUrl || '').trim();
+        const existingImage = (existing.imageUrl || '').trim();
+        const mergedImage = existingImage || incomingImage || undefined;
+
+        const incomingDef = (tw.definition || (tw as any).meaning || '').trim();
+        const existingDef = (existing.definition || '').trim();
+        const mergedDef = existingDef || incomingDef || undefined;
+
+        const incomingPhonetic = (tw.phonetic || '').trim();
+        const existingPhonetic = (existing.phonetic || '').trim();
+        const mergedPhonetic = existingPhonetic || incomingPhonetic || undefined;
+
+        if (
+          mergedSentence !== existing.exampleSentence ||
+          mergedImage !== existing.imageUrl ||
+          mergedDef !== existing.definition ||
+          mergedPhonetic !== existing.phonetic
+        ) {
+          updatedMasterWords[foundIdx] = {
+            ...existing,
+            exampleSentence: mergedSentence,
+            imageUrl: mergedImage,
+            definition: mergedDef,
+            phonetic: mergedPhonetic
+          };
+        }
       }
     }
 
@@ -1304,6 +1364,13 @@ export default function WorksheetGenerator() {
 
       const fetchedWords: WorksheetWord[] = (data.words || []).map((w: WorksheetWord) => ({
         ...w,
+        exampleSentence: (
+          w.exampleSentence ||
+          (w as any).sentence ||
+          (w as any).example ||
+          (w as any).contextSentence ||
+          ''
+        ).trim() || undefined,
         deckRole: 'primary'
       }));
       setWords(fetchedWords);

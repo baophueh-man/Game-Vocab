@@ -935,17 +935,31 @@ export default function Editor() {
         if (row.length >= 2) {
           const term = String(row[0] || '').trim();
           const def = String(row[1] || '').trim();
-          const phonetic = row.length >= 3 ? String(row[2] || '').trim() : undefined;
-          const exampleSentence = row.length >= 4 ? String(row[3] || '').trim() : undefined;
-          const exampleTranslation = row.length >= 5 ? String(row[4] || '').trim() : undefined;
+          const col2 = row.length >= 3 ? String(row[2] || '').trim() : '';
+          const col3 = row.length >= 4 ? String(row[3] || '').trim() : '';
+          const col4 = row.length >= 5 ? String(row[4] || '').trim() : '';
+
+          // [FEATURE-MAP: ID-04] Smart detection for 3-column vs 4-column Excel uploads
+          let phonetic: string | undefined = col2 || undefined;
+          let exampleSentence: string | undefined = col3 || undefined;
+          const exampleTranslation: string | undefined = col4 || undefined;
+
+          if ((row.length === 3 || !col3) && col2) {
+            const isPhoneticWrapped = /^\/.*\/$/.test(col2) || /^\[.*\]$/.test(col2);
+            if (/\s/.test(col2) && !isPhoneticWrapped) {
+              exampleSentence = col2;
+              phonetic = undefined;
+            }
+          }
+
           if (term && def) {
             newWords.push({
               id: generateId(),
               term,
               definition: def,
-              phonetic: phonetic || undefined,
-              exampleSentence: exampleSentence || undefined,
-              exampleTranslation: exampleTranslation || undefined,
+              phonetic,
+              exampleSentence,
+              exampleTranslation,
             });
           }
         }

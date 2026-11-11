@@ -232,13 +232,17 @@ async function startServer() {
           }
         }
 
+        // [FEATURE-MAP: ID-04] Extract exampleSentence from YourHomework item if present
+        const rawSentence = (item.sentence || item.example || item.exampleSentence || item.contextSentence || '').trim();
+
         return {
           id: `w-${idx + 1}-${Date.now()}`,
           term: (item.word || '').trim(),
           definition: (item.meaning || '').trim(),
           phonetic: (item.phonetic || '').trim(),
           imageUrl: fullImageUrl,
-          rawImage: img
+          rawImage: img,
+          exampleSentence: rawSentence
         };
       });
 

@@ -1,4 +1,4 @@
-import { WorksheetWord } from './worksheetGenerator';
+import type { WorksheetWord } from './worksheetGenerator';
 
 // 100x100 solid colored PNG icons for standard fallback
 const SAMPLE_PNG = {

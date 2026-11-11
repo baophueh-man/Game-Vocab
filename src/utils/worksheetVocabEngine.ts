@@ -27,13 +27,15 @@ export function normalizeTerm(term: string): string {
 
 /**
  * Deduplicates an array of WorksheetWord items by normalized term and id.
- * Pure non-mutating function: preserves the first occurrence of each unique term/id.
+ * Pure non-mutating function: preserves the first occurrence of each unique term/id,
+ * merging missing fields (exampleSentence, imageUrl, definition, phonetic) from subsequent occurrences.
  */
+// [FEATURE-MAP: ID-01] Core Worksheet Vocab Engine - deduplicateWords with field merging
 export function deduplicateWords(words: WorksheetWord[]): WorksheetWord[] {
   if (!words || !Array.isArray(words)) return [];
 
-  const seenTerms = new Set<string>();
-  const seenIds = new Set<string>();
+  const termToIdx = new Map<string, number>();
+  const idToIdx = new Map<string, number>();
   const result: WorksheetWord[] = [];
 
   for (const w of words) {
@@ -41,12 +43,55 @@ export function deduplicateWords(words: WorksheetWord[]): WorksheetWord[] {
     const termNorm = normalizeTerm(w.term);
     const id = w.id;
 
-    if (id && seenIds.has(id)) continue;
-    if (termNorm && seenTerms.has(termNorm)) continue;
+    let existingIdx = -1;
+    if (termNorm && termToIdx.has(termNorm)) {
+      existingIdx = termToIdx.get(termNorm)!;
+    } else if (id && idToIdx.has(id)) {
+      existingIdx = idToIdx.get(id)!;
+    }
 
-    if (id) seenIds.add(id);
-    if (termNorm) seenTerms.add(termNorm);
-    result.push(w);
+    if (existingIdx !== -1) {
+      const existing = result[existingIdx];
+      const incomingSentence = (w.exampleSentence || (w as any).sentence || (w as any).example || (w as any).contextSentence || '').trim();
+      const existingSentence = (existing.exampleSentence || '').trim();
+      const mergedSentence = existingSentence || incomingSentence || undefined;
+
+      const incomingImage = (w.imageUrl || '').trim();
+      const existingImage = (existing.imageUrl || '').trim();
+      const mergedImage = existingImage || incomingImage || undefined;
+
+      const incomingDef = (w.definition || (w as any).meaning || '').trim();
+      const existingDef = (existing.definition || '').trim();
+      const mergedDef = existingDef || incomingDef || undefined;
+
+      const incomingPhonetic = (w.phonetic || '').trim();
+      const existingPhonetic = (existing.phonetic || '').trim();
+      const mergedPhonetic = existingPhonetic || incomingPhonetic || undefined;
+
+      result[existingIdx] = {
+        ...existing,
+        exampleSentence: mergedSentence,
+        imageUrl: mergedImage,
+        definition: mergedDef,
+        phonetic: mergedPhonetic
+      };
+
+      if (id && !idToIdx.has(id)) {
+        idToIdx.set(id, existingIdx);
+      }
+      if (termNorm && !termToIdx.has(termNorm)) {
+        termToIdx.set(termNorm, existingIdx);
+      }
+      continue;
+    }
+
+    const newIdx = result.length;
+    if (id) idToIdx.set(id, newIdx);
+    if (termNorm) termToIdx.set(termNorm, newIdx);
+    result.push({
+      ...w,
+      exampleSentence: (w.exampleSentence || (w as any).sentence || (w as any).example || (w as any).contextSentence || '').trim() || undefined
+    });
   }
 
   return result;
@@ -99,13 +144,21 @@ export async function mapWordToWorksheetWord(
     }
   }
 
+  const rawSentence = (
+    word.exampleSentence ||
+    (word as any).sentence ||
+    (word as any).example ||
+    (word as any).contextSentence ||
+    ''
+  ).trim();
+
   return {
     id: word.id,
     term: word.term,
     definition: word.definition,
     phonetic: word.phonetic || '',
     imageUrl: img,
-    exampleSentence: word.exampleSentence,
+    exampleSentence: rawSentence || undefined,
     sourceDeckId: deckId,
     sourceDeckTitle: deckTitle,
     deckRole: deckRole

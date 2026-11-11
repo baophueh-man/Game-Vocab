@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { PDFDocument } from 'pdf-lib';
 import { getImageFile } from '../lib/storage';
+import { DEFAULT_SAMPLE_WORDS } from './worksheetSampleData';
 import {
   fontAsapCondensed,
   fontFarsan,
@@ -948,19 +949,115 @@ export function splitSentenceHintToLines(
   return allLines;
 }
 
+let _activeFallbackWordPool: WorksheetWord[] = [];
+
+export function setActiveFallbackWordPool(words: WorksheetWord[]) {
+  _activeFallbackWordPool = Array.isArray(words) ? words : [];
+}
+
+/**
+ * Helper to produce a standardized sentence for a vocabulary item:
+ * - If word.exampleSentence has data: returns that sentence (if highlightWrap = true and missing <#...#>, wraps matching term in <#term#>).
+ * - If word.exampleSentence is empty: searches DEFAULT_SAMPLE_WORDS or currently loaded decks for a matching term with an available sentence.
+ * - If still not found: generates a standard grammatical sentence according to word morphology:
+ *   * Plural noun ending in 's' (not 'ss', 'us', 'is', length > 2): "They are <#term#>."
+ *   * Starting with vowel 'a, e, i, o, u': "It is an <#term#>."
+ *   * Otherwise: "It is a <#term#>."
+ *   (or strips <#...#> when highlightWrap = false).
+ */
+// [FEATURE-MAP: ID-02] Smart Sentence Fallback Engine
+export function getFallbackSentenceForWord(
+  word: WorksheetWord,
+  highlightWrap: boolean = false,
+  wordPool?: WorksheetWord[]
+): string {
+  const cleanTerm = (word?.term || '').trim();
+  if (!cleanTerm) return '';
+  const normTerm = cleanTerm.toLowerCase();
+
+  const wrapMatchingTerm = (sentence: string): string => {
+    if (/<#[\s\S]*?#>/.test(sentence)) return sentence;
+    const escaped = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const termRegex = new RegExp(`(?<=[^a-zA-Z0-9]|^)(${escaped}(?:s|es|d|ed|ing)?)(?=[^a-zA-Z0-9]|$)`, 'i');
+    let m = termRegex.exec(sentence);
+    if (!m) {
+      const stdRegex = new RegExp(`\\b(${escaped})\\b`, 'i');
+      m = stdRegex.exec(sentence);
+    }
+    if (m && m.index !== undefined) {
+      return `${sentence.substring(0, m.index)}<#${m[1]}#>${sentence.substring(m.index + m[0].length)}`;
+    }
+    return sentence;
+  };
+
+  const stripHighlightTags = (sentence: string): string => {
+    return sentence.replace(/<#([\s\S]*?)#>/g, '$1').trim();
+  };
+
+  const formatFoundSentence = (rawSentence: string): string => {
+    const trimmed = rawSentence.trim();
+    if (!trimmed) return '';
+    return highlightWrap ? wrapMatchingTerm(trimmed) : stripHighlightTags(trimmed);
+  };
+
+  // 1. Check if the word itself already has an example sentence
+  const ownSentence = (
+    word.exampleSentence ||
+    (word as any).sentence ||
+    (word as any).example ||
+    (word as any).contextSentence ||
+    ''
+  ).trim();
+  if (ownSentence) {
+    return formatFoundSentence(ownSentence);
+  }
+
+  // 2. Check in provided wordPool, active loaded pool, or DEFAULT_SAMPLE_WORDS for matching term
+  const candidatePools: WorksheetWord[] = [
+    ...(wordPool || []),
+    ..._activeFallbackWordPool,
+    ...DEFAULT_SAMPLE_WORDS
+  ];
+
+  for (const candidate of candidatePools) {
+    if (!candidate) continue;
+    const candTerm = (candidate.term || '').trim().toLowerCase();
+    if (candTerm !== normTerm) continue;
+    const candSentence = (
+      candidate.exampleSentence ||
+      (candidate as any).sentence ||
+      (candidate as any).example ||
+      (candidate as any).contextSentence ||
+      ''
+    ).trim();
+    if (candSentence) {
+      return formatFoundSentence(candSentence);
+    }
+  }
+
+  // 3. Smart grammatical sentence generation
+  const isPlural = normTerm.length > 2 &&
+    normTerm.endsWith('s') &&
+    !normTerm.endsWith('ss') &&
+    !normTerm.endsWith('us') &&
+    !normTerm.endsWith('is');
+
+  if (isPlural) {
+    return highlightWrap ? `They are <#${cleanTerm}#>.` : `They are ${cleanTerm}.`;
+  }
+  if (/^[aeiou]/i.test(cleanTerm)) {
+    return highlightWrap ? `It is an <#${cleanTerm}#>.` : `It is an ${cleanTerm}.`;
+  }
+  return highlightWrap ? `It is a <#${cleanTerm}#>.` : `It is a ${cleanTerm}.`;
+}
+
 /**
  * Extract sentence for Type 1 item:
- * - Uses word.exampleSentence if available (strips <#...#> markup if present).
- * - Fallback: short sentence "[term]." per user requirement.
+ * - Uses getFallbackSentenceForWord(word, false) to ensure a full grammatical sentence is returned.
  */
+// [FEATURE-MAP: ID-02] Type 1 sentence extraction with Smart Sentence Fallback
 export function getType1Sentence(word: WorksheetWord): string {
-  const raw = (word.exampleSentence || '').trim();
-  if (raw) {
-    return raw.replace(/<#([\s\S]*?)#>/g, '$1').trim();
-  }
-  const term = (word.term || '').trim();
-  if (!term) return '';
-  return `${term}.`;
+  return getFallbackSentenceForWord(word, false);
 }
 
 /**
@@ -1227,32 +1324,22 @@ export function calculateType10Metrics(
 
 /**
  * Extract sentence for Type 15 item (Read and circle):
- * - Uses word.exampleSentence if available (strips <#...#> markup if present).
- * - Fallback: "Nào không có mẫu câu thì chỉ để chữ" -> returns word term directly.
+ * - Uses getFallbackSentenceForWord(word, false) so complete sentence is always returned.
  */
+// [FEATURE-MAP: ID-02] Type 15 sentence extraction with Smart Sentence Fallback
 export function getType15Sentence(word: WorksheetWord): string {
-  const raw = (word.exampleSentence || '').trim();
-  if (raw) {
-    return raw.replace(/<#([\s\S]*?)#>/g, '$1').trim();
-  }
-  return (word.term || '').trim();
+  return getFallbackSentenceForWord(word, false);
 }
 
 /**
  * Extract highlighted spans for Type 15 item:
- * - If exampleSentence provided: parses highlighted vocabulary span (like Type 3).
- * - Fallback: "Nào không có mẫu câu thì chỉ để chữ" -> returns term directly highlighted in red.
+ * - Uses getFallbackSentenceForWord(word, true) so the full sentence is displayed
+ *   with the target vocabulary word highlighted/underlined.
  */
+// [FEATURE-MAP: ID-02] Type 15 highlighted spans with Smart Sentence Fallback
 export function getType15SentenceSpans(word: WorksheetWord): HighlightedSpan[] {
-  const raw = (word.exampleSentence || '').trim();
-  if (raw) {
-    return parseHighlightedSentence(raw, word.term);
-  }
-  const cleanTerm = (word.term || '').trim();
-  if (cleanTerm) {
-    return [{ text: cleanTerm, isHighlighted: true }];
-  }
-  return [{ text: '', isHighlighted: false }];
+  const sentence = getFallbackSentenceForWord(word, true);
+  return parseHighlightedSentence(sentence, word.term);
 }
 
 export interface Type15RandomItemLayout {
@@ -2639,16 +2726,15 @@ export interface HighlightedSpan {
   isHighlighted: boolean;
 }
 
+// [FEATURE-MAP: ID-02] Parse highlighted sentence with Smart Sentence Fallback
 export function parseHighlightedSentence(sentence?: string, fallbackTerm?: string): HighlightedSpan[] {
-  const raw = (sentence || '').trim();
+  let raw = (sentence || '').trim();
   if (!raw) {
     if (fallbackTerm && fallbackTerm.trim()) {
-      return [
-        { text: 'Is there a ', isHighlighted: false },
-        { text: fallbackTerm.trim(), isHighlighted: true },
-        { text: '?', isHighlighted: false }
-      ];
+      raw = getFallbackSentenceForWord({ term: fallbackTerm.trim() }, true);
     }
+  }
+  if (!raw) {
     return [{ text: '', isHighlighted: false }];
   }
 
@@ -3793,13 +3879,14 @@ export function formatLookAndWriteTerm(term: string): string {
   return formatSingleSubWord(clean);
 }
 
+// [FEATURE-MAP: ID-02] Look and write sentence extraction with Smart Sentence Fallback
 export function getLookAndWriteSentence(word: WorksheetWord): { fullSentence: string; isCustom: boolean } | null {
   const term = (word.term || '').trim();
   const blankedTerm = formatLookAndWriteTerm(term);
 
-  const rawSentence = (word.exampleSentence || '').trim();
+  const rawSentence = getFallbackSentenceForWord(word, true);
   if (!rawSentence) {
-    return null; // As agreed with user: No fake sentences! Just display image + blanked term below.
+    return null;
   }
 
   // 1. If sentence contains <#...#>:
@@ -3834,6 +3921,14 @@ export function getLookAndWriteSentence(word: WorksheetWord): { fullSentence: st
 
   // 4. Otherwise, append blanked term to sentence or return as is
   return { fullSentence: `${rawSentence} ${blankedTerm}`, isCustom: false };
+}
+
+/**
+ * Type 2 / Type 12 Sentence helper: returns formatted sentence with blanks.
+ */
+// [FEATURE-MAP: ID-02] Type 2 Sentence extraction helper
+export function getType2Sentence(word: WorksheetWord): { fullSentence: string; isCustom: boolean } | null {
+  return getLookAndWriteSentence(word);
 }
 
 export function drawLookAndWriteSentence(
@@ -4905,8 +5000,12 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     creator: 'Game-Vocab'
   });
 
-  // Render logic according to type
-  if (type === 1) {
+  const previousActivePool = _activeFallbackWordPool;
+  _activeFallbackWordPool = [...validWords, ...previousActivePool];
+
+  try {
+    // Render logic according to type
+    if (type === 1) {
     // -------------------------------------------------------------
     // TYPE 1: Sentence Reorder / Rewrite (Viết lại câu)
     // Options:
@@ -5629,7 +5728,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
             isRight,
             term: w.term,
             color: isAnsMode ? [220, 38, 38] : getType3DotColor(idx, isRight, matchHint),
-            sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
+            sentence: isSentence ? parseHighlightedSentence(getFallbackSentenceForWord(w, true), w.term) : undefined
           };
         });
 
@@ -6618,7 +6717,7 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
     // Pre-calculate parsed sentence spans and measured heights for each word
     const parsedWords = validWords.map((w) => {
-      const spans = parseHighlightedSentence(w.exampleSentence, w.term);
+      const spans = parseHighlightedSentence(getFallbackSentenceForWord(w, true), w.term);
       const layout = measureHighlightedSentenceLines(doc, spans, cardWidth, sFontSize, options.fontFamily);
       return {
         word: w,
@@ -7155,28 +7254,18 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
         // 2. Bottom: Sentence or Blanked Word
         if (isAnsMode) {
-          if (currentWord.exampleSentence && currentWord.exampleSentence.trim().length > 0) {
-            const spans = parseHighlightedSentence(currentWord.exampleSentence, currentWord.term);
-            drawHighlightedCenteredSentence(
-              doc,
-              spans,
-              cardX,
-              cardY + imgBoxHeight,
-              cardWidth,
-              sentenceBoxHeight,
-              sFontSize,
-              activeFont
-            );
-          } else {
-            applyFont(doc, activeFont, 'bold');
-            doc.setFontSize(sFontSize);
-            doc.setTextColor(220, 38, 38);
-            doc.text(currentWord.term, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-              align: 'center',
-              maxWidth: cardWidth - 4
-            });
-            doc.setTextColor(0, 0, 0);
-          }
+          const sentence = getFallbackSentenceForWord(currentWord, true);
+          const spans = parseHighlightedSentence(sentence, currentWord.term);
+          drawHighlightedCenteredSentence(
+            doc,
+            spans,
+            cardX,
+            cardY + imgBoxHeight,
+            cardWidth,
+            sentenceBoxHeight,
+            sFontSize,
+            activeFont
+          );
         } else {
           const sentenceData = getLookAndWriteSentence(currentWord);
           if (sentenceData) {
@@ -8441,6 +8530,9 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
       }
     }
   }
+  } finally {
+    _activeFallbackWordPool = previousActivePool;
+  }
 
   return doc;
 }
@@ -8565,8 +8657,12 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
     'Queen', 'Rabbit', 'Sun', 'Tree', 'Umbrella', 'Violin', 'Water', 'Xylophone', 'Yo-yo', 'Zebra'
   ];
 
-  // Initialize Page 1
-  await insertBackground(doc, background, isA5);
+  const previousActivePool = _activeFallbackWordPool;
+  _activeFallbackWordPool = [...masterWordPool, ...previousActivePool];
+
+  try {
+    // Initialize Page 1
+    await insertBackground(doc, background, isA5);
 
   let currentY = margin + 4;
   let isAtTopOfPage = true;
@@ -9882,7 +9978,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
               isRight,
               term: w.term,
               color: getType3DotColor(idx, isRight, secHint),
-              sentence: isSentence ? parseHighlightedSentence(w.exampleSentence, w.term) : undefined
+              sentence: isSentence ? parseHighlightedSentence(getFallbackSentenceForWord(w, true), w.term) : undefined
             };
           });
 
@@ -10254,7 +10350,7 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
       // Pre-calculate spans and heights for each word in this section
       const parsedSecWords = secWords.map((w) => {
-        const spans = parseHighlightedSentence(w.exampleSentence, w.term);
+        const spans = parseHighlightedSentence(getFallbackSentenceForWord(w, true), w.term);
         const layout = measureHighlightedSentenceLines(doc, spans, cardWidth, sFontSize, secFont);
         return {
           word: w,
@@ -10675,28 +10771,18 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
           }
 
           if (isAnsMode) {
-            if (word.exampleSentence && word.exampleSentence.trim().length > 0) {
-              const spans = parseHighlightedSentence(word.exampleSentence, word.term);
-              drawHighlightedCenteredSentence(
-                doc,
-                spans,
-                cardX,
-                cardY + imgBoxHeight,
-                cardWidth,
-                sentenceBoxHeight,
-                sFontSize,
-                secFont
-              );
-            } else {
-              applyFont(doc, secFont, 'bold');
-              doc.setFontSize(sFontSize);
-              doc.setTextColor(220, 38, 38);
-              doc.text(word.term, cardX + cardWidth / 2, cardY + imgBoxHeight + sentenceBoxHeight / 2 + 1.2, {
-                align: 'center',
-                maxWidth: cardWidth - 4
-              });
-              doc.setTextColor(0, 0, 0);
-            }
+            const sentence = getFallbackSentenceForWord(word, true);
+            const spans = parseHighlightedSentence(sentence, word.term);
+            drawHighlightedCenteredSentence(
+              doc,
+              spans,
+              cardX,
+              cardY + imgBoxHeight,
+              cardWidth,
+              sentenceBoxHeight,
+              sFontSize,
+              secFont
+            );
           } else {
             const sentenceData = getLookAndWriteSentence(word);
             if (sentenceData) {
@@ -11713,6 +11799,9 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
 
       doc.setTextColor(0, 0, 0);
     }
+  }
+  } finally {
+    _activeFallbackWordPool = previousActivePool;
   }
 
   return doc;
