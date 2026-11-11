@@ -76,6 +76,7 @@ export interface WorksheetTemplateSection {
   wordsearchGridBorder?: WordsearchGridBorder;
   wordsearchCase?: WordsearchCase;
   targetLetter?: string;
+  targetLetterMode?: 'auto' | 'manual';
   showWordLabels?: boolean;
   sentenceScramble?: boolean;
   sentenceSeparator?: 'space' | 'slash';
@@ -852,6 +853,7 @@ function sanitizeImportedSections(rawSections: unknown[]): WorksheetTemplateSect
       ...(item.wordsearchGridBorder ? { wordsearchGridBorder: item.wordsearchGridBorder } : {}),
       ...(item.wordsearchCase ? { wordsearchCase: item.wordsearchCase } : {}),
       ...(typeof item.targetLetter === 'string' ? { targetLetter: item.targetLetter } : {}),
+      ...(item.targetLetterMode === 'auto' || item.targetLetterMode === 'manual' ? { targetLetterMode: item.targetLetterMode } : {}),
       ...(typeof item.showWordLabels === 'boolean' ? { showWordLabels: item.showWordLabels } : {}),
       ...(typeof item.sentenceScramble === 'boolean' ? { sentenceScramble: item.sentenceScramble } : {}),
       ...(item.sentenceSeparator ? { sentenceSeparator: item.sentenceSeparator } : {}),
