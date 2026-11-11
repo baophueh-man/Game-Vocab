@@ -457,6 +457,19 @@ export function reallocateWordsForSections(
       selectedIndices = allocated[idx] || [];
     }
 
+    if (sec.type === 14 && sec.targetLetterMode !== 'manual') {
+      const secWords = selectedIndices.map((i) => availableWords[i]).filter(Boolean);
+      const autoLetter = getMostFrequentLetter(secWords, sec.targetLetter || 'V');
+      return {
+        ...sec,
+        targetWordCount: targetCount,
+        selectedWordIndices: selectedIndices,
+        targetLetter: autoLetter,
+        targetLetterMode: 'auto',
+        title: `Circle the pictures that have letter ${autoLetter}`
+      };
+    }
+
     return {
       ...sec,
       targetWordCount: targetCount,
@@ -552,11 +565,20 @@ export function applyTemplateToSections(
       ? selectedIndices.length
       : targetCounts[idx];
 
+    const secWords = (selectedIndices || []).map((i) => availableWords[i]).filter(Boolean);
+    const isAutoType14 = ts.type === 14 && ts.targetLetterMode !== 'manual';
+    const resolvedTargetLetter = isAutoType14
+      ? getMostFrequentLetter(secWords, ts.targetLetter || 'V')
+      : ts.targetLetter;
+    const resolvedTitle = isAutoType14
+      ? `Circle the pictures that have letter ${resolvedTargetLetter}`
+      : ts.title;
+
     return {
       ...ts,
       id: generateId(),
       type: ts.type,
-      title: ts.title,
+      title: resolvedTitle,
       instruction: ts.instruction,
       targetWordCount: finalTargetCount,
       primaryWordCount: ts.primaryWordCount,
@@ -588,7 +610,8 @@ export function applyTemplateToSections(
       wordsearchSeed: ts.wordsearchSeed,
       type3Seed: ts.type3Seed,
       type6Seed: ts.type6Seed,
-      targetLetter: ts.targetLetter,
+      targetLetter: resolvedTargetLetter,
+      targetLetterMode: isAutoType14 ? 'auto' : ts.targetLetterMode,
       showWordLabels: ts.showWordLabels,
       sentenceScramble: ts.sentenceScramble,
       sentenceSeparator: ts.sentenceSeparator,
@@ -710,5 +733,81 @@ export function shuffleWordIndices(indices: number[]): number[] {
 export function resetIndicesToOriginal(indices: number[]): number[] {
   if (!indices) return [];
   return [...indices].sort((a, b) => a - b);
+}
+
+export interface LetterFrequencyStat {
+  letter: string;     // Uppercase 'A' - 'Z'
+  wordCount: number;  // Number of words containing this letter
+  charCount: number;  // Total character occurrences across all words
+}
+
+/**
+ * Computes frequency stats for English A-Z letters across vocabulary terms.
+ * Sorted by wordCount (descending), then charCount (descending), then alphabetical (ascending).
+ * ponytail: filters standard Latin a-z only; upgrade to accented letters if bilingual phonics needed.
+ */
+export function getLetterFrequencyStats(
+  words: (WorksheetWord | { term: string } | string)[]
+): LetterFrequencyStat[] {
+  if (!words || !Array.isArray(words) || words.length === 0) {
+    return [];
+  }
+
+  const wordCounts: Record<string, number> = {};
+  const charCounts: Record<string, number> = {};
+
+  for (const item of words) {
+    if (!item) continue;
+    const term = typeof item === 'string' ? item : (item.term || '');
+    const clean = term.toLowerCase();
+    const seenInWord = new Set<string>();
+
+    for (const ch of clean) {
+      if (ch >= 'a' && ch <= 'z') {
+        charCounts[ch] = (charCounts[ch] || 0) + 1;
+        if (!seenInWord.has(ch)) {
+          seenInWord.add(ch);
+          wordCounts[ch] = (wordCounts[ch] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const stats: LetterFrequencyStat[] = [];
+  for (let i = 0; i < 26; i++) {
+    const ch = String.fromCharCode(97 + i); // 'a' to 'z'
+    const wCount = wordCounts[ch] || 0;
+    const cCount = charCounts[ch] || 0;
+    if (wCount > 0) {
+      stats.push({
+        letter: ch.toUpperCase(),
+        wordCount: wCount,
+        charCount: cCount
+      });
+    }
+  }
+
+  stats.sort((a, b) => {
+    if (b.wordCount !== a.wordCount) return b.wordCount - a.wordCount;
+    if (b.charCount !== a.charCount) return b.charCount - a.charCount;
+    return a.letter.localeCompare(b.letter);
+  });
+
+  return stats;
+}
+
+/**
+ * Returns the single most frequent letter from a word list according to Hybrid Word-Coverage.
+ * Fallbacks to 'V' if the word list is empty or has no Latin alphabetic characters.
+ */
+export function getMostFrequentLetter(
+  words: (WorksheetWord | { term: string } | string)[],
+  fallback: string = 'V'
+): string {
+  const stats = getLetterFrequencyStats(words);
+  if (stats.length > 0 && stats[0].wordCount > 0) {
+    return stats[0].letter;
+  }
+  return fallback;
 }
 

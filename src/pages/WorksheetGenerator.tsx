@@ -59,7 +59,10 @@ import {
   reorderIndices,
   sortIndicesAlphabetically,
   shuffleWordIndices,
-  resetIndicesToOriginal
+  resetIndicesToOriginal,
+  getMostFrequentLetter,
+  getLetterFrequencyStats,
+  pickRandomWords
 } from '../utils/worksheetVocabEngine';
 import { DEFAULT_SAMPLE_WORDS } from '../utils/worksheetSampleData';
 import {
@@ -282,6 +285,7 @@ export default function WorksheetGenerator() {
   const [wordsearchCase, setWordsearchCase] = useState<WordsearchCase>('lower');
   const [wordsearchSeed, setWordsearchSeed] = useState<number>(() => Date.now());
   const [targetLetter, setTargetLetter] = useState<string>('V');
+  const [targetLetterMode, setTargetLetterMode] = useState<'auto' | 'manual'>('auto');
   const [showWordLabels, setShowWordLabels] = useState<boolean>(true);
   const [sentenceScramble, setSentenceScramble] = useState<boolean>(true);
   const [sentenceSeparator, setSentenceSeparator] = useState<'space' | 'slash'>('space');
@@ -534,6 +538,9 @@ export default function WorksheetGenerator() {
       updated.type15Seed !== undefined ||
       updated.wordsearchSeed !== undefined ||
       updated.type3Seed !== undefined ||
+      updated.targetLetter !== undefined ||
+      updated.targetLetterMode !== undefined ||
+      updated.showWordLabels !== undefined ||
       updated.answerMode !== undefined
     ) {
       setTimeout(() => {
@@ -807,6 +814,7 @@ export default function WorksheetGenerator() {
       type3Seed: Date.now(),
       type6Seed: Date.now(),
       targetLetter,
+      targetLetterMode,
       showWordLabels,
       sentenceScramble,
       sentenceSeparator,
@@ -1195,7 +1203,15 @@ export default function WorksheetGenerator() {
       if (worksheetMode === 'composite') {
         handleGeneratePreview(mapped, set.title, undefined, undefined, finalSecs, 'composite');
       } else {
-        handleGeneratePreview(mapped, set.title);
+        if (worksheetType === 14 && targetLetterMode === 'auto') {
+          const autoLtr = getMostFrequentLetter(mapped);
+          setTargetLetter(autoLtr);
+          const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+          setTitle(newTitle);
+          handleGeneratePreview(mapped, newTitle, 14, { targetLetter: autoLtr, targetLetterMode: 'auto' });
+        } else {
+          handleGeneratePreview(mapped, set.title);
+        }
       }
     }, 200);
   };
@@ -1234,7 +1250,15 @@ export default function WorksheetGenerator() {
         if (worksheetMode === 'composite') {
           handleGeneratePreview(uniqueWords, compositeTitle, undefined, undefined, finalSecs, 'composite');
         } else {
-          handleGeneratePreview(uniqueWords, compositeTitle);
+          if (worksheetType === 14 && targetLetterMode === 'auto') {
+            const autoLtr = getMostFrequentLetter(uniqueWords);
+            setTargetLetter(autoLtr);
+            const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+            setTitle(newTitle);
+            handleGeneratePreview(uniqueWords, newTitle, 14, { targetLetter: autoLtr, targetLetterMode: 'auto' });
+          } else {
+            handleGeneratePreview(uniqueWords, compositeTitle);
+          }
         }
       }, 200);
     } catch (err: any) {
@@ -1309,9 +1333,20 @@ export default function WorksheetGenerator() {
       }
     }
 
-    // 4. Update the section's selectedWordIndices
+    // 4. Update the section's selectedWordIndices (and recalculate target letter if Type 14 is in Auto mode)
     const updatedSections = compositeSections.map((sec, idx) => {
       if (idx === quickAddSectionIndex) {
+        if (sec.type === 14 && sec.targetLetterMode !== 'manual') {
+          const secWords = newIndices.map((i) => updatedMasterWords[i]).filter(Boolean);
+          const autoLetter = getMostFrequentLetter(secWords, sec.targetLetter || 'V');
+          return {
+            ...sec,
+            selectedWordIndices: newIndices,
+            targetLetter: autoLetter,
+            targetLetterMode: 'auto',
+            title: `Circle the pictures that have letter ${autoLetter}`
+          };
+        }
         return {
           ...sec,
           selectedWordIndices: newIndices
@@ -1390,7 +1425,15 @@ export default function WorksheetGenerator() {
         if (worksheetMode === 'composite') {
           handleGeneratePreview(fetchedWords, data.title || 'Bài học từ vựng', undefined, undefined, finalSecs, 'composite');
         } else {
-          handleGeneratePreview(fetchedWords, data.title || 'Bài học từ vựng', worksheetType);
+          if (worksheetType === 14 && targetLetterMode === 'auto') {
+            const autoLtr = getMostFrequentLetter(fetchedWords);
+            setTargetLetter(autoLtr);
+            const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+            setTitle(newTitle);
+            handleGeneratePreview(fetchedWords, newTitle, 14, { targetLetter: autoLtr, targetLetterMode: 'auto' });
+          } else {
+            handleGeneratePreview(fetchedWords, data.title || 'Bài học từ vựng', worksheetType);
+          }
         }
       }, 300);
     } catch (err: any) {
@@ -1411,16 +1454,61 @@ export default function WorksheetGenerator() {
       setSingleWordOrder((prev) => [...prev.filter((i) => i !== idx), idx]);
     }
     setSelectedWordIndices(next);
+    if (worksheetMode === 'single' && worksheetType === 14 && targetLetterMode === 'auto') {
+      const nextWords = words.filter((_, i) => next.has(i));
+      if (nextWords.length > 0) {
+        const autoLtr = getMostFrequentLetter(nextWords, 'V');
+        setTargetLetter(autoLtr);
+        const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+        setTitle(newTitle);
+        handleGeneratePreview(nextWords, newTitle, 14, {
+          targetLetter: autoLtr,
+          targetLetterMode: 'auto'
+        });
+      }
+    }
   };
 
   const handleSelectAll = () => {
     setSelectedWordIndices(new Set(words.map((_, i) => i)));
     setSingleWordOrder(words.map((_, i) => i));
+    if (worksheetMode === 'single' && worksheetType === 14 && targetLetterMode === 'auto' && words.length > 0) {
+      const autoLtr = getMostFrequentLetter(words, 'V');
+      setTargetLetter(autoLtr);
+      const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+      setTitle(newTitle);
+      handleGeneratePreview(words, newTitle, 14, {
+        targetLetter: autoLtr,
+        targetLetterMode: 'auto'
+      });
+    }
   };
 
   const handleDeselectAll = () => {
     setSelectedWordIndices(new Set());
     setSingleWordOrder([]);
+  };
+
+  const handleRandomizeSingleWords = () => {
+    if (!words || words.length === 0) return;
+    const count = words.length > 8 ? 8 : (words.length >= 5 ? Math.max(4, Math.floor(words.length / 2)) : words.length);
+    const shuffled = pickRandomWords(words.map((_, i) => i), count);
+    setSelectedWordIndices(new Set(shuffled));
+    setSingleWordOrder(shuffled);
+    const pickedWords = shuffled.map((i) => words[i]).filter(Boolean);
+
+    if (worksheetType === 14 && targetLetterMode === 'auto' && pickedWords.length > 0) {
+      const autoLtr = getMostFrequentLetter(pickedWords, 'V');
+      setTargetLetter(autoLtr);
+      const newTitle = `Circle the pictures that have letter ${autoLtr}`;
+      setTitle(newTitle);
+      handleGeneratePreview(pickedWords, newTitle, 14, {
+        targetLetter: autoLtr,
+        targetLetterMode: 'auto'
+      });
+    } else if (pickedWords.length > 0) {
+      handleGeneratePreview(pickedWords);
+    }
   };
 
   const getActiveWords = (): WorksheetWord[] => {
@@ -1527,6 +1615,7 @@ export default function WorksheetGenerator() {
       wordsearchCase?: WordsearchCase;
       wordsearchSeed?: number | string;
       targetLetter?: string;
+      targetLetterMode?: 'auto' | 'manual';
       showWordLabels?: boolean;
       sentenceScramble?: boolean;
       sentenceSeparator?: 'space' | 'slash';
@@ -1675,6 +1764,7 @@ export default function WorksheetGenerator() {
             wordsearchSeed: sec.wordsearchSeed ?? wordsearchSeed,
             type9Seed: sec.type9Seed || type9Seed,
             targetLetter: sec.targetLetter,
+            targetLetterMode: sec.targetLetterMode || 'auto',
             showWordLabels: sec.showWordLabels,
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
@@ -1792,6 +1882,7 @@ export default function WorksheetGenerator() {
         wordsearchSeed: customOptions?.wordsearchSeed ?? wordsearchSeed,
         type9Seed: customOptions?.type9Seed ?? type9Seed,
         targetLetter: customOptions?.targetLetter !== undefined ? customOptions.targetLetter : targetLetter,
+        targetLetterMode: customOptions?.targetLetterMode !== undefined ? customOptions.targetLetterMode : targetLetterMode,
         showWordLabels: customOptions?.showWordLabels !== undefined ? customOptions.showWordLabels : showWordLabels,
         sentenceScramble: customOptions?.sentenceScramble !== undefined ? customOptions.sentenceScramble : sentenceScramble,
         sentenceSeparator: customOptions?.sentenceSeparator !== undefined ? customOptions.sentenceSeparator : sentenceSeparator,
@@ -1931,6 +2022,7 @@ export default function WorksheetGenerator() {
             wordsearchSeed: sec.wordsearchSeed ?? wordsearchSeed,
             type9Seed: sec.type9Seed || type9Seed,
             targetLetter: sec.targetLetter,
+            targetLetterMode: sec.targetLetterMode || 'auto',
             showWordLabels: sec.showWordLabels,
             sentenceScramble: sec.sentenceScramble,
             sentenceSeparator: sec.sentenceSeparator,
@@ -2052,6 +2144,7 @@ export default function WorksheetGenerator() {
         wordsearchSeed,
         type9Seed,
         targetLetter,
+        targetLetterMode,
         showWordLabels,
         sentenceScramble,
         sentenceSeparator,
@@ -2529,12 +2622,17 @@ export default function WorksheetGenerator() {
                           setTitle('Word Search Puzzle');
                           handleGeneratePreview(undefined, 'Word Search Puzzle', 13);
                         } else if (t.type === 14) {
-                          const currentLetter = targetLetter || 'V';
+                          const activeSelectedWords = words.filter((_, idx) => selectedWordIndices.has(idx));
+                          const currentLetter = targetLetterMode === 'auto'
+                            ? getMostFrequentLetter(activeSelectedWords, 'V')
+                            : (targetLetter || 'V');
+                          setTargetLetter(currentLetter);
                           const newTitle = `Circle the pictures that have letter ${currentLetter}`;
                           setTitle(newTitle);
                           setShowHeader(true);
                           handleGeneratePreview(undefined, newTitle, 14, {
                             targetLetter: currentLetter,
+                            targetLetterMode,
                             showWordLabels,
                             showHeader: true
                           });
@@ -4334,69 +4432,172 @@ export default function WorksheetGenerator() {
                   </div>
                 )}
 
-                {/* Type 14 Options: Target Letter & Show Word Labels */}
-                {worksheetMode === 'single' && worksheetType === 14 && (
-                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
-                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
-                      <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                        <span>🔤</span> Tuỳ Chọn Bài Tập Khoanh Tranh (Loại 14)
-                      </label>
-                      <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
-                        Lưới 4x2
-                      </span>
-                    </div>
+                {/* Type 14 Options: Target Letter (Auto/Manual) & Show Word Labels */}
+                {worksheetMode === 'single' && worksheetType === 14 && (() => {
+                  const activeSingleWords = words.filter((_, idx) => selectedWordIndices.has(idx));
+                  const singleStats = getLetterFrequencyStats(activeSingleWords);
+                  const topSingleStat = singleStats[0];
+                  const autoLetter = topSingleStat ? topSingleStat.letter : getMostFrequentLetter(activeSingleWords, 'V');
+                  const isAuto = targetLetterMode === 'auto';
+                  const currentTargetDisplay = isAuto ? autoLetter : (targetLetter || 'V');
 
-                    {/* Target Letter Input + 26 A-Z Buttons */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Chữ Cái Mục Tiêu (Target Letter)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={targetLetter}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTargetLetter(val);
-                            const newTitle = `Circle the pictures that have letter ${val}`;
-                            setTitle(newTitle);
-                            handleGeneratePreview(undefined, newTitle, 14, { targetLetter: val });
-                          }}
-                          placeholder="V"
-                          data-testid="target-letter-input"
-                          className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <div className="flex flex-wrap gap-1 flex-1">
-                          {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
-                            const currentTarget = (targetLetter || 'V').trim().toUpperCase();
-                            const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
-                            return (
-                              <button
-                                key={lettr}
-                                type="button"
-                                onClick={() => {
-                                  setTargetLetter(lettr);
-                                  const newTitle = `Circle the pictures that have letter ${lettr}`;
-                                  setTitle(newTitle);
-                                  handleGeneratePreview(undefined, newTitle, 14, { targetLetter: lettr });
-                                }}
-                                data-testid={`type14-letter-btn-${lettr}`}
-                                className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
-                                  isSelected
-                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
-                                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                                }`}
-                              >
-                                {lettr}
-                              </button>
-                            );
-                          })}
-                        </div>
+                  return (
+                    <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3.5 transition-all">
+                      <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                        <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                          <span>🔤</span> Tuỳ Chọn Bài Tập Khoanh Tranh (Loại 14)
+                        </label>
+                        <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                          Lưới 4x2
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Chữ cái này sẽ được tự động đồng bộ vào tiêu đề và tô đỏ nổi bật trên file PDF.
-                      </p>
-                    </div>
+
+                      {/* Target Letter Mode Selector (Auto vs Manual) */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Chế Độ Chọn Chữ Cái Mục Tiêu
+                          </label>
+                          <span className={`text-[11px] font-bold ${isAuto ? 'text-indigo-600' : 'text-amber-600'}`}>
+                            {isAuto ? 'Tự động (Nhiều nhất)' : 'Thủ công (Chọn tay)'}
+                          </span>
+                        </div>
+                        <div data-testid="type14-target-mode-toggle" className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetLetterMode('auto');
+                              setTargetLetter(autoLetter);
+                              const newTitle = `Circle the pictures that have letter ${autoLetter}`;
+                              setTitle(newTitle);
+                              handleGeneratePreview(undefined, newTitle, 14, {
+                                targetLetter: autoLetter,
+                                targetLetterMode: 'auto'
+                              });
+                            }}
+                            data-testid="type14-mode-auto"
+                            className={`p-2 rounded-lg border text-left transition-all ${
+                              isAuto
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className="block text-xs font-bold">✨ Tự động (Mặc định)</span>
+                            <span className={`block text-[10px] ${isAuto ? 'text-indigo-100' : 'text-slate-400'}`}>
+                              Chọn chữ xuất hiện nhiều nhất
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetLetterMode('manual');
+                              const manualLtr = targetLetter || autoLetter;
+                              setTargetLetter(manualLtr);
+                              const newTitle = `Circle the pictures that have letter ${manualLtr}`;
+                              setTitle(newTitle);
+                              handleGeneratePreview(undefined, newTitle, 14, {
+                                targetLetter: manualLtr,
+                                targetLetterMode: 'manual'
+                              });
+                            }}
+                            data-testid="type14-mode-manual"
+                            className={`p-2 rounded-lg border text-left transition-all ${
+                              !isAuto
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className="block text-xs font-bold">✋ Thủ công (Chọn tay)</span>
+                            <span className={`block text-[10px] ${!isAuto ? 'text-indigo-100' : 'text-slate-400'}`}>
+                              Tự nhập hoặc chọn A-Z cố định
+                            </span>
+                          </button>
+                        </div>
+
+                        {isAuto && (
+                          <div
+                            data-testid="type14-auto-letter-badge"
+                            className="p-2.5 rounded-lg bg-indigo-100/70 border border-indigo-200 text-xs text-indigo-950 flex items-center justify-between gap-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-md bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                                {autoLetter}
+                              </span>
+                              <div>
+                                <span className="font-bold">Chữ cái tự động: {autoLetter}</span>
+                                <span className="text-[11px] text-indigo-700 block">
+                                  {topSingleStat
+                                    ? `Xuất hiện trong ${topSingleStat.wordCount}/${activeSingleWords.length} từ (${topSingleStat.charCount} lần)`
+                                    : 'Được chọn từ danh sách từ vựng'}
+                                </span>
+                              </div>
+                            </div>
+                            {singleStats.length > 1 && (
+                              <div className="flex gap-1 text-[10px]">
+                                {singleStats.slice(0, 3).map((st) => (
+                                  <span key={st.letter} className="px-1.5 py-0.5 rounded bg-white text-indigo-700 font-semibold border border-indigo-200">
+                                    {st.letter}: {st.wordCount}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Target Letter Input + 26 A-Z Buttons */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Chữ Cái Mục Tiêu (Target Letter) {isAuto && <span className="text-[11px] text-slate-400 font-normal">(Bấm chữ bất kỳ để chuyển sang Thủ công)</span>}
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={currentTargetDisplay}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setTargetLetterMode('manual');
+                              setTargetLetter(val);
+                              const newTitle = `Circle the pictures that have letter ${val}`;
+                              setTitle(newTitle);
+                              handleGeneratePreview(undefined, newTitle, 14, { targetLetter: val, targetLetterMode: 'manual' });
+                            }}
+                            placeholder="V"
+                            data-testid="target-letter-input"
+                            className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <div className="flex flex-wrap gap-1 flex-1">
+                            {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
+                              const currentTarget = (currentTargetDisplay || 'V').trim().toUpperCase();
+                              const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
+                              return (
+                                <button
+                                  key={lettr}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetLetterMode('manual');
+                                    setTargetLetter(lettr);
+                                    const newTitle = `Circle the pictures that have letter ${lettr}`;
+                                    setTitle(newTitle);
+                                    handleGeneratePreview(undefined, newTitle, 14, { targetLetter: lettr, targetLetterMode: 'manual' });
+                                  }}
+                                  data-testid={`type14-letter-btn-${lettr}`}
+                                  className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                                  }`}
+                                >
+                                  {lettr}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Chữ cái này sẽ được tự động đồng bộ vào tiêu đề và tô đỏ nổi bật trên file PDF.
+                        </p>
+                      </div>
 
                     {/* Answer Mode Toggle for Type 14 */}
                     <div>
@@ -4456,8 +4657,9 @@ export default function WorksheetGenerator() {
                         </div>
                       </label>
                     </div>
-                  </div>
-                )}
+                    </div>
+                  );
+                })()}
 
                 {/* Type 15 Options: Read and circle */}
                 {worksheetMode === 'single' && worksheetType === 15 && (
@@ -6372,7 +6574,16 @@ export default function WorksheetGenerator() {
                   Chọn Từ Vựng ({selectedWordIndices.size}/{words.length})
                 </h2>
 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRandomizeSingleWords}
+                    data-testid="single-randomize-words-btn"
+                    className="text-xs px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold border border-indigo-200 transition-all"
+                  >
+                    🎲 Ngẫu nhiên
+                  </button>
+                  <span className="text-slate-300">|</span>
                   <button
                     type="button"
                     onClick={handleSelectAll}

@@ -85,7 +85,9 @@ import {
   sortIndicesAlphabetically,
   shuffleWordIndices,
   resetIndicesToOriginal,
-  reorderIndices
+  reorderIndices,
+  getMostFrequentLetter,
+  getLetterFrequencyStats
 } from '../../utils/worksheetVocabEngine';
 import { estimateSectionDimensions } from '../../utils/worksheetPageOptimizer';
 
@@ -126,6 +128,7 @@ export interface UICompositeSection {
   type3Seed?: number | string;
   type6Seed?: number | string;
   targetLetter?: string;
+  targetLetterMode?: 'auto' | 'manual';
   showWordLabels?: boolean;
   sentenceScramble?: boolean;
   sentenceSeparator?: 'space' | 'slash';
@@ -275,6 +278,17 @@ export default function CompositeSectionCard({
 
   const maxStepperLimit = Math.max(50, words ? words.length : 50);
 
+  const getAutoLetterUpdatesForIndices = (indices: number[]): Partial<UICompositeSection> => {
+    if (section.type !== 14 || section.targetLetterMode === 'manual') return {};
+    const secWords = indices.map((i) => words[i]).filter(Boolean);
+    const autoLtr = getMostFrequentLetter(secWords.length > 0 ? secWords : words, 'V');
+    return {
+      targetLetter: autoLtr,
+      targetLetterMode: 'auto',
+      title: `Circle the pictures that have letter ${autoLtr}`
+    };
+  };
+
   const handleAdjustPrimaryCount = (delta: number) => {
     const newPrimary = Math.min(maxStepperLimit, Math.max(1, effectivePrimaryCount + delta));
     const newTotal = newPrimary + effectiveReviewCount;
@@ -283,7 +297,8 @@ export default function CompositeSectionCard({
       primaryWordCount: newPrimary,
       reviewWordCount: effectiveReviewCount,
       targetWordCount: newTotal,
-      selectedWordIndices: picked
+      selectedWordIndices: picked,
+      ...getAutoLetterUpdatesForIndices(picked)
     });
   };
 
@@ -295,7 +310,8 @@ export default function CompositeSectionCard({
       primaryWordCount: effectivePrimaryCount,
       reviewWordCount: newReview,
       targetWordCount: newTotal,
-      selectedWordIndices: picked
+      selectedWordIndices: picked,
+      ...getAutoLetterUpdatesForIndices(picked)
     });
   };
 
@@ -322,18 +338,28 @@ export default function CompositeSectionCard({
       targetWordCount: newTarget,
       primaryWordCount: newTarget,
       reviewWordCount: 0,
-      selectedWordIndices: newIndices
+      selectedWordIndices: newIndices,
+      ...getAutoLetterUpdatesForIndices(newIndices)
     });
   };
 
   const handleRandomizeWords = () => {
     if (!words || words.length === 0) return;
     const picked = pickQuotaAwareRandomWordIndices(words, effectivePrimaryCount, effectiveReviewCount);
+    const extraUpdates: Partial<UICompositeSection> = {};
+    if (section.type === 14 && section.targetLetterMode !== 'manual') {
+      const pickedWords = picked.map((i) => words[i]).filter(Boolean);
+      const autoLtr = getMostFrequentLetter(pickedWords.length > 0 ? pickedWords : words, 'V');
+      extraUpdates.targetLetter = autoLtr;
+      extraUpdates.targetLetterMode = 'auto';
+      extraUpdates.title = `Circle the pictures that have letter ${autoLtr}`;
+    }
     onUpdateSection(index, {
       targetWordCount: effectivePrimaryCount + effectiveReviewCount,
       primaryWordCount: effectivePrimaryCount,
       reviewWordCount: effectiveReviewCount,
-      selectedWordIndices: picked
+      selectedWordIndices: picked,
+      ...extraUpdates
     });
   };
 
@@ -346,7 +372,8 @@ export default function CompositeSectionCard({
     }
     onUpdateSection(index, {
       selectedWordIndices: newIndices,
-      targetWordCount: newIndices.length
+      targetWordCount: newIndices.length,
+      ...getAutoLetterUpdatesForIndices(newIndices)
     });
   };
 
@@ -378,9 +405,11 @@ export default function CompositeSectionCard({
   };
 
   const handleSelectAll = () => {
+    const allIndices = words.map((_, i) => i);
     onUpdateSection(index, {
-      selectedWordIndices: words.map((_, i) => i),
-      targetWordCount: words.length
+      selectedWordIndices: allIndices,
+      targetWordCount: words.length,
+      ...getAutoLetterUpdatesForIndices(allIndices)
     });
   };
 
@@ -783,13 +812,21 @@ export default function CompositeSectionCard({
                   const meta = defaultTitles[t.type] || { title: (t as any).title || t.name || 'Worksheet Section' };
                   const isType8 = t.type === 8;
                   const isType11 = t.type === 11;
+                  const isType14 = t.type === 14;
                   const isType18 = t.type === 18;
                   const targetLtr = (section.type18TargetLetter || 'E').toUpperCase();
                   const targetLtrLower = (section.type18TargetLetter || 'e').toLowerCase();
                   const title18 = `Color ${targetLtr} ${section.type18ColorUpper || 'green'} and ${targetLtrLower} ${section.type18ColorLower || 'red'}`;
+
+                  const sec14Words = section.selectedWordIndices.map((i) => words[i]).filter(Boolean);
+                  const auto14Letter = getMostFrequentLetter(sec14Words.length > 0 ? sec14Words : words, 'V');
+                  const isAuto14 = section.targetLetterMode !== 'manual';
+                  const activeTarget14 = isAuto14 ? auto14Letter : (section.targetLetter || auto14Letter);
+                  const title14 = `Circle the pictures that have letter ${activeTarget14}`;
+
                   onUpdateSection(index, {
                     type: t.type,
-                    title: isType18 ? title18 : meta.title,
+                    title: isType18 ? title18 : (isType14 ? title14 : meta.title),
                     answerMode: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20].includes(t.type) ? (section.answerMode || 'student') : undefined,
                     blankMode: t.type === 4 ? (section.blankMode || 'vowels') : section.blankMode,
                     fontFamily: (isType8 || isType11) ? 'KG Primary Dots' : (section.fontFamily === 'KG Primary Dots' ? 'r0c0i Linotte' : section.fontFamily || 'r0c0i Linotte'),
@@ -804,7 +841,8 @@ export default function CompositeSectionCard({
                     wordsearchGridSize: t.type === 13 ? (section.wordsearchGridSize || 'auto') : section.wordsearchGridSize,
                     wordsearchGridBorder: t.type === 13 ? (section.wordsearchGridBorder || 'none') : section.wordsearchGridBorder,
                     wordsearchCase: t.type === 13 ? (section.wordsearchCase || 'lower') : section.wordsearchCase,
-                    targetLetter: t.type === 14 ? (section.targetLetter || 'V') : section.targetLetter,
+                    targetLetter: isType14 ? activeTarget14 : section.targetLetter,
+                    targetLetterMode: isType14 ? (section.targetLetterMode || 'auto') : section.targetLetterMode,
                     type9Seed: t.type === 9 ? (section.type9Seed || Date.now()) : section.type9Seed,
                     type15NumberStyle: t.type === 15 ? (section.type15NumberStyle || 'none') : section.type15NumberStyle,
                     type15Border: t.type === 15 ? (section.type15Border || 'full') : section.type15Border,
@@ -1859,85 +1897,176 @@ export default function CompositeSectionCard({
       )}
 
       {/* If Type 14: Circle Pictures with Target Letter Options */}
-      {section.type === 14 && (
-        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3">
-          <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
-            <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-              <span>🔤</span> Tuỳ Chọn Bài Tập Khoanh Tranh (Loại 14)
-            </span>
-            <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
-              Lưới 4 cột
-            </span>
-          </div>
+      {section.type === 14 && (() => {
+        const secWords = section.selectedWordIndices.map((i) => words[i]).filter(Boolean);
+        const autoLetter = getMostFrequentLetter(secWords.length > 0 ? secWords : words, 'V');
+        const stats = getLetterFrequencyStats(secWords.length > 0 ? secWords : words);
+        const isAuto = section.targetLetterMode !== 'manual';
+        const currentTarget = (isAuto ? autoLetter : (section.targetLetter || autoLetter || 'V')).trim().toUpperCase();
+        const topStat = stats.find((s) => s.letter === currentTarget) || (stats.length > 0 ? stats[0] : null);
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Chữ Cái Mục Tiêu (Target Letter)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={section.targetLetter ?? 'V'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdateSection(index, {
-                    targetLetter: val,
-                    title: `Circle the pictures that have letter ${val}`
-                  });
-                }}
-                placeholder="V"
-                data-testid={`section-target-letter-${index}`}
-                className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="flex flex-wrap gap-1 flex-1">
-                {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
-                  const currentTarget = (section.targetLetter || 'V').trim().toUpperCase();
-                  const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
-                  return (
-                    <button
-                      key={lettr}
-                      type="button"
-                      onClick={() => {
-                        onUpdateSection(index, {
-                          targetLetter: lettr,
-                          title: `Circle the pictures that have letter ${lettr}`
-                        });
-                      }}
-                      data-testid={`section-type14-letter-btn-${lettr}-${index}`}
-                      className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {lettr}
-                    </button>
-                  );
-                })}
-              </div>
+        return (
+          <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-3">
+            <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+              <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <span>🔤</span> Tuỳ Chọn Bài Tập Khoanh Tranh (Loại 14)
+              </span>
+              <span className="text-[11px] text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded font-semibold">
+                Lưới 4 cột
+              </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Nhập chữ cái tuỳ ý hoặc bấm chọn nhanh A-Z. Tiêu đề mục sẽ tự động cập nhật.
-            </p>
-          </div>
 
-          <div>
-            <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-xl bg-white border border-indigo-100 hover:bg-slate-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={section.showWordLabels ?? true}
-                onChange={(e) => onUpdateSection(index, { showWordLabels: e.target.checked })}
-                data-testid={`section-show-labels-${index}`}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
-              />
-              <div className="text-xs">
-                <span className="font-semibold text-slate-800">Hiển thị từ vựng bên dưới tranh</span>
-                <span className="text-slate-400 block text-[11px]">Bật nhãn chữ dưới tranh hoặc tắt để học sinh tự nhận diện</span>
+            {/* Target Letter Mode Switcher */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Chế Độ Chọn Chữ Cái Mục Tiêu
+                </label>
+                <span className="text-[11px] font-bold text-indigo-600">
+                  {isAuto ? '⚡ Tự động (Xuất hiện nhiều nhất)' : '✍️ Chọn thủ công'}
+                </span>
               </div>
-            </label>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateSection(index, {
+                      targetLetterMode: 'auto',
+                      targetLetter: autoLetter,
+                      title: `Circle the pictures that have letter ${autoLetter}`
+                    });
+                  }}
+                  data-testid={`section-type14-mode-auto-${index}`}
+                  className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                    isAuto
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span>⚡ Tự Động (Mặc định)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateSection(index, {
+                      targetLetterMode: 'manual',
+                      targetLetter: currentTarget
+                    });
+                  }}
+                  data-testid={`section-type14-mode-manual-${index}`}
+                  className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                    !isAuto
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span>✍️ Chọn Thủ Công</span>
+                </button>
+              </div>
+
+              {/* Auto stats badge banner */}
+              {isAuto && (
+                <div
+                  data-testid={`section-type14-auto-letter-badge-${index}`}
+                  className="p-2.5 rounded-lg bg-indigo-100/70 border border-indigo-200 text-xs text-indigo-950 flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-md bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                      {autoLetter}
+                    </span>
+                    <div>
+                      <span className="font-bold">Chữ cái tự động: {autoLetter}</span>
+                      <span className="text-[11px] text-indigo-700 block">
+                        {topStat ? `Xuất hiện trong ${topStat.wordCount}/${secWords.length} từ (${topStat.charCount} lần)` : 'Được chọn từ danh sách từ vựng'}
+                      </span>
+                    </div>
+                  </div>
+                  {stats.length > 1 && (
+                    <div className="flex gap-1 text-[10px]">
+                      {stats.slice(0, 3).map((st) => (
+                        <span key={st.letter} className="px-1.5 py-0.5 rounded bg-white text-indigo-700 font-semibold border border-indigo-200">
+                          {st.letter}: {st.wordCount}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Target Letter Input + 26 A-Z Buttons */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Chữ Cái Mục Tiêu (Target Letter) {isAuto && <span className="text-[11px] text-slate-400 font-normal">(Bấm chữ bất kỳ để chuyển sang Thủ công)</span>}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={currentTarget}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    onUpdateSection(index, {
+                      targetLetter: val,
+                      targetLetterMode: 'manual',
+                      title: `Circle the pictures that have letter ${val}`
+                    });
+                  }}
+                  placeholder="V"
+                  data-testid={`section-target-letter-${index}`}
+                  className="w-16 px-3 py-1.5 text-center font-bold text-base bg-white border border-slate-300 rounded-lg text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                />
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((lettr) => {
+                    const isSelected = currentTarget === lettr || currentTarget.split(/[\s,/\\|_-]+/).includes(lettr);
+                    return (
+                      <button
+                        key={lettr}
+                        type="button"
+                        onClick={() => {
+                          onUpdateSection(index, {
+                            targetLetter: lettr,
+                            targetLetterMode: 'manual',
+                            title: `Circle the pictures that have letter ${lettr}`
+                          });
+                        }}
+                        data-testid={`section-type14-letter-btn-${lettr}-${index}`}
+                        className={`w-7 h-7 text-xs font-bold rounded-md border flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {lettr}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {isAuto
+                  ? 'Đang ở chế độ Tự Động: Chữ cái mục tiêu tự động đồng bộ theo từ vựng khi đổi từ ngẫu nhiên.'
+                  : 'Đang ở chế độ Thủ Công: Chữ cái mục tiêu cố định theo lựa chọn của bạn.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-xl bg-white border border-indigo-100 hover:bg-slate-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={section.showWordLabels ?? true}
+                  onChange={(e) => onUpdateSection(index, { showWordLabels: e.target.checked })}
+                  data-testid={`section-show-labels-${index}`}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-800">Hiển thị từ vựng bên dưới tranh</span>
+                  <span className="text-slate-400 block text-[11px]">Bật nhãn chữ dưới tranh hoặc tắt để học sinh tự nhận diện</span>
+                </div>
+              </label>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Type 1 Options: Sentence Reorder / Rewrite */}
       {section.type === 1 && (

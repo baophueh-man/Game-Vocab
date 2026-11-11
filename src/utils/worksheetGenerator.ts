@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import { PDFDocument } from 'pdf-lib';
 import { getImageFile } from '../lib/storage';
 import { DEFAULT_SAMPLE_WORDS } from './worksheetSampleData';
+import { getMostFrequentLetter } from './worksheetVocabEngine';
 import {
   fontAsapCondensed,
   fontFarsan,
@@ -239,6 +240,7 @@ export interface WorksheetOptions {
   wordsearchSeed?: number | string; // for Type 13: deterministic PRNG seed ensuring Student & Answer share 100% identical grid
   type9Seed?: number | string; // for Type 9: deterministic PRNG seed ensuring unpredictable yet 100% synchronized Yes/No distribution
   targetLetter?: string; // for Type 14 (default: 'V v')
+  targetLetterMode?: 'auto' | 'manual'; // for Type 14 (default: 'auto')
   showWordLabels?: boolean; // for Type 14 (default: true)
   sentenceScramble?: boolean; // for Type 1: scramble words (default: true)
   sentenceSeparator?: 'space' | 'slash'; // for Type 1: separator ('space' | 'slash', default: 'space')
@@ -342,6 +344,7 @@ export interface CompositeWorksheetSection {
   wordsearchSeed?: number | string; // for Type 13: deterministic PRNG seed
   type9Seed?: number | string; // for Type 9: deterministic PRNG seed
   targetLetter?: string; // for Type 14
+  targetLetterMode?: 'auto' | 'manual'; // for Type 14
   showWordLabels?: boolean; // for Type 14
   sentenceScramble?: boolean; // for Type 1
   sentenceSeparator?: 'space' | 'slash'; // for Type 1
@@ -7449,7 +7452,11 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
     const effectiveFontSize = fontSize || (isA5 ? 11.5 : 13.5);
 
     const isAnsMode = options.answerMode === 'answer';
-    const targetLetter = options.targetLetter || 'V';
+    const isAutoLetter = options.targetLetterMode !== 'manual';
+    const autoTarget = getMostFrequentLetter(validWords);
+    const targetLetter = isAutoLetter
+      ? (autoTarget || options.targetLetter || 'V')
+      : (options.targetLetter || autoTarget || 'V');
 
     // Circle radius around image: comfortable clearance around image
     const circleR = Math.min((cardWidth - 2.5) / 2, imgSize / 2 + (isA5 ? 1.8 : 2.2));
@@ -7475,10 +7482,13 @@ export async function generateWorksheetPDF(options: WorksheetOptions, secondaryW
 
       // 1. Header (Title with red target letter)
       if (showHeader && title) {
+        const effectiveTitle = isAutoLetter && /letter\s+[A-Za-z]/i.test(title)
+          ? title.replace(/letter\s+[A-Za-z]/i, `letter ${targetLetter}`)
+          : title;
         drawTargetLetterTitle(
           doc,
-          title,
-          options.targetLetter,
+          effectiveTitle,
+          targetLetter,
           margin,
           margin + (isA5 ? 5.5 : 7),
           isA5 ? 15 : 20,
@@ -8952,7 +8962,14 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       doc.setFontSize(isA5 ? 11.5 : 13.5);
       doc.setTextColor(15, 23, 42);
       if (section.type === 14) {
-        drawTargetLetterTitle(doc, section.title.trim(), section.targetLetter || 'V', margin, currentY + 3.5, isA5 ? 11.5 : 13.5, 'r0c0i Linotte');
+        const autoSecTarget = getMostFrequentLetter(section.words || []);
+        const secTargetLetter = section.targetLetterMode !== 'manual'
+          ? (autoSecTarget || section.targetLetter || 'V')
+          : (section.targetLetter || autoSecTarget || 'V');
+        const effectiveSecTitle = section.targetLetterMode !== 'manual' && /letter\s+[A-Za-z]/i.test(section.title)
+          ? section.title.replace(/letter\s+[A-Za-z]/i, `letter ${secTargetLetter}`)
+          : section.title.trim();
+        drawTargetLetterTitle(doc, effectiveSecTitle, secTargetLetter, margin, currentY + 3.5, isA5 ? 11.5 : 13.5, 'r0c0i Linotte');
       } else if (section.type === 18) {
         drawType18Title(
           doc,
@@ -10919,7 +10936,11 @@ export async function generateCompositeWorksheetPDF(config: CompositeWorksheetCo
       const showLabels = section.showWordLabels !== false;
 
       const isAnsMode = section.answerMode === 'answer';
-      const targetLetter = section.targetLetter || 'V';
+      const isAutoLetter = section.targetLetterMode !== 'manual';
+      const autoTarget = getMostFrequentLetter(secWords);
+      const targetLetter = isAutoLetter
+        ? (autoTarget || section.targetLetter || 'V')
+        : (section.targetLetter || autoTarget || 'V');
 
       const circleR = Math.min((cardWidth - 2.5) / 2, imgSize / 2 + (isA5 ? 1.8 : 2.2));
       const circleDeltaY = isAnsMode ? (circleR - imgSize / 2) : 0;
