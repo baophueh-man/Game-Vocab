@@ -4,6 +4,7 @@ import { WordSet } from '../types';
 import { L3_U5_SET, L3_U5_IMAGES } from '../data/l3_u5';
 import { L3_U6_SET, L3_U6_IMAGES } from '../data/l3_u6';
 import { L3_U7_SET, L3_U7_IMAGES } from '../data/l3_u7';
+import { getCanonicalWord, detectDeckLevel, DeckLevel } from '../data/canonicalL1L2';
 import {
   idbSaveSet,
   idbGetSet,
@@ -73,9 +74,11 @@ export interface RepairResult {
 }
 
 /**
- * [FEATURE-MAP: ID-05] 3-Tier Sentence Recovery and Cross-Set Dictionary Synchronization:
+ * [FEATURE-MAP: Flashcard Storage & Level-Scoped Canonical Recovery | Nút/UI: Flashcard Deck | Selector: [data-set-id]]
+ * 4-Tier Sentence Recovery and Level-Scoped Dictionary Synchronization:
+ * 0. Tier 0 (Canonical L1 & L2 Authority): Single Source of Truth from L1.txt & L2.txt for L1/L2 decks.
  * 1. Tier 1 (Shifted phonetic recovery): If !exampleSentence and phonetic contains spaces without /.../ or [...], restore as exampleSentence.
- * 2. Tier 2 (Cross-Set Dictionary Recovery): Lookup term in dictionary built from presets and all active decks to restore missing sentences/translations/phonetics.
+ * 2. Tier 2 (Level-Scoped Cross-Set Dictionary Recovery): Lookup term in dictionary partitioned by level (L1, L2, L3, other).
  * 3. Tier 3 (Smart Flashcard Sentence Fallback): If still missing exampleSentence, generate elementary grammar sentence with <#term#>.
  */
 export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
@@ -83,13 +86,21 @@ export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
     return { repairedSets: [], modifiedSets: [] };
   }
 
-  // Step 0: Build cross-set lookup dictionary from PRESET_SETS and all input sets
-  const dictionary = new Map<string, { exampleSentence: string; exampleTranslation?: string; phonetic?: string }>();
+  // Step 0: Build level-scoped cross-set lookup dictionaries to prevent cross-level pollution
+  const levelDictionaries: Record<DeckLevel, Map<string, { exampleSentence: string; exampleTranslation?: string; phonetic?: string }>> = {
+    L1: new Map(),
+    L2: new Map(),
+    L3: new Map(),
+    other: new Map(),
+  };
 
-  const registerWordToDict = (w: any, isPreset = false) => {
+  const registerWordToDict = (w: any, level: DeckLevel, isPreset = false) => {
     if (!w || !w.term) return;
     const key = w.term.trim().toLowerCase();
     if (!key) return;
+
+    const dict = levelDictionaries[level];
+    if (!dict) return;
 
     const rawPhonetic = (w.phonetic || '').trim();
     const isShiftedPhonetic = Boolean(rawPhonetic && /\s/.test(rawPhonetic) && !/^\/.*\/$/.test(rawPhonetic) && !/^\[.*\]$/.test(rawPhonetic));
@@ -106,24 +117,27 @@ export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
     const translation = (w.exampleTranslation || '').trim();
 
     if (sentence) {
-      const existing = dictionary.get(key);
+      const existing = dict.get(key);
       if (!existing || isPreset || (translation && !existing.exampleTranslation)) {
-        dictionary.set(key, {
+        dict.set(key, {
           exampleSentence: sentence,
           exampleTranslation: translation || existing?.exampleTranslation,
           phonetic: phonetic || existing?.phonetic,
         });
       }
-    } else if (phonetic && !dictionary.has(key)) {
-      dictionary.set(key, {
+    } else if (phonetic && !dict.has(key)) {
+      dict.set(key, {
         exampleSentence: '',
         phonetic,
       });
     }
   };
 
-  PRESET_SETS.forEach((p) => p.words?.forEach((w) => registerWordToDict(w, true)));
-  sets.forEach((s) => s.words?.forEach((w) => registerWordToDict(w, false)));
+  PRESET_SETS.forEach((p) => p.words?.forEach((w) => registerWordToDict(w, 'L3', true)));
+  sets.forEach((s) => {
+    const level = detectDeckLevel(s);
+    s.words?.forEach((w) => registerWordToDict(w, level, false));
+  });
 
   const repairedSets: WordSet[] = [];
   const modifiedSets: WordSet[] = [];
@@ -143,12 +157,41 @@ export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
       }
     }
 
+    const deckLevel = detectDeckLevel(set);
     let setModified = false;
     const repairedWords = set.words.map((w) => {
       if (!w || typeof w !== 'object') return w;
       const word = { ...w };
       let wordModified = false;
       const normTerm = (word.term || '').trim().toLowerCase();
+
+      // Tier 0: Canonical L1 & L2 Authority (Single Source of Truth from L1.txt / L2.txt)
+      if (deckLevel === 'L1' || deckLevel === 'L2') {
+        const canonical = getCanonicalWord(word.term, deckLevel);
+        if (canonical) {
+          if (word.exampleSentence !== canonical.exampleSentence) {
+            word.exampleSentence = canonical.exampleSentence;
+            wordModified = true;
+          }
+          if (word.exampleTranslation !== canonical.exampleTranslation) {
+            word.exampleTranslation = canonical.exampleTranslation;
+            wordModified = true;
+          }
+          if (word.phonetic !== canonical.phonetic) {
+            word.phonetic = canonical.phonetic;
+            wordModified = true;
+          }
+          if ((!word.definition || !word.definition.trim()) && canonical.definition) {
+            word.definition = canonical.definition;
+            wordModified = true;
+          }
+
+          if (wordModified) {
+            setModified = true;
+          }
+          return word;
+        }
+      }
 
       // Tier 1: Shifted phonetic recovery
       if ((!word.exampleSentence || !word.exampleSentence.trim()) && word.phonetic) {
@@ -161,9 +204,10 @@ export function recoverAndRepairWordSets(sets: WordSet[]): RepairResult {
         }
       }
 
-      // Tier 2: Cross-Set Dictionary Recovery
-      if (normTerm && dictionary.has(normTerm)) {
-        const ref = dictionary.get(normTerm)!;
+      // Tier 2: Level-Scoped Cross-Set Dictionary Recovery
+      const levelDict = levelDictionaries[deckLevel] || levelDictionaries.other;
+      const ref = normTerm ? levelDict.get(normTerm) : undefined;
+      if (ref) {
         if ((!word.exampleSentence || !word.exampleSentence.trim()) && ref.exampleSentence) {
           word.exampleSentence = wrapTermInSentence(ref.exampleSentence, word.term);
           wordModified = true;
@@ -306,6 +350,7 @@ function unmarkSetAsDeleted(id: string) {
   }
 }
 
+// [FEATURE-MAP: Library Deck Loader | Nút/UI: Deck Card Container | Selector: div.grid > div.bg-white.rounded-xl.border]
 export const getSets = async (): Promise<WordSet[]> => {
   const deletedSetIds = getDeletedSetIds();
   const setMap = new Map<string, WordSet>();
@@ -371,7 +416,7 @@ export const getSets = async (): Promise<WordSet[]> => {
   // Convert map to array
   const allSets = Array.from(setMap.values());
 
-  // [FEATURE-MAP: ID-05] Automated 3-tier sentence recovery across all flashcard decks
+  // [FEATURE-MAP: Flashcard Storage & 4-Tier Recovery | Nút/UI: recoverAndRepairWordSets | Selector: div.grid > div.bg-white.rounded-xl.border]
   const { repairedSets, modifiedSets } = recoverAndRepairWordSets(allSets);
 
   // Background persistence of repaired sets to IndexedDB, localStorage, and Firestore
@@ -384,6 +429,7 @@ export const getSets = async (): Promise<WordSet[]> => {
   return repairedSets.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 
+// [FEATURE-MAP: Single Deck Loader | Nút/UI: Play Games Link | Selector: a[href^="/play/"]]
 export const getSetById = async (id: string): Promise<WordSet | undefined> => {
   const deletedSetIds = getDeletedSetIds();
   if (deletedSetIds.has(id)) return undefined;
@@ -430,7 +476,7 @@ export const getSetById = async (id: string): Promise<WordSet | undefined> => {
 
   if (!foundSet) return undefined;
 
-  // [FEATURE-MAP: ID-05] Repair single set using PRESET_SETS and local sets as dictionary reference
+  // [FEATURE-MAP: Flashcard Storage & 4-Tier Recovery | Nút/UI: recoverAndRepairSingleSet | Selector: a[href^="/play/"]]
   const localRefSets = getLocalSets();
   const { repairedSet, modified } = recoverAndRepairSingleSet(foundSet, [...PRESET_SETS, ...localRefSets]);
   if (modified) {
@@ -440,6 +486,7 @@ export const getSetById = async (id: string): Promise<WordSet | undefined> => {
   return repairedSet;
 };
 
+// [FEATURE-MAP: Cloud & Local Deck Persistence | Nút/UI: Share Public Link Button | Selector: button[title="Copy Link"]]
 export const saveSet = async (set: WordSet) => {
   // Unmark as deleted if it was previously deleted
   unmarkSetAsDeleted(set.id);
@@ -488,6 +535,7 @@ export const saveSet = async (set: WordSet) => {
   }
 };
 
+// [FEATURE-MAP: Delete Deck Persistence | Nút/UI: Delete Deck Button | Selector: button[title="Delete"]]
 export const deleteSet = async (id: string) => {
   // 1. Mark as deleted so it won't be resurrected
   markSetAsDeleted(id);

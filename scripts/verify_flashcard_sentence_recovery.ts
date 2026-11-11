@@ -94,37 +94,97 @@ console.log('>>> Starting Flashcard Sentence Recovery & Preservation Verificatio
 }
 
 // ==========================================
-// TEST 4: Tier 2 - Cross-Set Dictionary Recovery
+// VERIFICATION 0: Tier 0 - Canonical L1 & L2 Single Source of Truth & Level Isolation
 // ==========================================
 {
-  console.log('Testing Tier 2: Cross-Set Dictionary Recovery...');
+  console.log('Verifying Tier 0: Canonical L1 & L2 Single Source of Truth & Level Isolation...');
+  const l1Deck: WordSet = {
+    id: 'deck_l1_check',
+    title: 'L1 - Unit 1',
+    createdAt: Date.now(),
+    userId: 'user1',
+    words: [
+      { id: 'l1_1', term: 'bike', definition: 'xe đạp' },
+      { id: 'l1_2', term: 'chips', definition: 'khoai tây chiên' },
+      { id: 'l1_3', term: 'desk', definition: 'cái bàn học' },
+      { id: 'l1_4', term: 'duck', definition: 'con vịt' },
+      { id: 'l1_5', term: 'milk', definition: 'sữa' },
+      { id: 'l1_6', term: 'pen', definition: 'bút mực' },
+    ],
+  };
+
+  const l2Deck: WordSet = {
+    id: 'deck_l2_check',
+    title: 'L2 - Unit 1',
+    createdAt: Date.now(),
+    userId: 'user1',
+    words: [
+      { id: 'l2_1', term: 'bike', definition: 'xe đạp' },
+      { id: 'l2_2', term: 'chips', definition: 'khoai tây chiên' },
+      { id: 'l2_3', term: 'desk', definition: 'cái bàn' },
+      { id: 'l2_4', term: 'duck', definition: 'con vịt' },
+      { id: 'l2_5', term: 'milk', definition: 'sữa' },
+      { id: 'l2_6', term: 'pen', definition: 'bút' },
+      { id: 'l2_7', term: 'running', definition: 'chạy bộ' },
+    ],
+  };
+
+  const { repairedSets } = recoverAndRepairWordSets([l1Deck, l2Deck]);
+  const repairedL1 = repairedSets.find((s) => s.id === 'deck_l1_check')!;
+  const repairedL2 = repairedSets.find((s) => s.id === 'deck_l2_check')!;
+
+  // Verify L1 exact sentences from L1.txt
+  assert.equal(repairedL1.words.find((w) => w.term === 'bike')?.exampleSentence, 'I have a <#bike#>.');
+  assert.equal(repairedL1.words.find((w) => w.term === 'chips')?.exampleSentence, 'I like <#chips#>.');
+  assert.equal(repairedL1.words.find((w) => w.term === 'desk')?.exampleSentence, 'This is a <#desk#>.');
+  assert.equal(repairedL1.words.find((w) => w.term === 'duck')?.exampleSentence, 'This is a <#duck#>.');
+  assert.equal(repairedL1.words.find((w) => w.term === 'milk')?.exampleSentence, 'I like <#milk#>.');
+  assert.equal(repairedL1.words.find((w) => w.term === 'pen')?.exampleSentence, "It's a red <#pen#>.");
+
+  // Verify L2 exact sentences from L2.txt
+  assert.equal(repairedL2.words.find((w) => w.term === 'bike')?.exampleSentence, 'Is she riding a <#bike#>?');
+  assert.equal(repairedL2.words.find((w) => w.term === 'chips')?.exampleSentence, 'The <#chips#> are yummy.');
+  assert.equal(repairedL2.words.find((w) => w.term === 'desk')?.exampleSentence, 'I can see a <#desk#>.');
+  assert.equal(repairedL2.words.find((w) => w.term === 'duck')?.exampleSentence, "There's a <#duck#>.");
+  assert.equal(repairedL2.words.find((w) => w.term === 'milk')?.exampleSentence, 'Pass me the <#milk#>, please.');
+  assert.equal(repairedL2.words.find((w) => w.term === 'pen')?.exampleSentence, "It's a <#pen#>.");
+  assert.equal(repairedL2.words.find((w) => w.term === 'running')?.exampleSentence, 'He is <#running#>.');
+
+  console.log('[PASS] Tier 0: Canonical L1 & L2 Single Source of Truth & Level Isolation verified.');
+}
+
+// ==========================================
+// VERIFICATION 4: Tier 2 - Cross-Set Dictionary Recovery
+// ==========================================
+{
+  console.log('Verifying Tier 2: Cross-Set Dictionary Recovery...');
   const richDeck: WordSet = {
     id: 'deck_rich',
-    title: 'Lớp 1 - Unit 6 (Full) (24 từ)',
+    title: 'Grade 4 - Unit 6 (Extended)',
     createdAt: Date.now(),
     userId: 'user1',
     words: [
       {
         id: 'r1',
-        term: 'pencil',
-        definition: 'bút chì',
-        phonetic: '/ˈpensəl/',
-        exampleSentence: 'This is my <#pencil#>.',
-        exampleTranslation: 'Đây là bút chì của tôi.',
+        term: 'ruler',
+        definition: 'thước kẻ',
+        phonetic: '/ˈruː.lər/',
+        exampleSentence: 'This is my <#ruler#>.',
+        exampleTranslation: 'Đây là thước kẻ của tôi.',
       },
     ],
   };
 
   const emptySentenceDeck: WordSet = {
     id: 'deck_empty',
-    title: 'L1 - Unit 6 (4 từ)',
+    title: 'Grade 4 - Unit 6 (Quick)',
     createdAt: Date.now(),
     userId: 'user1',
     words: [
       {
         id: 'e1',
-        term: 'pencil',
-        definition: 'bút chì',
+        term: 'ruler',
+        definition: 'thước kẻ',
       },
     ],
   };
@@ -133,9 +193,9 @@ console.log('>>> Starting Flashcard Sentence Recovery & Preservation Verificatio
   const repairedEmpty = repairedSets.find((s) => s.id === 'deck_empty')!;
   const repairedWord = repairedEmpty.words[0];
 
-  assert.equal(repairedWord.exampleSentence, 'This is my <#pencil#>.');
-  assert.equal(repairedWord.exampleTranslation, 'Đây là bút chì của tôi.');
-  assert.equal(repairedWord.phonetic, '/ˈpensəl/');
+  assert.equal(repairedWord.exampleSentence, 'This is my <#ruler#>.');
+  assert.equal(repairedWord.exampleTranslation, 'Đây là thước kẻ của tôi.');
+  assert.equal(repairedWord.phonetic, '/ˈruː.lər/');
   assert.ok(modifiedSets.some((s) => s.id === 'deck_empty'), 'deck_empty should be marked modified');
   console.log('[PASS] Tier 2: Cross-Set Dictionary Recovery successfully filled missing fields.');
 }
@@ -213,7 +273,7 @@ console.log('>>> Starting Flashcard Sentence Recovery & Preservation Verificatio
     version: '1.0',
     type: 'vocagame_full_package',
     title: 'Unit 7 Package',
-    description: 'Test Unit 7 package description',
+    description: 'Unit 7 classroom commands package',
     createdAt: new Date().toISOString(),
     words: [
       {

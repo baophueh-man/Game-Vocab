@@ -44,10 +44,10 @@ export default function SpeakingCards({ words, onExit }: { words: Word[], onExit
           className="w-full h-full relative preserve-3d transition-transform duration-500"
           animate={{ rotateY: isFlipped ? 180 : 0 }}
         >
-          {/* Front */}
-          <div className="absolute inset-0 backface-hidden bg-white rounded-3xl shadow-xl border-2 border-slate-100 flex flex-col items-center justify-center p-8 md:p-16 text-center">
+          {/* [FEATURE-MAP: Flashcard Front Face | Nút/UI: Perspective Container | Selector: div.absolute.inset-0.backface-hidden.bg-white] */}
+          <div className="absolute inset-0 backface-hidden bg-white rounded-3xl shadow-xl border-2 border-slate-100 flex flex-col items-center justify-center p-6 md:p-10 text-center">
             {currentWord.imageUrl && (
-              <div className="mb-8 w-56 h-56 md:w-96 md:h-96 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm flex items-center justify-center bg-slate-50">
+              <div className="mb-4 w-40 h-40 md:w-60 md:h-60 max-h-[35%] rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm flex items-center justify-center bg-slate-50">
                 <SmartImage 
                   src={currentWord.imageUrl} 
                   alt={currentWord.term} 
@@ -56,34 +56,36 @@ export default function SpeakingCards({ words, onExit }: { words: Word[], onExit
                 />
               </div>
             )}
-            <h2 className="text-6xl md:text-8xl font-bold text-slate-900 mb-2">{currentWord.term}</h2>
+            <h2 className="text-4xl md:text-6xl font-bold text-slate-900 mb-1">{currentWord.term}</h2>
             {currentWord.phonetic && (
-              <p className="text-xl md:text-2xl text-slate-400 font-mono mb-6">{currentWord.phonetic}</p>
+              <p className="text-lg md:text-xl text-slate-400 font-mono mb-3">{currentWord.phonetic}</p>
             )}
-            {!currentWord.phonetic && <div className="mb-6" />}
-            <div className="flex items-center justify-center gap-4 md:gap-6">
+            {!currentWord.phonetic && <div className="mb-3" />}
+            {/* [FEATURE-MAP: Audio Controls | Nút/UI: Audio Speak Once / 10x | Selector: button[title="Listen once"], button[title="Listen 10 times"]] */}
+            <div className="flex items-center justify-center gap-3 md:gap-5">
               <button 
                 onClick={(e) => { e.stopPropagation(); speakEn(currentWord.term, currentWord.audioUrl); }}
-                className="p-5 md:p-8 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors shadow-sm"
+                className="p-3 md:p-4 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors shadow-sm"
                 title="Listen once"
               >
-                <Volume2 className="w-10 h-10 md:w-12 md:h-12" />
+                <Volume2 className="w-8 h-8 md:w-10 md:h-10" />
               </button>
               <button 
                 onClick={(e) => { 
                   e.stopPropagation(); 
                   speakEn(currentWord.term, currentWord.audioUrl, 10); 
                 }}
-                className="p-4 md:p-6 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors shadow-sm flex items-center gap-2"
+                className="p-3 md:p-4 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors shadow-sm flex items-center gap-2"
                 title="Listen 10 times"
               >
-                <Repeat className="w-8 h-8 md:w-10 md:h-10" />
-                <span className="font-bold text-lg md:text-xl">10x</span>
+                <Repeat className="w-6 h-6 md:w-8 md:h-8" />
+                <span className="font-bold text-base md:text-lg">10x</span>
               </button>
             </div>
 
             {currentWord.exampleSentence && (
-              <div className="mt-6 px-5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-700 text-lg md:text-2xl font-medium max-w-2xl text-center shadow-xs">
+              /* [FEATURE-MAP: Example Sentence Box | Nút/UI: Highlighted Word & Translation | Selector: div.bg-slate-50.border.border-slate-200\/80.rounded-2xl] */
+              <div className="mt-3 md:mt-4 px-4 py-2 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-700 text-base md:text-xl font-medium max-w-2xl text-center shadow-xs">
                 {parseHighlightedSentence(currentWord.exampleSentence, currentWord.term).map((span, sIdx) => (
                   <span
                     key={sIdx}
@@ -93,14 +95,15 @@ export default function SpeakingCards({ words, onExit }: { words: Word[], onExit
                   </span>
                 ))}
                 {currentWord.exampleTranslation && (
-                  <p className="text-sm md:text-base text-teal-600 mt-1.5 italic font-normal">{currentWord.exampleTranslation}</p>
+                  <p className="text-xs md:text-sm text-teal-600 mt-1 italic font-normal">{currentWord.exampleTranslation}</p>
                 )}
               </div>
             )}
-            <p className="absolute bottom-8 text-slate-400 text-base md:text-lg font-medium">Tap to flip</p>
+            {/* [FEATURE-MAP: Flip Indicator Text | Nút/UI: Tap to flip | Selector: p.text-slate-400] */}
+            <p className="absolute bottom-2 md:bottom-3 text-slate-400 text-xs md:text-sm font-medium">Tap to flip</p>
           </div>
           
-          {/* Back */}
+          {/* [FEATURE-MAP: Flashcard Back Face | Nút/UI: Vietnamese Definition | Selector: div.absolute.inset-0.backface-hidden.bg-blue-600.rotate-y-180] */}
           <div 
             className="absolute inset-0 backface-hidden bg-blue-600 rounded-3xl shadow-xl border-2 border-blue-700 flex flex-col items-center justify-center p-8 md:p-16 text-center rotate-y-180"
           >
